@@ -1,19 +1,19 @@
 {
-  "name": "senior-engineering-workflow",
+  "name": "oovz-agents",
   "owner": {
-    "name": "Senior Engineering Workflow Contributors",
+    "name": "Otto (oovz)",
     "url": "https://github.com/oovz/agents"
   },
-  "description": "A rigorous evidence-driven workflow plugin with tiered subagents for non-trivial software engineering tasks.",
+  "description": "A proportional, evidence-driven engineering workflow with conditional specialist agents.",
   "plugins": [
     {
       "name": "senior-engineering-workflow",
       "source": "./plugins/senior-engineering-workflow",
-      "description": "A rigorous evidence-driven workflow for non-trivial software engineering tasks.",
-      "version": "0.2.0",
+      "description": "A proportional, evidence-driven workflow for repository engineering tasks.",
+      "version": "0.3.0",
       "displayName": "Senior Engineering Workflow",
       "author": {
-        "name": "Senior Engineering Workflow Contributors",
+        "name": "Otto (oovz)",
         "url": "https://github.com/oovz/agents"
       },
       "homepage": "https://github.com/oovz/agents",

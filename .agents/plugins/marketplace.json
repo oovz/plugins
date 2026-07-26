@@ -1,7 +1,7 @@
 {
-  "name": "senior-engineering-workflow",
+  "name": "oovz-agents",
   "interface": {
-    "displayName": "Senior Engineering Workflow"
+    "displayName": "oovz Agents"
   },
   "plugins": [
     {
