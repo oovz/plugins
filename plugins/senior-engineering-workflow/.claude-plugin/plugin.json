@@ -2,14 +2,14 @@
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "senior-engineering-workflow",
   "displayName": "Senior Engineering Workflow",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "A proportional, evidence-driven workflow for repository engineering tasks.",
   "author": {
-    "name": "Otto (oovz)",
-    "url": "https://github.com/oovz/agents"
+    "name": "Otto",
+    "url": "https://github.com/oovz/plugins"
   },
-  "homepage": "https://github.com/oovz/agents",
-  "repository": "https://github.com/oovz/agents",
+  "homepage": "https://github.com/oovz/plugins",
+  "repository": "https://github.com/oovz/plugins",
   "license": "MIT",
   "keywords": ["engineering", "architecture", "research", "multi-agent", "validation", "subagents", "workflow"],
   "skills": "./skills/",

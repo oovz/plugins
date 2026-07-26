@@ -96,6 +96,6 @@ Host-specific definitions live in `adapters/{codex,gemini,opencode}/agents/`, wi
 
 ## Upgrade note
 
-Version 0.3 replaces the former execution role with Engineer and Tester and adds Architect. Existing installations should remove the obsolete executor agent file before reinstalling adapters. No compatibility alias is shipped because the old role name is not an accepted support target. The repository-wide host catalog is now `oovz-agents`; use `senior-engineering-workflow@oovz-agents` for host catalog installs.
+Version 0.3.1 replaces the former execution role with Engineer and Tester and adds Architect. Existing installations should remove the obsolete executor agent file before reinstalling adapters. No compatibility alias is shipped because the old role name is not an accepted support target. The repository-wide host catalog is now `otto-plugins`; use `senior-engineering-workflow@otto-plugins` for host catalog installs.
 
 See the [repository README](../../README.md) for installation, generation, and validation commands.

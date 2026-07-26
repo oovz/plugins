@@ -1,4 +1,4 @@
-# Agent Plugins
+# Otto's plugins
 
 Cross-host packaging for the Senior Engineering Workflow plugin and its skills, specialist agents, and adapters for Claude Code, Codex, Gemini CLI, and OpenCode.
 
@@ -25,14 +25,14 @@ Roles activate according to uncertainty and risk. A small local change does not 
 Add the marketplace and install the plugin from a Claude Code session:
 
 ```text
-/plugin marketplace add oovz/agents
-/plugin install senior-engineering-workflow@oovz-agents
+/plugin marketplace add oovz/plugins
+/plugin install senior-engineering-workflow@otto-plugins
 ```
 
 To install without the interactive picker:
 
 ```text
-claude plugin install senior-engineering-workflow@oovz-agents
+claude plugin install senior-engineering-workflow@otto-plugins
 ```
 
 The plugin installs the skill and all five specialist agents. Run `/reload-plugins` after installing or updating the plugin so Claude Code reloads its skills and agents; restart the session if needed.
@@ -40,8 +40,8 @@ The plugin installs the skill and all five specialist agents. Run `/reload-plugi
 ### Codex
 
 ```text
-codex plugin marketplace add oovz/agents
-codex plugin add senior-engineering-workflow@oovz-agents
+codex plugin marketplace add oovz/plugins
+codex plugin add senior-engineering-workflow@otto-plugins
 ```
 
 The Codex plugin installs the skill. Codex plugins do not currently package custom-agent TOML files, so install the five agents separately:
@@ -59,8 +59,8 @@ You can also install **Senior Engineering Workflow** from the ChatGPT desktop pl
 Gemini extensions load skills and agents from the extension root. Generate that tree from the canonical sources, then install the extension:
 
 ```text
-git clone https://github.com/oovz/agents
-cd agents
+git clone https://github.com/oovz/plugins
+cd plugins
 npm run generate:gemini
 gemini extensions install .
 ```
@@ -72,8 +72,8 @@ For local development, use `gemini extensions link .`. Restart Gemini CLI after 
 OpenCode's executable plugin API does not package skills and agents, so install them through its documented configuration directories:
 
 ```text
-git clone https://github.com/oovz/agents
-cd agents
+git clone https://github.com/oovz/plugins
+cd plugins
 node scripts/install-adapters.mjs opencode --scope user
 ```
 
@@ -90,7 +90,7 @@ Use `--scope project --project <path>` for a project-local `.opencode/` installa
 
 Agent definitions inherit the user's selected model and, where supported, reasoning effort. The plugin sets no turn or step caps. Architect, Engineer, and Tester retain the tools needed to write their assigned artifacts; Researcher and Reviewer preserve the implementation candidate while retaining evidence-gathering and validation tools. Nested delegation is available where the host supports it and remains subject to host/user depth and permission controls.
 
-When upgrading from the previous three-role release, remove the obsolete executor agent file from user or project configuration. Version 0.3 does not install a legacy alias, and the installer does not delete user files automatically. The host catalog is now named `oovz-agents`, so installation targets use `senior-engineering-workflow@oovz-agents`.
+When upgrading from the previous three-role release, remove the obsolete executor agent file from user or project configuration. Version 0.3.1 does not install a legacy alias, and the installer does not delete user files automatically. The host catalog is now named `otto-plugins`, so installation targets use `senior-engineering-workflow@otto-plugins`.
 
 ## Repository layout
 

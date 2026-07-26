@@ -8,7 +8,7 @@ import { AGENT_ROLE_NAMES, installAdapters } from "./install-adapters.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const NAME = "senior-engineering-workflow";
-const CATALOG_NAME = "oovz-agents";
+const CATALOG_NAME = "otto-plugins";
 const PLUGIN = path.join(ROOT, "plugins", NAME);
 const errors = [];
 
@@ -275,7 +275,7 @@ export async function validateRepository() {
   const claudeCatalogEntry = claudeMarket.plugins?.find((plugin) => plugin.name === NAME);
   const codexCatalogEntry = codexMarket.plugins?.find((plugin) => plugin.name === NAME);
 
-  check(packageManifest.name === "agents", "Package name must be agents");
+  check(packageManifest.name === "plugins", "Package name must be plugins");
   check(/^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/.test(packageManifest.version), "Package version is invalid");
   for (const manifest of [codex, claude, gemini]) {
     check(manifest.name === NAME, `Manifest name must be ${NAME}`);
@@ -316,7 +316,7 @@ export async function validateRepository() {
   check(claudeCatalogEntry?.category === "Productivity", "Claude marketplace plugin entry must have category");
 
   check(codexMarket.name === CATALOG_NAME, "Codex catalog name is invalid");
-  check(codexMarket.interface?.displayName === "oovz Agents", "Codex catalog display name is invalid");
+  check(codexMarket.interface?.displayName === "Otto's plugins", "Codex catalog display name is invalid");
   check(codexCatalogEntry?.source?.path === `./plugins/${NAME}`, "Codex marketplace source is invalid");
   check(codexCatalogEntry?.policy?.installation === "AVAILABLE", "Codex plugin installation policy is invalid");
   check(codexCatalogEntry?.policy?.authentication === "ON_INSTALL", "Codex authentication policy is invalid");
@@ -374,7 +374,7 @@ export async function validateRepository() {
   check(!/\ba marketplace repository\b/i.test(publicText), "The repository must not describe itself as a marketplace");
   check(
     rootReadmeText.startsWith(
-      "# Agent Plugins\n\nCross-host packaging for the Senior Engineering Workflow plugin",
+      "# Otto's plugins\n\nCross-host packaging for the Senior Engineering Workflow plugin",
     ),
     "The repository README must describe the shipped workflow directly",
   );

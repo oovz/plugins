@@ -1,7 +1,7 @@
 {
-  "name": "oovz-agents",
+  "name": "otto-plugins",
   "interface": {
-    "displayName": "oovz Agents"
+    "displayName": "Otto's plugins"
   },
   "plugins": [
     {

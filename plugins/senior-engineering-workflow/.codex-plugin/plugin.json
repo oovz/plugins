@@ -1,13 +1,13 @@
 {
   "name": "senior-engineering-workflow",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "A proportional, evidence-driven workflow for repository engineering tasks.",
   "author": {
-    "name": "Otto (oovz)",
-    "url": "https://github.com/oovz/agents"
+    "name": "Otto",
+    "url": "https://github.com/oovz/plugins"
   },
-  "homepage": "https://github.com/oovz/agents",
-  "repository": "https://github.com/oovz/agents",
+  "homepage": "https://github.com/oovz/plugins",
+  "repository": "https://github.com/oovz/plugins",
   "license": "MIT",
   "keywords": ["engineering", "architecture", "research", "multi-agent", "validation", "subagents", "workflow"],
   "skills": "./skills/",
@@ -15,10 +15,10 @@
     "displayName": "Senior Engineering Workflow",
     "shortDescription": "Evidence-driven engineering for complex work.",
     "longDescription": "Route repository work proportionally with the main agent as Engineering Manager and five conditional specialists for research, architecture, implementation, independent verification, and adversarial review.",
-    "developerName": "Otto (oovz)",
+    "developerName": "Otto",
     "category": "Productivity",
     "capabilities": ["Interactive", "Write"],
-    "websiteURL": "https://github.com/oovz/agents",
+    "websiteURL": "https://github.com/oovz/plugins",
     "defaultPrompt": [
       "Use $senior-engineering-workflow to handle this non-trivial engineering task.",
       "Investigate this codebase and design a solution for this complex change.",

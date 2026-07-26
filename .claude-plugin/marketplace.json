@@ -1,8 +1,8 @@
 {
-  "name": "oovz-agents",
+  "name": "otto-plugins",
   "owner": {
-    "name": "Otto (oovz)",
-    "url": "https://github.com/oovz/agents"
+    "name": "Otto",
+    "url": "https://github.com/oovz/plugins"
   },
   "description": "A proportional, evidence-driven engineering workflow with conditional specialist agents.",
   "plugins": [
@@ -10,14 +10,14 @@
       "name": "senior-engineering-workflow",
       "source": "./plugins/senior-engineering-workflow",
       "description": "A proportional, evidence-driven workflow for repository engineering tasks.",
-      "version": "0.3.0",
+      "version": "0.3.1",
       "displayName": "Senior Engineering Workflow",
       "author": {
-        "name": "Otto (oovz)",
-        "url": "https://github.com/oovz/agents"
+        "name": "Otto",
+        "url": "https://github.com/oovz/plugins"
       },
-      "homepage": "https://github.com/oovz/agents",
-      "repository": "https://github.com/oovz/agents",
+      "homepage": "https://github.com/oovz/plugins",
+      "repository": "https://github.com/oovz/plugins",
       "license": "MIT",
       "keywords": ["engineering", "architecture", "research", "multi-agent", "validation", "subagents", "workflow"],
       "category": "Productivity"
