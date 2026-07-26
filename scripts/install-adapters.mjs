@@ -5,6 +5,13 @@ import { fileURLToPath } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const PLUGIN = path.join(ROOT, "plugins", "senior-engineering-workflow");
+export const AGENT_ROLE_NAMES = Object.freeze([
+  "workflow-researcher",
+  "workflow-architect",
+  "workflow-engineer",
+  "workflow-tester",
+  "workflow-reviewer",
+]);
 
 async function exists(file) {
   try {
@@ -31,6 +38,13 @@ async function collectTree(source, destination) {
     else if (entry.isFile()) files.push({ source: from, destination: to });
   }
   return files;
+}
+
+function agentFiles(host, destination, extension) {
+  return AGENT_ROLE_NAMES.map((role) => ({
+    source: path.join(ROOT, "adapters", host, "agents", `${role}.${extension}`),
+    destination: path.join(destination, "agents", `${role}.${extension}`),
+  }));
 }
 
 async function installFiles(files, options) {
@@ -78,20 +92,7 @@ function parseArguments(argv) {
 export async function installAdapters(options) {
   if (options.host === "codex") {
     const base = options.scope === "user" ? path.join(os.homedir(), ".codex") : path.join(options.project, ".codex");
-    return installFiles([
-      {
-        source: path.join(ROOT, "adapters", "codex", "agents", "workflow-researcher.toml"),
-        destination: path.join(base, "agents", "workflow-researcher.toml"),
-      },
-      {
-        source: path.join(ROOT, "adapters", "codex", "agents", "workflow-reviewer.toml"),
-        destination: path.join(base, "agents", "workflow-reviewer.toml"),
-      },
-      {
-        source: path.join(ROOT, "adapters", "codex", "agents", "workflow-executor.toml"),
-        destination: path.join(base, "agents", "workflow-executor.toml"),
-      },
-    ], options);
+    return installFiles(agentFiles("codex", base, "toml"), options);
   }
 
   if (options.host === "opencode") {
@@ -100,45 +101,18 @@ export async function installAdapters(options) {
       path.join(PLUGIN, "skills", "senior-engineering-workflow"),
       path.join(base, "skills", "senior-engineering-workflow"),
     );
-    files.push(
-      {
-        source: path.join(ROOT, "adapters", "opencode", "agents", "workflow-researcher.md"),
-        destination: path.join(base, "agents", "workflow-researcher.md"),
-      },
-      {
-        source: path.join(ROOT, "adapters", "opencode", "agents", "workflow-reviewer.md"),
-        destination: path.join(base, "agents", "workflow-reviewer.md"),
-      },
-      {
-        source: path.join(ROOT, "adapters", "opencode", "agents", "workflow-executor.md"),
-        destination: path.join(base, "agents", "workflow-executor.md"),
-      },
-    );
+    files.push(...agentFiles("opencode", base, "md"));
     return installFiles(files, options);
   }
 
   if (options.host === "gemini") {
     const target = options.scope === "project" ? options.project : ROOT;
     const skillsDest = path.join(target, "skills");
-    const agentsDest = path.join(target, "agents");
     const files = await collectTree(
       path.join(PLUGIN, "skills", "senior-engineering-workflow"),
       path.join(skillsDest, "senior-engineering-workflow"),
     );
-    files.push(
-      {
-        source: path.join(ROOT, "adapters", "gemini", "agents", "workflow-researcher.md"),
-        destination: path.join(agentsDest, "workflow-researcher.md"),
-      },
-      {
-        source: path.join(ROOT, "adapters", "gemini", "agents", "workflow-reviewer.md"),
-        destination: path.join(agentsDest, "workflow-reviewer.md"),
-      },
-      {
-        source: path.join(ROOT, "adapters", "gemini", "agents", "workflow-executor.md"),
-        destination: path.join(agentsDest, "workflow-executor.md"),
-      },
-    );
+    files.push(...agentFiles("gemini", target, "md"));
     return installFiles(files, options);
   }
 

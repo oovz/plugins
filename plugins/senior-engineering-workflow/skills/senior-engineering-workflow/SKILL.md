@@ -1,281 +1,127 @@
 ---
 name: senior-engineering-workflow
-description: Use for non-trivial software work involving ambiguous requirements, architecture or cross-module changes, external or version-sensitive research, migrations, security, performance, multiple milestones, or context-heavy repository exploration. Do not use for simple local edits with a known entry point.
+description: "Use for repository-based software work that is more than a single obvious edit: feature development, bug diagnosis or repair, code review, refactoring, architecture changes, greenfield projects, migrations, security or performance work, test-infrastructure changes, version-sensitive research, or context-heavy exploration. Route the task proportionally; do not force every role or gate onto every task."
 ---
 
 # Senior Engineering Workflow
 
-Apply this workflow iteratively. Treat requirements, feasibility, architecture, and plans as working models that must change when evidence changes.
+Use this skill as a task router and delivery controller. Requirements, diagnosis, architecture, implementation, and tests are working models that change when evidence changes.
 
-## Subagent delegation strategy
+Do not read every reference file automatically. Load only the references required by the selected route.
 
-This workflow uses three tiered subagents to balance cost, capability, and independence:
+## 1. Select the route before broad work
 
-- **`workflow-researcher`** — read-only research, design analysis, codebase exploration, evidence gathering. Pinned to the most advanced model (`gpt-5.6-sol`) with `max` reasoning effort for ambiguous, multi-step reasoning tasks.
-- **`workflow-reviewer`** — independent read-only code review, security analysis, and verification of completed work. Pinned to the mid-tier model (`gpt-5.6-terra`) with `max` reasoning effort for strong analysis at moderate cost. Using a different model tier from the researcher and executor provides genuine independence — a different model brings a different perspective.
-- **`workflow-executor`** — write-capable implementation and test execution. Pinned to the cost-effective model (`gpt-5.6-luna`) with `max` reasoning effort. Luna is the cost champion for high-volume routine work; `max` effort is essential because Luna is less capable — DeepSWE v1.1 shows Luna jumps from 44.2% at `high` to 67.2% at `max`, a 23-point improvement that makes it competitive.
+Read `references/task-routing.md`. Classify the request by deliverable, uncertainty, architectural impact, and risk—not merely by task label.
 
-When the host supports subagent model configuration (Claude Code, Codex), each subagent is pinned to an appropriate model and reasoning-effort tier. When the host does not expose model pinning, create an equivalent worker with bounded scope and evidence-linked output.
+Choose one route:
 
-Prefer `workflow-researcher` for steps 1–7 (research, design). Prefer `workflow-executor` for steps 8–9 (implementation, test execution). Prefer `workflow-reviewer` for step 10 (review and challenge the result). The main agent retains ownership of integration, design decisions, and user communication.
+- **Inquiry**: explanation, investigation, or recommendation without repository changes.
+- **Review**: code or architecture review without implementation unless separately requested.
+- **Direct change**: small, local, low-risk change with a known entry point and obvious validation.
+- **Standard delivery**: feature, bug fix, refactor, or test work requiring multiple coherent checks but no unsettled architecture.
+- **Architecture delivery**: cross-module or contract-significant work, data/security/concurrency/migration changes, or an architecture refactor.
+- **Long-horizon delivery**: greenfield or multi-milestone work likely to cross context boundaries.
 
-### DeepSWE v1.1 evidence
+State the selected route and the conditions that triggered it in one sentence. Do not instantiate roles that the route does not require.
 
-Model and effort selections are grounded in DeepSWE v1.1 benchmark results (113 long-horizon software engineering tasks, pass@1, Datacurve, July 2026):
+## 2. Apply the universal baseline
 
-| Model | Effort | Pass@1 | Avg cost/task |
-|---|---|---|---|
-| `gpt-5.6-sol` | `max` | 72.7% | $8.39 |
-| `gpt-5.6-terra` | `max` | 69.6% | $4.95 |
-| `gpt-5.6-luna` | `max` | 67.2% | $3.03 |
-| `gpt-5.6-luna` | `high` | 44.2% | $0.78 |
+For any repository task:
 
-All three tiers use `max` effort because the data shows it is decisive, especially for Luna (44.2% → 67.2%). At `max`, the three tiers cluster within 5.5 points, so the cost difference dominates: Luna @max costs 36% of Sol @max for 5.5 fewer points. Sol is reserved for the hardest research and design work where the extra points matter; Terra handles review at 59% of Sol's cost; Luna handles high-volume execution at 36%.
+- read applicable project instructions and relevant documentation;
+- inspect `git status` before edits and preserve unrelated work;
+- identify the relevant implementation, tests, manifests, versions, and repository validation commands;
+- separate confirmed evidence, inference, and unknowns;
+- define the requested deliverable and completion condition;
+- use exact-version authoritative sources when external behavior matters;
+- never invent APIs, behavior, root causes, commands, or observed results.
 
-### Context window constraints
+For code-changing routes, read `references/prohibited-patterns.md`.
 
-Codex caps GPT-5.6 at an effective context window of approximately 258K tokens (272K × 95%), smaller than the 1.05M window available via the API. DeepSWE v1.1 shows peak context reaching 201K tokens for Luna @max on long-horizon tasks — close to the Codex limit.
+## 3. Activate only the needed roles
 
-This makes proactive subagent spawning essential, not optional:
+### Manager pass
 
-- Give each subagent a bounded, focused scope so it does not approach the context limit.
-- Spawn multiple `workflow-researcher` subagents aggressively for independent research directions rather than overloading a single agent.
-- Split large implementation work across multiple `workflow-executor` invocations by milestone or file ownership, not by arbitrary token counts.
+Read `references/manager.md`.
 
-### Proactive parallel spawning
+Use a **Manager-lite** brief for clear local tasks. Use a **full Manager brief** when product behavior, personas, scenarios, boundaries, non-goals, support targets, or acceptance criteria are ambiguous or material.
 
-Spawn multiple `workflow-researcher` subagents aggressively for independent research directions — codebase exploration, documentation lookup, test analysis, and evidence gathering are read-heavy tasks that parallelize well and keep the main context clean. Even with large context windows, flooding the main conversation with noisy intermediate output causes context pollution and context rot that degrades reliability over time. Give each researcher a non-overlapping scope and require evidence-linked summaries.
+The main agent remains the Manager and control plane. Do not delegate user dialogue or final integration.
 
-Be more careful with parallel `workflow-executor` spawning. Write-heavy workflows create file conflicts and coordination overhead. Only spawn multiple executors in parallel when all of the following hold:
+### Researcher
 
-- slices are independent and interfaces are settled;
-- each executor has an isolated worktree or equivalent environment;
-- each executor is assigned an explicit, non-overlapping set of files it owns.
+Use `workflow-researcher` when the entry point or root cause is unknown, exploration is verbose, exact-version external research is needed, independent hypotheses should be tested, or evidence needs context isolation.
 
-When these conditions do not hold, run executors sequentially or handle implementation directly in the main agent. `workflow-reviewer` can run in parallel with other review or research agents since it is read-only and does not conflict.
+Do not use a Researcher for a targeted lookup the main agent can perform without context pollution.
 
-## 1. Establish the current state
+### Architect
 
-Before proposing a design or editing code:
+Read `references/architecture.md` and use `workflow-architect` only when an architecture trigger in `references/task-routing.md` applies. A task called “feature” may not need an Architect; a small bug may need one if it exposes a broken contract or boundary.
 
-- read applicable `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `README`, `CONTRIBUTING`, architecture records, CI configuration, and local instructions;
-- inspect `git status` and preserve unrelated work;
-- identify the relevant projects, manifests, lockfiles, frameworks, versions, test systems, and run commands;
-- inspect the current implementation and existing tests;
-- reproduce the reported behavior when feasible;
-- choose and state one context strategy:
-  - **Direct** when the entry point is known, the change is local, and expected output is small;
-  - **Delegated exploration** when raw repository, documentation, test, log, or diff output is much larger than the conclusions the main context needs;
-  - **Long-horizon** when the task has multiple milestones, may cross context windows, or needs durable state.
+### Engineer
 
-If exploration is context-heavy, delegate before broad searching. Prefer the bundled `workflow-researcher` subagent when the host exposes it; otherwise create an equivalent read-only worker with a bounded scope and evidence-linked output.
+For any production change, read `references/engineering.md`. Use `workflow-engineer` for a settled implementation slice when delegation adds value; otherwise perform the same Engineer pass in the main agent.
 
-## 2. Build a requirements model
+The Engineer owns production code and first-line automated tests together. Do not defer basic unit, regression, or affected integration coverage to the Tester.
 
-Maintain a concise working record with:
+### Tester
 
-- desired outcome;
-- confirmed functional requirements;
-- inferred or provisional requirements;
-- non-functional requirements;
-- measurable or observable acceptance criteria;
-- constraints and integration boundaries;
-- compatibility targets;
-- explicit non-goals;
-- assumptions with evidence status;
-- unresolved questions;
-- core, significant, and peripheral edge cases;
-- known risks.
+Read `references/verification.md` and use `workflow-tester` when an independent verification trigger applies.
 
-Do not invent product requirements. Infer cautiously from repository evidence and label the inference.
+For architecture-significant or high-risk work, Tester may run an early **verification-design** pass after the brief or architecture to identify acceptance scenarios, testability gaps, required test seams, and infrastructure implications. That pass preserves the implementation candidate but may write an explicitly assigned verification-plan artifact.
 
-After the first evidence-gathering wave, discuss material ambiguities with the user. Ask questions in bounded decision form and make a recommendation.
+The post-implementation **verification** pass begins only after the Engineer reaches candidate-ready status. Tester is not the first person to discover whether the candidate compiles or whether its focused tests pass. Tester independently challenges requirement coverage, extends tests where needed, and emphasizes integration, end-to-end, boundary, security, failure, and operational behavior.
 
-## 3. Research in evidence waves
+### Reviewer
 
-Research until the work is decision-complete: additional investigation is unlikely to change a relevant requirement, architecture choice, implementation, or risk assessment.
+Read `references/review.md`. Use `workflow-reviewer` when the user requested review, the change is non-trivial or high-risk, the diff is broad, or independent disconfirmation materially improves confidence. For a direct low-risk change, a deliberate main-agent final review is sufficient.
 
-### Wave A: local truth
+## 4. Enforce candidate-ready handoff
 
-Establish current behavior and project constraints using:
+Before independent Tester or Reviewer handoff, the Engineer must provide:
 
-- source and configuration;
-- tests, compiler, runtime, logs, and traces;
-- dependency manifests and lockfiles;
-- reproducible experiments.
+- changed files and purpose;
+- tests added or changed and the requirement each protects;
+- focused formatter/lint/type/build/test commands and observed results;
+- known limitations or external blocks;
+- the prohibited-pattern audit.
 
-### Wave B: external truth
+Do not hand off knowingly broken production code as a completed implementation.
 
-For each material external dependency or claim:
+## 5. Run the verification loop without churn
 
-1. identify the exact installed or target version;
-2. consult official documentation, specifications, source, release notes, and migration guides for that version;
-3. consult standards where normative requirements matter;
-4. use maintainer and credible practitioner reports for operational experience;
-5. cross-check disputed claims and record uncertainty.
+Tester derives tests from accepted requirements, not from Engineer assumptions.
 
-### Wave C: challenge the model
+When Tester reports a failure:
 
-For uncertain or contested questions:
+1. classify it as production defect, test defect, environment issue, or contract/architecture ambiguity;
+2. route production defects to Engineer, test defects to Tester, and contract/architecture issues to Architect or Manager;
+3. require the responsible role to return evidence and focused validation;
+4. have Tester rerun the decisive test and affected broader checks.
 
-- maintain more than one plausible hypothesis;
-- seek evidence that could disprove each;
-- note source disagreement;
-- distinguish observation from inference;
-- revise the requirements and design when evidence changes.
+After two failed fixes for the same defect, stop varying the same implementation. After three Engineer–Tester rejection cycles, return to Architecture or Manager with the defect history and decision required.
 
-Use subagents for independent research directions. Give them non-overlapping scopes and require evidence-linked summaries. Prefer `workflow-researcher` for research and design analysis delegation.
+## 6. Escalate by decision ownership
 
-## 4. Design proportionally
+Use the escalation rules in `references/manager.md`.
 
-For architecture-significant work, describe the relevant parts of:
+Do not escalate facts that focused investigation can resolve. Do not silently cross an unresolved interface, invariant, support-target, scope, cost, destructive-action, or accepted-risk decision.
 
-- current architecture and affected components;
-- ownership and trust boundaries;
-- interfaces, contracts, schemas, and invariants;
-- data flow and state transitions;
-- persistence, consistency, and transactions;
-- failure modes, recovery, retry safety, and idempotency;
-- security, authentication, authorization, and privacy;
-- concurrency and ordering;
-- latency, throughput, resource, and cost constraints;
-- observability and operational support;
-- deployment, migration, backward compatibility, rollback, and removal strategy;
-- testing and validation.
+## 7. Manage context and writers
 
-Consider multiple options only where a real trade-off exists. For each viable option, identify benefits, costs, risks, compatibility consequences, operational consequences, project fit, and uncertainty.
+Read `references/delegation-and-state.md` for delegated exploration, multiple workers, or long-horizon tasks.
 
-Recommend one design and identify the decisive evidence. Ask the user to decide material product, compatibility, cost, and risk trade-offs.
+Default to one writer at a time in a working tree and one clear owner per file. Engineer and Tester may work sequentially in the same tree. Parallel writes require isolated worktrees, settled interfaces, and non-overlapping file ownership.
 
-Avoid premature abstraction, speculative extensibility, and support for unaccepted edge cases. Prefer the simplest architecture that satisfies the accepted scope and quality attributes.
+Nested delegation is allowed when the host supports it and it materially improves context isolation, parallelism, or specialist coverage. A nested worker inherits only the delegating role's accepted scope and cannot acquire product, architecture, risk, or file-ownership authority that its parent does not have. Hosts that prohibit recursion must route the additional delegation through the main Manager.
 
-## 5. Validate feasibility before broad implementation
+## 8. Complete according to the selected route
 
-When a critical assumption is uncertain, run a bounded spike, prototype, benchmark, or focused test.
+- **Inquiry**: answer with evidence, assumptions, uncertainty, and no implementation claims.
+- **Review**: report prioritized findings, evidence, affected requirement, and verification status; do not implement unless asked.
+- **Direct change**: implement with tests, run focused validation, inspect the diff, and report.
+- **Standard delivery**: complete Manager-lite/full brief as needed, Engineer implementation/tests, conditional Tester/Reviewer passes, and final validation.
+- **Architecture delivery**: settle architecture before broad implementation, then Engineer, Tester, independent Reviewer, and integration.
+- **Long-horizon delivery**: use milestones and durable task state; validate each vertical slice before the next.
 
-A feasibility experiment must:
-
-- answer one specific question;
-- state what evidence would confirm or reject the assumption;
-- be limited in scope;
-- avoid contaminating production code;
-- produce observable results;
-- be removed or productionized deliberately.
-
-After the experiment, update assumptions, requirements, architecture, and plan.
-
-## 6. Agree on scope and compatibility
-
-Do not attempt theoretical completeness.
-
-- Handle core cases.
-- Discuss significant cases and their complexity.
-- Defer peripheral cases unless selected by the user.
-
-Before adding a compatibility layer, legacy path, fallback chain, provider abstraction, version branch, polyfill, or migration bridge, present:
-
-- target and evidence of need;
-- behavior without the layer;
-- simplest no-layer option;
-- complexity and test matrix;
-- maintenance and operational burden;
-- expected lifetime and removal criteria;
-- recommendation.
-
-Obtain explicit approval before implementation.
-
-## 7. Create a milestone plan
-
-Create ordered vertical slices that each deliver coherent, verifiable behavior. The plan should include:
-
-- milestone outcome;
-- affected components or files;
-- contract or schema changes;
-- dependencies and prerequisites;
-- tests and validation commands;
-- migration, rollout, and rollback steps where relevant;
-- user decision checkpoints;
-- context-management strategy for verbose work.
-
-Keep milestones small enough to complete and validate without leaving a half-implemented state across a context transition.
-
-For a long-horizon task, initialize or update a durable task-state artifact before implementation. Copy `assets/TASK_STATE.template.md` to a user-approved tracked location or to a clearly temporary or ignored path, then keep only high-signal state in it.
-
-## 8. Implement with clear ownership
-
-Use one writer per working tree. The main agent normally owns implementation and integration.
-
-Delegate implementation only when slices are independent, interfaces are settled, and each writer has an isolated worktree or equivalent environment. Prefer `workflow-executor` for delegated implementation slices. Give each implementation agent explicit scope, an exclusive file-ownership set (no two agents edit the same file), acceptance criteria, validation commands, and forbidden areas. Integrate and revalidate centrally.
-
-During implementation:
-
-- follow existing conventions;
-- keep diffs scoped;
-- avoid unrelated cleanup;
-- prefer explicit code;
-- handle accepted failure modes deliberately;
-- update tests and documentation with behavior;
-- update durable task state after each milestone;
-- stop and return to design if new evidence invalidates an assumption.
-
-Do not hide defects with broad exception swallowing, arbitrary sleeps, unexplained retries, magic constants, output massaging, test-only production paths, disabled validation, or unapproved compatibility layers.
-
-## 9. Test the accepted contract
-
-For bug fixes:
-
-1. reproduce the defect when feasible;
-2. establish intended behavior from requirements and evidence;
-3. add a regression test that fails for the relevant reason;
-4. implement the root-cause correction;
-5. run the regression test and affected suite.
-
-For new behavior, test the applicable expected paths, boundaries, invalid input, failure paths, authorization boundaries, compatibility behavior, concurrency, idempotency, and migration behavior.
-
-Use unit, integration, contract, component, end-to-end, build, package, migration, and smoke tests according to risk.
-
-Delegate long test-suite execution or verbose log triage when useful, preferring `workflow-executor` for test runs. Require only failures, decisive excerpts, commands, and artifact references in the main context.
-
-Never claim a result that was not observed.
-
-## 10. Review and challenge the result
-
-Before delivery:
-
-- inspect the final diff and repository status;
-- run or delegate a focused correctness and security review;
-- verify acceptance criteria one by one;
-- check for unrelated changes, secrets, debug output, temporary artifacts, stale docs, and accidental dependency drift;
-- confirm intentionally deferred cases and compatibility decisions;
-- reconcile durable task state with actual repository state.
-
-For high-risk changes, ask an independent reviewer subagent to look for disconfirming evidence rather than merely approving the chosen design. Prefer `workflow-reviewer` for review delegation — it uses a different model tier from the researcher and executor, providing genuine independence.
-
-## 11. Self-correct without churn
-
-After a failed approach:
-
-1. state the hypothesis tested;
-2. record the observed evidence;
-3. mark the hypothesis supported, disproven, or inconclusive;
-4. gather different evidence before repeating a similar change.
-
-After two failures under the same hypothesis, stop varying the same fix.
-
-After three materially distinct unsuccessful hypotheses, stop code churn, restate the objective and known facts, list failed and unresolved assumptions, and return to requirements or architecture with the user.
-
-Immediately return to design when scope expands materially, a local fix becomes a broad refactor, workarounds accumulate, the framework is being fought, a critical external assumption fails, tests would need weakening, or a security or data-integrity risk appears.
-
-## 12. Complete accurately
-
-A task is complete when:
-
-- accepted criteria are satisfied;
-- the implementation is coherent and scoped;
-- relevant checks pass or unrun checks are disclosed precisely;
-- behavioral changes have proportionate test coverage;
-- security, compatibility, data integrity, migration, and operations were considered as relevant;
-- documentation and configuration match the implementation;
-- no unrelated user work was altered;
-- durable task state, if used, accurately records the final status;
-- the final report is reproducible.
+Final reporting must state the outcome, important changes, changed assumptions or decisions, exact validation commands and observed results, test coverage and limitations, prohibited-pattern audit, deferred cases, and remaining risks.

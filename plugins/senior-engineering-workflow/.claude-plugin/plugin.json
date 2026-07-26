@@ -2,8 +2,8 @@
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "senior-engineering-workflow",
   "displayName": "Senior Engineering Workflow",
-  "version": "0.2.0",
-  "description": "A rigorous evidence-driven workflow for non-trivial software engineering tasks.",
+  "version": "0.3.0",
+  "description": "A proportional, evidence-driven workflow for repository engineering tasks.",
   "author": {
     "name": "Otto (oovz)",
     "url": "https://github.com/oovz/agents"

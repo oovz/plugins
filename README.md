@@ -1,54 +1,62 @@
 # Agent Plugins
 
-A collection of agent plugins for Claude Code, Codex, Gemini CLI, and OpenCode. Each plugin packages a skill and a read-only exploration subagent from a single source tree.
+Cross-host packaging for the Senior Engineering Workflow plugin and its skills, specialist agents, and adapters for Claude Code, Codex, Gemini CLI, and OpenCode.
 
-## Available plugins
+## Plugin
 
 | Plugin | Description |
 |---|---|
-| [senior-engineering-workflow](plugins/senior-engineering-workflow/) | Evidence-driven workflow for non-trivial software engineering tasks |
+| [senior-engineering-workflow](plugins/senior-engineering-workflow/) | Proportional, evidence-driven delivery for repository engineering work |
 
-See each plugin's own README for what the skill does, its workflow steps, and its subagent.
+The main coding agent remains the Engineering Manager: it owns user dialogue, routing, decisions, integration, and completion. The plugin supplies five conditional specialists:
+
+- `workflow-researcher` — bounded evidence gathering and codebase exploration;
+- `workflow-architect` — architecture analysis and explicitly assigned planning or design artifacts when a contract or boundary changes;
+- `workflow-engineer` — production implementation plus first-line regression, unit, and affected integration tests;
+- `workflow-tester` — independent verification, missing risk coverage, and broader test execution;
+- `workflow-reviewer` — candidate-preserving adversarial correctness, security, scope, and prohibited-pattern review.
+
+Roles activate according to uncertainty and risk. A small local change does not automatically run the full team.
 
 ## Install
 
 ### Claude Code
 
-Add the marketplace and install the plugin from within a Claude Code session:
+Add the marketplace and install the plugin from a Claude Code session:
 
 ```text
 /plugin marketplace add oovz/agents
-/plugin install senior-engineering-workflow@senior-engineering-workflow
+/plugin install senior-engineering-workflow@oovz-agents
 ```
 
-To install without the interactive picker, run the shell command instead:
+To install without the interactive picker:
 
 ```text
-claude plugin install senior-engineering-workflow@senior-engineering-workflow
+claude plugin install senior-engineering-workflow@oovz-agents
 ```
 
-Both the skill and the `workflow-researcher` and `workflow-executor` subagents are installed by the plugin. Run `/reload-plugins` after updating an installed plugin. For local testing, replace `oovz/agents` with the repository path.
+The plugin installs the skill and all five specialist agents. Run `/reload-plugins` after installing or updating the plugin so Claude Code reloads its skills and agents; restart the session if needed.
 
 ### Codex
 
 ```text
 codex plugin marketplace add oovz/agents
-codex plugin add senior-engineering-workflow@senior-engineering-workflow
+codex plugin add senior-engineering-workflow@oovz-agents
 ```
 
-The plugin installs the skill. Codex plugins do not package custom-agent files, so install the subagents separately:
+The Codex plugin installs the skill. Codex plugins do not currently package custom-agent TOML files, so install the five agents separately:
 
 ```text
 node scripts/install-adapters.mjs codex --scope user
 ```
 
-Use `--scope project --project <path>` to install the agents into one project's `.codex/agents/` directory. Start a new Codex task after installing or updating the agents.
+Use `--scope project --project <path>` for one project's `.codex/agents/` directory. Start a new Codex task after installing or updating the agents.
 
-You can also install **Senior Engineering Workflow** from the ChatGPT desktop plugin directory, then run the adapter command above for the subagents.
+You can also install **Senior Engineering Workflow** from the ChatGPT desktop plugin directory, then run the adapter command for local Codex custom agents.
 
 ### Gemini CLI
 
-Gemini reads skills and agents from the extension root. The canonical sources live under `plugins/`, so generate the extension tree first:
+Gemini extensions load skills and agents from the extension root. Generate that tree from the canonical sources, then install the extension:
 
 ```text
 git clone https://github.com/oovz/agents
@@ -57,13 +65,11 @@ npm run generate:gemini
 gemini extensions install .
 ```
 
-For local development, use `gemini extensions link .` instead of `install`. Restart Gemini CLI after installation or update so it reloads extension components.
+For local development, use `gemini extensions link .`. Restart Gemini CLI after installation or update.
 
 ### OpenCode
 
-OpenCode's plugin API covers executable event hooks, not skills or agents. This repository installs those components through OpenCode's documented configuration directories.
-
-Clone the repository, then run:
+OpenCode's executable plugin API does not package skills and agents, so install them through its documented configuration directories:
 
 ```text
 git clone https://github.com/oovz/agents
@@ -71,40 +77,43 @@ cd agents
 node scripts/install-adapters.mjs opencode --scope user
 ```
 
-This copies the skill to `~/.config/opencode/skills/` and the subagent to `~/.config/opencode/agents/`. Use `--scope project --project <path>` for a project-local `.opencode/` installation. The installer refuses to overwrite modified files unless `--force` is supplied.
+Use `--scope project --project <path>` for a project-local `.opencode/` installation. The installer refuses to overwrite changed files unless `--force` is supplied.
 
-## Package model
+## Host integration
 
-| Host | Native package | Skill | Research subagent | Review subagent | Execution subagent |
-|---|---|---|---|---|---|
-| Claude Code | Plugin marketplace | Installed by the plugin | Installed by the plugin | Installed by the plugin | Installed by the plugin |
-| Codex | Plugin marketplace | Installed by the plugin | Installed separately (gpt-5.6-sol, max) | Installed separately (gpt-5.6-terra, max) | Installed separately (gpt-5.6-luna, max) |
-| Gemini CLI | Extension | Generated from `plugins/` | Generated from `adapters/gemini/` | Generated from `adapters/gemini/` | Generated from `adapters/gemini/` |
-| OpenCode | Config bundle | Installed with the adapter script | Installed with the adapter script | Installed with the adapter script | Installed with the adapter script |
+| Host | Native integration | Skill | Five specialist agents |
+|---|---|---|---|
+| Claude Code | Host plugin catalog | Installed by plugin | Installed by plugin |
+| Codex | Host plugin catalog | Installed by plugin | Installed separately as TOML adapters |
+| Gemini CLI | Extension | Generated into extension root | Generated into extension root |
+| OpenCode | Configuration bundle | Installed by adapter script | Installed by adapter script |
+
+Agent definitions inherit the user's selected model and, where supported, reasoning effort. The plugin sets no turn or step caps. Architect, Engineer, and Tester retain the tools needed to write their assigned artifacts; Researcher and Reviewer preserve the implementation candidate while retaining evidence-gathering and validation tools. Nested delegation is available where the host supports it and remains subject to host/user depth and permission controls.
+
+When upgrading from the previous three-role release, remove the obsolete executor agent file from user or project configuration. Version 0.3 does not install a legacy alias, and the installer does not delete user files automatically. The host catalog is now named `oovz-agents`, so installation targets use `senior-engineering-workflow@oovz-agents`.
 
 ## Repository layout
 
 ```text
-plugins/<name>/                     canonical plugin source (skills, agents, manifests)
-adapters/codex/                     Codex-specific agent definitions (researcher, reviewer, executor)
-adapters/gemini/                    Gemini-specific agent definitions (researcher, reviewer, executor)
-adapters/opencode/                  OpenCode-specific agent definitions (researcher, reviewer, executor)
-.claude-plugin/marketplace.json     Claude marketplace catalog
-.agents/plugins/marketplace.json    Codex marketplace catalog
+plugins/<name>/                     canonical Claude plugin, skill, references, and agents
+adapters/codex/agents/              Codex TOML definitions for five specialist roles
+adapters/gemini/agents/             Gemini Markdown definitions for five specialist roles
+adapters/opencode/agents/           OpenCode Markdown definitions for five specialist roles
+.claude-plugin/marketplace.json     Claude host catalog manifest
+.agents/plugins/marketplace.json    Codex host catalog manifest
 gemini-extension.json               Gemini extension manifest
-scripts/                            adapter installation and validation
+scripts/install-adapters.mjs        host adapter installer and Gemini generator
+scripts/validate.mjs                manifests, topology, policy, and install-plan validation
 ```
 
-`skills/` and `agents/` at the repository root are generated for Gemini CLI and are gitignored. Do not edit them — edit the canonical sources under `plugins/` and `adapters/`, then run `npm run generate:gemini` to regenerate.
+The root `skills/` and `agents/` directories are generated for Gemini CLI and are gitignored. Edit canonical sources under `plugins/` and `adapters/`, then regenerate.
 
 ## Development
 
-Edit canonical sources under `plugins/` and `adapters/`. Then validate:
+Run the repository validation after changing canonical sources, adapters, installers, manifests, or documentation:
 
 ```text
 npm run validate
 ```
 
-The validation step checks manifest consistency, marketplace paths, required skill and agent metadata, tiered subagent model and reasoning-effort configuration, and read-only agent restrictions across all four hosts.
-
-GitHub Actions runs the same validation on every push and pull request.
+Validation checks synchronized versions, host catalog paths, parseable YAML/TOML, the exact five-role topology, model and effort inheritance, absence of plugin-authored turn caps, scoped candidate ownership and nested delegation, required skill references, and both dry-run and isolated integration installs. GitHub Actions runs the same command on pushes and pull requests.

@@ -1,7 +1,7 @@
 {
   "name": "senior-engineering-workflow",
-  "version": "0.2.0",
-  "description": "A rigorous evidence-driven workflow for non-trivial software engineering tasks.",
+  "version": "0.3.0",
+  "description": "A proportional, evidence-driven workflow for repository engineering tasks.",
   "author": {
     "name": "Otto (oovz)",
     "url": "https://github.com/oovz/agents"
@@ -14,7 +14,7 @@
   "interface": {
     "displayName": "Senior Engineering Workflow",
     "shortDescription": "Evidence-driven engineering for complex work.",
-    "longDescription": "Investigate, design, implement, and validate non-trivial software changes with explicit requirements, evidence, delegation, and completion criteria. Ships three tiered subagents: workflow-researcher (gpt-5.6-sol), workflow-reviewer (gpt-5.6-terra), and workflow-executor (gpt-5.6-luna).",
+    "longDescription": "Route repository work proportionally with the main agent as Engineering Manager and five conditional specialists for research, architecture, implementation, independent verification, and adversarial review.",
     "developerName": "Otto (oovz)",
     "category": "Productivity",
     "capabilities": ["Interactive", "Write"],

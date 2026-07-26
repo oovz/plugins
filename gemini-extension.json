@@ -1,6 +1,5 @@
 {
   "name": "senior-engineering-workflow",
-  "version": "0.2.0",
-  "description": "A rigorous evidence-driven workflow for non-trivial software engineering tasks.",
-  "contextFileName": "GEMINI.md"
+  "version": "0.3.0",
+  "description": "A proportional, evidence-driven workflow for repository engineering tasks."
 }

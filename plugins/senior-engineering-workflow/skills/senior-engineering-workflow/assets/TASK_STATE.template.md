@@ -2,62 +2,76 @@
 
 Last updated: <UTC timestamp>
 
-## Outcome
+## Outcome and route
 
-<What the user is trying to achieve.>
+- Outcome:
+- Selected route:
+- Route triggers:
+- Active roles:
 
-## Current accepted requirements
+## Accepted requirements and support target
 
 - ...
+- Explicit non-goals:
+- Compatibility or legacy target: none / ...
 
-## Provisional assumptions and evidence status
+## Assumptions and evidence
 
 | Assumption | Status: confirmed / disproven / open | Evidence |
 |---|---|---|
-| ... | ... | file:line, test, command, or source |
+| ... | ... | file:line, command, test, or source |
 
 ## Decisions
 
-| Decision | Rationale and evidence | User-approved? |
+| Decision | Owner | Rationale/evidence |
 |---|---|---|
-| ... | ... | yes / no / not required |
+| ... | user / manager / architect | ... |
 
 ## Architecture and boundaries
 
 - ...
 
-## Scope
+## Milestones and ownership
 
-### Included
-- ...
+- [x] Completed:
+- [ ] Current:
+- [ ] Next:
 
-### Deferred or unsupported
-- ...
+| File/component | Owner | Purpose |
+|---|---|---|
+| ... | Engineer / Tester | ... |
 
-## Milestones
+## Engineer validation
 
-- [x] Completed: ...
-- [ ] Current: ...
-- [ ] Next: ...
-
-## Changed components
-
-- `path`: purpose
-
-## Validation evidence
-
-| Command or check | Observed result |
+| Command/check | Observed result |
 |---|---|
 | ... | ... |
+
+## Tester verification
+
+| Requirement/risk | Engineer coverage | Tester coverage | Unit | Integration | End-to-end | Status |
+|---|---|---|---|---|---|---|
+| ... | ... | ... | required/N/A | required/N/A | required/N/A | ... |
+
+## Review findings
+
+- ...
+
+## Prohibited-pattern audit
+
+- Speculative defensive behavior:
+- Thin wrappers or unjustified abstractions:
+- Unnecessary callbacks or hooks:
+- Compatibility or legacy behavior:
+
+## Open questions, risks, and deferred cases
+
+- ...
 
 ## Evidence index
 
 - `path:line-range` — why it matters
-- source or artifact reference — why it matters
-
-## Open questions and risks
-
-- ...
+- command/source/artifact — why it matters
 
 ## Next exact action
 

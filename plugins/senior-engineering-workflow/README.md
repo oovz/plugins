@@ -1,77 +1,101 @@
 # Senior Engineering Workflow
 
-An evidence-driven workflow for non-trivial software engineering tasks. Installs as a skill and a read-only exploration subagent for Claude Code, Codex, Gemini CLI, and OpenCode.
+A proportional, evidence-driven workflow for repository engineering tasks. The main agent acts as Engineering Manager and activates specialist roles only when they can change the decision, implementation, or validation outcome.
 
-## What it does
+## Workflow model
 
-The skill activates when a task involves ambiguous requirements, architecture or cross-module changes, version-sensitive research, migrations, security, performance, multiple milestones, or context-heavy repository exploration. It skips for simple local edits with a known entry point.
+The router classifies work by deliverable, uncertainty, architectural impact, and risk:
 
-The workflow is a twelve-step iterative process:
+| Route | Typical use | Default control |
+|---|---|---|
+| Inquiry | Explanation, investigation, or recommendation without edits | Manager inline; Researcher only for broad or version-sensitive evidence |
+| Review | Code or architecture findings without fixes | Reviewer primary; Architect only for architecture boundaries |
+| Direct change | Clear, local, low-risk edit with obvious validation | Manager-lite, Engineer, main-agent review |
+| Standard delivery | Feature, bug, refactor, or test work with multiple coherent checks | Manager, Engineer, conditional Tester or Reviewer |
+| Architecture delivery | Public contract, security, persistence, concurrency, migration, deployment, or cross-cutting design change | Manager, Architect, Engineer, Tester, Reviewer |
+| Long-horizon delivery | Greenfield or multi-milestone work likely to cross context transitions | All roles plus durable task state |
 
-1. **Establish the current state** — read project docs, inspect git status, identify frameworks and test systems, reproduce reported behavior, pick a context strategy (direct, delegated exploration, or long-horizon).
-2. **Build a requirements model** — record desired outcome, confirmed and inferred requirements, acceptance criteria, constraints, non-goals, assumptions with evidence status, and risks.
-3. **Research in evidence waves** — Wave A establishes local truth from source, tests, and logs. Wave B consults official docs and release notes for exact dependency versions. Wave C challenges hypotheses with disconfirming evidence.
-4. **Design proportionally** — describe affected architecture, interfaces, data flow, failure modes, security, and deployment. Recommend one option with decisive evidence. Ask the user to decide material trade-offs.
-5. **Validate feasibility** — run a bounded spike or prototype when a critical assumption is uncertain, then update the plan.
-6. **Agree on scope and compatibility** — handle core cases, discuss significant cases, defer peripheral cases. Get explicit approval before adding compatibility layers or fallback chains.
-7. **Create a milestone plan** — ordered vertical slices, each delivering verifiable behavior with tests and validation commands.
-8. **Implement with clear ownership** — one writer per working tree, scoped diffs, follow existing conventions, no hidden defects.
-9. **Test the accepted contract** — regression tests for bug fixes, boundary and failure-path tests for new behavior. Never claim a result that was not observed.
-10. **Review and challenge the result** — inspect the final diff, verify acceptance criteria, check for secrets and unrelated changes. Use an independent reviewer for high-risk changes.
-11. **Self-correct without churn** — after a failed approach, record evidence before retrying. After three failed hypotheses, stop and return to requirements with the user.
-12. **Complete accurately** — the task is done when criteria are met, checks pass, coverage is proportionate, and the final report is reproducible.
+Roles are capabilities, not mandatory meetings. Multiple changed files alone do not trigger architecture work.
 
-For long-horizon tasks, the skill uses a durable task-state artifact (template included) that survives context transitions.
+## Team and ownership
 
-## Tiered subagents
+The Engineering Manager is always the main agent, not a sixth subagent. It retains the user conversation and owns task routing, requirement synthesis, escalation, integration, and final reporting.
 
-The plugin includes three subagents that split work by task type to balance cost, capability, and independence:
+| Specialist | Responsibility | Candidate ownership |
+|---|---|---|
+| `workflow-researcher` | Codebase mapping, reproduction, execution-path tracing, exact-version documentation, and evidence isolation | Does not modify candidate files; retains shell/search/web evidence tools |
+| `workflow-architect` | Interfaces, invariants, failure model, security and operational boundaries, test seams, and assigned architecture artifacts | May write only explicitly assigned plans, designs, or architecture documents |
+| `workflow-engineer` | Production code and first-line regression, unit, and affected integration tests | Write |
+| `workflow-tester` | Independent requirement verification, missing risk coverage, integration/end-to-end checks, and broader validation | Write to assigned test assets |
+| `workflow-reviewer` | Adversarial correctness, security, scope, support-target, and prohibited-pattern review | Does not modify candidate files; retains shell/search/web validation tools |
 
-| Subagent | Task type | Codex model | Effort | Sandbox |
-|---|---|---|---|---|
-| `workflow-researcher` | Research, design, exploration | `gpt-5.6-sol` (most advanced) | `max` | read-only |
-| `workflow-reviewer` | Code review, security analysis, verification | `gpt-5.6-terra` (mid-tier) | `max` | read-only |
-| `workflow-executor` | Implementation, test execution | `gpt-5.6-luna` (cost-effective) | `max` | workspace-write |
+Engineer and Tester are intentionally separate without splitting the immediate feedback loop. Engineer must reach a focused-green candidate and add ordinary correctness coverage before Tester begins independent verification. Tester derives additional checks from accepted requirements and material risks rather than from the implementation structure.
 
-All three use `max` reasoning effort. DeepSWE v1.1 benchmark data shows this is decisive, especially for Luna: it jumps from 44.2% pass@1 at `high` effort to 67.2% at `max` — a 23-point improvement that makes it competitive with Terra (69.6%) and Sol (72.7%) at a fraction of the cost ($3.03 vs $4.95 vs $8.39 per task). Sol is reserved for the hardest research and design work; Terra handles review at 59% of Sol's cost and provides independence through a different model tier; Luna handles high-volume execution at 36% of Sol's cost.
+Tester also supports a pre-implementation `verification-design` mode. It preserves implementation-candidate files in that mode but may own an explicitly assigned verification plan or test-design document.
 
-On Claude Code, all three inherit the parent model with `effort: max`. On Gemini CLI and OpenCode, model pinning is not available, so the subagents rely on their tool restrictions and instructions.
+## Nested delegation
 
-The researcher maps codebases, traces execution paths, gathers exact-version documentation, analyzes architecture, and gathers evidence. It cannot create, edit, delete, or format files. It returns a compact findings handoff (claims linked to evidence, open questions, risks, artifact references) to the parent agent.
+The Manager remains the user-facing control plane, but specialists may delegate bounded role-local work when the host supports nested agents. A child cannot gain product, architecture, compatibility, risk, or file-ownership authority that its parent does not have. Nested writers still require isolated worktrees or explicit non-overlapping ownership, and the parent remains accountable for integration.
 
-The reviewer is an independent read-only reviewer that looks for defects, security issues, and disconfirming evidence in work completed by other agents — not to approve it. It checks correctness, security, test coverage, scope creep, compatibility, and conventions. Using a different model tier from the researcher and executor provides genuine independence.
+Nested delegation is optional rather than portable workflow precondition:
 
-The executor implements well-scoped, settled code changes and runs validation commands. It does not make architectural or design decisions — if the task is ambiguous, it stops and reports back. It owns an explicit set of files assigned by the parent and does not edit outside that set, preventing conflicts when multiple executors run in parallel. It returns a summary of changes, validation results, issues, and follow-up needs.
+- Codex supports nested agents subject to the user's configured agent depth and runtime controls.
+- OpenCode profiles use role-specific nested allowlists so a child cannot exceed its parent's implementation or decision authority.
+- Claude Code and Gemini CLI currently block subagent-to-subagent spawning, so the main Manager chains any additional specialist.
+
+## Decision and implementation controls
+
+The workflow escalates facts to focused investigation and decisions to the correct owner:
+
+- Architect owns architecture details inside the accepted brief.
+- Manager owns routing, synthesis, and engineering decisions that do not change accepted product scope or risk.
+- The user owns product behavior, scope, compatibility targets, cost, destructive actions, and accepted security or operational risk.
+
+New or materially changed code must not add speculative defensive behavior, thin forwarding wrappers or unjustified abstractions, unnecessary callbacks or hooks, or compatibility and legacy support without an accepted requirement. Boundary validation, authorization, invariants, cleanup, rollback, and explicit error propagation remain required where the design calls for them.
+
+## Host policy mapping
+
+| Host | Model and effort | Plugin execution limit | Tool and delegation policy |
+|---|---|---|---|
+| Claude Code | `model: inherit`; effort omitted to inherit the session | No `maxTurns` | Researcher and Reviewer deny only candidate-writing tools. Other tools, including `Agent`, inherit; Claude blocks recursion when the profile is running as a subagent but permits it when an agent profile is launched as the main session |
+| Codex | Model and reasoning effort omitted so spawn settings, user defaults, or parent settings apply | None | Researcher and Reviewer use a read-only sandbox; Architect, Engineer, and Tester use workspace-write. Nested delegation remains available subject to Codex depth and runtime controls |
+| Gemini CLI | `model: inherit`; no generic effort field | No plugin `max_turns` | Researcher and Reviewer have candidate-preserving evidence tools, including shell; other roles inherit parent tools. Gemini blocks recursive subagents |
+| OpenCode | Model and provider-specific reasoning effort omitted | No `steps` | Researcher and Reviewer deny edits; other permissions inherit. Nested tasks use role-specific workflow allowlists |
+
+The plugin imposes no turn or step limit. Host defaults, timeouts, action limits, context limits, and user configuration still apply. In particular, Gemini currently defaults an omitted `max_turns` to 30 and a timeout to 10 minutes. Long-horizon Gemini users can raise those values through `agents.overrides.<agent>.runConfig` in their own settings. No adapter pins a model tier or maximum reasoning effort.
 
 ## Components
 
 ```text
 plugins/senior-engineering-workflow/
-├── .claude-plugin/plugin.json     Claude Code plugin manifest
-├── .codex-plugin/plugin.json      Codex plugin manifest
+├── .claude-plugin/plugin.json
+├── .codex-plugin/plugin.json
 ├── agents/
-│   ├── workflow-researcher.md     Claude-format read-only research subagent
-│   └── workflow-executor.md       Claude-format write-capable execution subagent
+│   ├── workflow-researcher.md
+│   ├── workflow-architect.md
+│   ├── workflow-engineer.md
+│   ├── workflow-tester.md
+│   └── workflow-reviewer.md
 └── skills/
     └── senior-engineering-workflow/
-        ├── SKILL.md               the twelve-step workflow skill
-        ├── agents/openai.yaml     Codex interface metadata
-        └── assets/
-            └── TASK_STATE.template.md   durable task-state template
+        ├── SKILL.md
+        ├── agents/openai.yaml
+        ├── assets/TASK_STATE.template.md
+        └── references/
+            ├── task-routing.md
+            ├── manager.md
+            ├── architecture.md
+            ├── engineering.md
+            ├── verification.md
+            ├── review.md
+            ├── delegation-and-state.md
+            └── prohibited-patterns.md
 ```
 
-Adapter-specific agent definitions live in the repository's `adapters/` directory:
+Host-specific definitions live in `adapters/{codex,gemini,opencode}/agents/`, with the same five role IDs and host-native permission metadata.
 
-```text
-adapters/
-├── codex/agents/
-│   ├── workflow-researcher.toml   Codex-format read-only research agent (gpt-5.6-sol, max effort)
-│   ├── workflow-reviewer.toml     Codex-format read-only review agent (gpt-5.6-terra, max effort)
-│   └── workflow-executor.toml     Codex-format write-capable execution agent (gpt-5.6-luna, max effort)
-├── gemini/agents/
-│   ├── workflow-researcher.md     Gemini-format read-only research subagent
-│   └── workflow-executor.md       Gemini-format write-capable execution subagent
-└── opencode/agents/
-    ├── workflow-researcher.md     OpenCode-format read-only research subagent
-    └── workflow-executor.md       OpenCode-format write-capable execution subagent
-```
+## Upgrade note
+
+Version 0.3 replaces the former execution role with Engineer and Tester and adds Architect. Existing installations should remove the obsolete executor agent file before reinstalling adapters. No compatibility alias is shipped because the old role name is not an accepted support target. The repository-wide host catalog is now `oovz-agents`; use `senior-engineering-workflow@oovz-agents` for host catalog installs.
+
+See the [repository README](../../README.md) for installation, generation, and validation commands.
