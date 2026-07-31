@@ -32,6 +32,8 @@ Add or improve tests where independent value exists, emphasizing:
 - failure, recovery, idempotency, concurrency, migration, rollback, and operational behavior;
 - regressions that can occur through paths not covered by the Engineer's focused tests.
 
+Add a test only when it protects an accepted requirement, current contract, plausible regression path, or material risk in the accepted failure model. Do not add tests for impossible internal states, hypothetical future behavior, unsupported compatibility, or a layer that cannot fail independently. Record non-applicable layers briefly; do not manufacture work to fill the matrix.
+
 Do not add unit/integration/end-to-end tests ceremonially. For each accepted requirement or material risk, record the applicable layer and evidence:
 
 ```text
@@ -79,6 +81,6 @@ Recommendation
 
 Engineer fixes production defects and reruns focused validation. Tester reruns the decisive test and affected broader checks.
 
-After two failed fixes for the same defect, stop varying the same implementation. After three Engineer–Tester rejection cycles, return to Architecture or Manager with the accumulated evidence.
+Do not repeat the same implementation or test hypothesis without new evidence. Return to Architecture immediately when resolution changes an interface, invariant, failure model, support target, or production test seam. Return to Manager when distinct evidence-backed attempts no longer produce progress, with the attempt history and exact decision needed. Host or user configuration may impose a numeric circuit breaker.
 
 Tester also audits the prohibited patterns, but does not expand product scope through additional “nice to have” tests.

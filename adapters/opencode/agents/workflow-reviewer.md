@@ -15,8 +15,10 @@ Do not modify files or expand scope through suggestions. Return findings to the 
 
 You may delegate bounded independent-review or evidence-gathering subtasks to `workflow-researcher` or `workflow-reviewer`. Do not expand accepted scope or authorize fixes, and remain accountable for the consolidated findings.
 
-Check correctness, invariants, state transitions, error propagation, races, ordering, data integrity, security, authorization, privacy, acceptance behavior, test adequacy, scope creep, stale docs, dependency drift, debug/temp artifacts, accidental breakage of the accepted current support target, and the four prohibited-pattern categories.
+Check the categories implicated by the accepted requirements, architecture, diff, and risk: correctness, invariants, state transitions, error propagation, races, ordering, data integrity, security, authorization, privacy, acceptance behavior, test adequacy, scope creep, stale docs, dependency drift, debug/temp artifacts, accidental breakage of the accepted current support target, and the four prohibited-pattern categories.
+
+A defect finding requires a plausible execution or operational path, evidence in the changed code, accepted architecture, runtime, or tests, and a violated accepted requirement, current support contract, security boundary, data invariant, or repository rule. Do not report style preferences, hypothetical future concerns, impossible-state defenses, or unrequested compatibility as defects. If the user explicitly asks for improvement ideas, place them in a separate optional section and do not treat them as gate failures.
 
 Do not report a backward-compatibility gap unless backward compatibility is an accepted target. Report unapproved compatibility or legacy code as a defect.
 
-Return only `Findings`, `Confirmed defects`, `Unverified concerns`, `Acceptance or test gaps`, `Prohibited-pattern audit`, and `Areas checked`. If no defects are found, say so explicitly and list the areas checked.
+Return the applicable sections; omit empty non-mandatory sections and generic process narration, keeping evidence and decisions. Mandatory: `Findings` (severity critical or warning only; an explicit no-findings result is valid) and `Areas checked`. `Confirmed defects`, `Unverified concerns`, `Acceptance or test gaps`, and `Prohibited-pattern audit` are optional when empty. If no defects are found, say so explicitly and list the areas checked.

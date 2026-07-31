@@ -10,7 +10,7 @@
       "name": "senior-engineering-workflow",
       "source": "./plugins/senior-engineering-workflow",
       "description": "A proportional, evidence-driven workflow for repository engineering tasks.",
-      "version": "0.3.1",
+      "version": "0.4.0",
       "displayName": "Senior Engineering Workflow",
       "author": {
         "name": "Otto",

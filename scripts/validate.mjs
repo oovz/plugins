@@ -49,7 +49,43 @@ const REFERENCES = Object.freeze([
   "review.md",
   "delegation-and-state.md",
   "prohibited-patterns.md",
+  "evidence-and-research.md",
 ]);
+
+// Canonical semantic invariants that every host adapter must preserve for a role.
+// Hosts may differ in frontmatter, code fences, delegation framing, output-contract
+// formatting, and slash/word list punctuation; these normalizations collapse those
+// declared host-only differences so the check compares semantic content, not bytes.
+const SEMANTIC_INVARIANTS = Object.freeze({
+  "workflow-researcher": [
+    "Match evidence to the claim",
+    "Stop when the answer can be named with sufficient confidence",
+    "Run only commands compatible with candidate preservation",
+    "Do not weaken the read-only boundary silently",
+  ],
+  "workflow-architect": [
+    "Prefer the simplest design that satisfies accepted scope",
+    "Challenge every new wrapper, abstraction, callback, retry, fallback, defensive branch, compatibility path, or extension point",
+    "Do not create architecture documents merely as workflow ceremony",
+  ],
+  "workflow-engineer": [
+    "Choose the simplest accepted approach and carry it through",
+    "Do not repeatedly compare alternatives or rework already-settled code without new information",
+    "unexplained or duplicated domain values",
+    "transformations added only to conceal a defect or force checks green",
+  ],
+  "workflow-tester": [
+    "Add a test only when it protects an accepted requirement",
+    "Do not add tests for impossible internal states",
+    "Do not manufacture work to fill the matrix",
+    "Do not repeat the same implementation or test hypothesis without new evidence",
+  ],
+  "workflow-reviewer": [
+    "Check the categories implicated by the accepted requirements, architecture, diff, and risk",
+    "A defect finding requires",
+    "Do not report style preferences, hypothetical future concerns, impossible-state defenses, or unrequested compatibility as defects",
+  ],
+});
 const TEXT_FILENAMES = new Set(["LICENSE", ".gitattributes", ".gitignore"]);
 const TEXT_EXTENSIONS = new Set([".json", ".md", ".mjs", ".toml", ".yaml", ".yml"]);
 
@@ -182,6 +218,74 @@ async function validateOpenCodeAgent(role) {
     JSON.stringify(allowedNestedRoles) === JSON.stringify([...role.nestedRoles].sort()),
     `OpenCode ${role.id} nested role allowlist exceeds or omits its authority`,
   );
+}
+
+function stripFrontmatter(text) {
+  return text.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/, "");
+}
+
+// Collapse declared host-only surface differences (slash vs "or"/"and" lists,
+// punctuation, code fences, dashes, backticks) so the comparison is semantic.
+function normalizeSemantic(text) {
+  return text
+    .toLowerCase()
+    .replace(/```[\w]*\n?/g, " ")
+    .replace(/[\u2013\u2014]/g, "-")
+    .replace(/`/g, "")
+    .replace(/\s*\/\s*/g, " ")
+    .replace(/\s*\bor\b\s*/g, " ")
+    .replace(/\s*\band\b\s*/g, " ")
+    .replace(/[,:;]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+async function agentBody(host, role) {
+  if (host === "claude") {
+    return stripFrontmatter(await readFile(path.join(PLUGIN, "agents", `${role}.md`), "utf8"));
+  }
+  if (host === "codex") {
+    const config = parseToml(await readFile(path.join(ROOT, "adapters", "codex", "agents", `${role}.toml`), "utf8"));
+    return typeof config.developer_instructions === "string" ? config.developer_instructions : "";
+  }
+  if (host === "gemini") {
+    return stripFrontmatter(await readFile(path.join(ROOT, "adapters", "gemini", "agents", `${role}.md`), "utf8"));
+  }
+  if (host === "opencode") {
+    return stripFrontmatter(await readFile(path.join(ROOT, "adapters", "opencode", "agents", `${role}.md`), "utf8"));
+  }
+  return "";
+}
+
+// Deferred-generation parity: instead of byte-for-byte equality, verify each host
+// adapter preserves the canonical role invariants under semantic normalization.
+async function validateSemanticParity() {
+  const hosts = ["claude", "codex", "gemini", "opencode"];
+  for (const role of AGENT_ROLE_NAMES) {
+    const invariants = SEMANTIC_INVARIANTS[role] ?? [];
+    const raw = {};
+    const normalized = {};
+    await Promise.all(hosts.map(async (host) => {
+      const body = await agentBody(host, role);
+      raw[host] = body;
+      normalized[host] = normalizeSemantic(body);
+    }));
+    for (const phrase of invariants) {
+      const needle = normalizeSemantic(phrase);
+      for (const host of hosts) {
+        check(
+          normalized[host].includes(needle),
+          `${host} ${role} is missing canonical invariant: "${phrase}"`,
+        );
+      }
+    }
+    if (role === "workflow-reviewer") {
+      for (const host of hosts) {
+        check(!/severity[^\n]*suggestion/i.test(raw[host]), `${host} ${role} must not use the retired "suggestion" severity`);
+        check(/critical/i.test(raw[host]) && /warning/i.test(raw[host]), `${host} ${role} must define critical and warning severities`);
+      }
+    }
+  }
 }
 
 async function validateInstallerPlans() {
@@ -352,6 +456,7 @@ export async function validateRepository() {
       validateOpenCodeAgent(role),
     ]),
   ]);
+  await validateSemanticParity();
 
   check(
     ROLES.map((role) => role.id).join("|") === AGENT_ROLE_NAMES.join("|"),

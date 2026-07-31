@@ -89,7 +89,8 @@ plugins/senior-engineering-workflow/
             ├── verification.md
             ├── review.md
             ├── delegation-and-state.md
-            └── prohibited-patterns.md
+            ├── prohibited-patterns.md
+            └── evidence-and-research.md
 ```
 
 Host-specific definitions live in `adapters/{codex,gemini,opencode}/agents/`, with the same five role IDs and host-native permission metadata.

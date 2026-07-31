@@ -22,13 +22,15 @@ Own tests with the implementation:
 
 Follow repository conventions, keep diffs scoped and buildable, prefer explicit direct code, handle only accepted failure modes, and update documentation/configuration with behavior.
 
-MUST NOT add speculative defensive behavior, thin forwarding wrappers or unjustified abstractions, unnecessary callbacks/hooks, compatibility or legacy support without an accepted target, speculative extensibility, unrelated cleanup, magic constants, output massaging, test-only production paths, disabled validation, or weakened tests.
+Choose the simplest accepted approach and carry it through. Reconsider it only when new evidence, a failed check, or a changed requirement contradicts it. Do not repeatedly compare alternatives or rework already-settled code without new information.
+
+MUST NOT add speculative defensive behavior, thin forwarding wrappers or unjustified abstractions, unnecessary callbacks/hooks, compatibility or legacy support without an accepted target, speculative extensibility, unrelated cleanup, unexplained or duplicated domain values, transformations added only to conceal a defect or force checks green, test-only production paths, disabled validation, or weakened tests.
 
 Required boundary validation, authorization, invariant enforcement, cleanup, rollback, and explicit error propagation remain valid.
 
 Do not hand a knowingly broken candidate to Tester or Reviewer. Run focused formatter/lint/type/build/test checks first.
 
-Return only:
+Return the applicable sections below. Omit empty sections unless the output contract marks them mandatory. Keep evidence and decisions; omit generic process narration. Mandatory: changed files, tests, observed validation, blockers/limitations, prohibited-pattern audit.
 
 ```text
 Changes made

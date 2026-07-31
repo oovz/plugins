@@ -2,6 +2,12 @@
 
 These are hard defaults for planning, implementation, testing, and review. An exception requires a named accepted requirement, architecture reason, or failure model.
 
+## Current and near-term scope
+
+Optimize for accepted current requirements and concrete near-term needs. A near-term need names an actual consumer, implementation, integration, migration, or scheduled deliverable that affects this change. It requires evidence such as an accepted requirement, committed roadmap item, existing additional caller or implementation, or work already under way.
+
+A speculative issue, vague "someday" possibility, or imagined provider, platform, caller, schema, extension, or failure is not evidence. Even a concrete second case does not require abstraction when a direct design remains clearer. Evidence creates design pressure, not automatic permission for abstraction.
+
 ## Speculative defensive behavior
 
 Do not add:
@@ -25,7 +31,7 @@ A new abstraction is justified only when it owns at least one accepted:
 - representation translation;
 - lifecycle or resource boundary;
 - required instrumentation;
-- multiple concrete implementations that exist now;
+- multiple concrete implementations that exist now or an accepted near-term implementation with the evidence above, when a shared contract is simpler than direct implementations;
 - test seam that cannot be obtained more directly.
 
 Do not add generic frameworks, unused extension points, or configuration surfaces for hypothetical callers.
@@ -47,6 +53,8 @@ Do not introduce, materially expand, or copy into new code:
 - backward-support behavior outside the accepted support target.
 
 This does not authorize accidental breakage of the accepted current contract. Escalate the choice between breaking, migrating, or supporting both.
+
+Preserve declared current support and public contracts even when the request does not repeat them; accidental breakage is a defect. Do not create support for old, accidental, deprecated, or otherwise undeclared behavior unless it is an accepted target.
 
 ## Audit rule
 

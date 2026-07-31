@@ -42,6 +42,8 @@ Use test-first development when it clarifies the contract or reproduces a defect
 
 ## Implementation rules
 
+Choose the simplest accepted approach and carry it through. Reconsider it only when new evidence, a failed check, or a changed requirement contradicts it. Do not repeatedly compare alternatives or rework already-settled code without new information.
+
 - follow repository conventions;
 - implement the smallest coherent direct design;
 - keep diffs scoped and intermediate states buildable;
@@ -50,6 +52,12 @@ Use test-first development when it clarifies the contract or reproduces a defect
 - verify external APIs and dependency behavior before use.
 
 Read and enforce `prohibited-patterns.md`.
+
+## Structural drift gate
+
+After each vertical slice or repeated modification of the same subsystem, inspect the accumulated structure, not only the latest lines. Remove duplicated branches, thin wrappers, speculative guards, unnecessary helpers, and control flow accumulating in already-complex functions when they were introduced by the current work. Re-run prior regression behavior before starting the next slice.
+
+This must not trigger unrelated refactoring.
 
 ## Candidate-ready gate
 

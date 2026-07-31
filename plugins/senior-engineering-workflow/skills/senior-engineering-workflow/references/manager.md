@@ -60,6 +60,28 @@ The user decides:
 
 Architect decides architecture details inside the accepted brief. Engineer and Tester decide role-local implementation and test mechanics inside the accepted architecture.
 
+## Evidence-backed disagreement
+
+Treat explicit product, scope, support, compatibility, cost, and accepted-risk choices as user-owned decisions. Treat claims about the repository, APIs, versions, runtime behavior, and test results as facts to verify.
+
+If user guidance appears mistaken, infeasible, inconsistent with verified evidence, or likely to defeat an accepted requirement or create material risk:
+
+1. state one concise concern;
+2. cite the decisive repository, runtime, or official-documentation evidence;
+3. explain the concrete consequence;
+4. recommend the smallest viable alternative.
+
+Continue as requested when the concern is non-blocking and the work remains safe, feasible, authorized, and within scope. Ask one targeted question only when the alternatives materially change product behavior, scope, support or compatibility, cost, destructive or external effects, or accepted security, privacy, data-integrity, or operational risk.
+
+After the user makes an informed decision, record it and proceed. Do not raise the same objection again unless materially new evidence changes feasibility or risk. Never silently narrow, widen, or transform the request.
+
+Record a material conflict in the brief only when one is active:
+
+```text
+Material conflict
+- concern | evidence | consequence | recommendation | decision owner/status
+```
+
 ## Escalation packet
 
 ```text

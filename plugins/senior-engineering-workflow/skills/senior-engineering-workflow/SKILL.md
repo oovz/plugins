@@ -22,7 +22,9 @@ Choose one route:
 - **Architecture delivery**: cross-module or contract-significant work, data/security/concurrency/migration changes, or an architecture refactor.
 - **Long-horizon delivery**: greenfield or multi-milestone work likely to cross context boundaries.
 
-State the selected route and the conditions that triggered it in one sentence. Do not instantiate roles that the route does not require.
+Select and record the route before broad work. Do not narrate route or role selection unless it changes the user's expected scope, permissions, cost, timing, or deliverable, or the user asks for the plan. Do not instantiate roles that the route does not require.
+
+Keep route state durable only for long-horizon work.
 
 ## 2. Apply the universal baseline
 
@@ -35,6 +37,8 @@ For any repository task:
 - define the requested deliverable and completion condition;
 - use exact-version authoritative sources when external behavior matters;
 - never invent APIs, behavior, root causes, commands, or observed results.
+
+Read `references/evidence-and-research.md` only when external or version-sensitive evidence can change a decision or the user requests it; do not load it for every task.
 
 For code-changing routes, read `references/prohibited-patterns.md`.
 
@@ -99,7 +103,7 @@ When Tester reports a failure:
 3. require the responsible role to return evidence and focused validation;
 4. have Tester rerun the decisive test and affected broader checks.
 
-After two failed fixes for the same defect, stop varying the same implementation. After three Engineer–Tester rejection cycles, return to Architecture or Manager with the defect history and decision required.
+Do not repeat the same implementation or test hypothesis without new evidence. Return to Architecture immediately when resolution changes an interface, invariant, failure model, support target, or production test seam. Return to Manager when distinct evidence-backed attempts no longer produce progress, with the attempt history and exact decision needed. Host or user configuration may impose a numeric circuit breaker.
 
 ## 6. Escalate by decision ownership
 
