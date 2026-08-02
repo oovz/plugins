@@ -4,13 +4,12 @@
     "name": "Otto",
     "url": "https://github.com/oovz/plugins"
   },
-  "description": "A proportional, evidence-driven engineering workflow with conditional specialist agents.",
+  "description": "My plugin store for portable agentic coding workflows.",
   "plugins": [
     {
       "name": "senior-engineering-workflow",
-      "source": "./plugins/senior-engineering-workflow",
-      "description": "A proportional, evidence-driven workflow for repository engineering tasks.",
-      "version": "0.4.0",
+      "source": "./adapters/claude-code/senior-engineering-workflow",
+      "description": "A proportional, evidence-driven engineering workflow with portable leaf-role delegation and a direct path for viable supplied plans.",
       "displayName": "Senior Engineering Workflow",
       "author": {
         "name": "Otto",
@@ -19,7 +18,16 @@
       "homepage": "https://github.com/oovz/plugins",
       "repository": "https://github.com/oovz/plugins",
       "license": "MIT",
-      "keywords": ["engineering", "architecture", "research", "multi-agent", "validation", "subagents", "workflow"],
+      "keywords": [
+        "engineering",
+        "architecture",
+        "research",
+        "planning",
+        "multi-agent",
+        "testing",
+        "review",
+        "workflow"
+      ],
       "category": "Productivity"
     }
   ]

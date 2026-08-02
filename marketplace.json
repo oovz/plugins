@@ -1,0 +1,19 @@
+{
+  "$schema": "./schemas/marketplace.schema.json",
+  "schemaVersion": 1,
+  "id": "otto-plugins",
+  "displayName": "Otto's plugins",
+  "description": "My plugin store for portable agentic coding workflows.",
+  "repository": "https://github.com/oovz/plugins",
+  "owner": {
+    "name": "Otto",
+    "url": "https://github.com/oovz/plugins"
+  },
+  "pluginRoot": "plugins",
+  "plugins": [
+    {
+      "id": "senior-engineering-workflow",
+      "path": "plugins/senior-engineering-workflow"
+    }
+  ]
+}

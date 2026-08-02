@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/oovz/plugins/main/schemas/ownership.schema.json",
+  "title": "plugin marketplace install ownership record",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "files"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "files": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["plugin", "version", "host", "variant", "scope", "mode", "sha256"],
+        "properties": {
+          "plugin": { "type": "string" },
+          "version": { "type": "string" },
+          "host": { "type": "string" },
+          "variant": { "type": ["string", "null"] },
+          "scope": { "enum": ["project", "user"] },
+          "mode": { "type": ["string", "null"] },
+          "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+        }
+      }
+    }
+  }
+}

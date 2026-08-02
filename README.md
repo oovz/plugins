@@ -1,119 +1,179 @@
+<div align="center">
+
 # Otto's plugins
 
-Cross-host packaging for the Senior Engineering Workflow plugin and its skills, specialist agents, and adapters for Claude Code, Codex, Gemini CLI, and OpenCode.
+My store for plugins used with agentic coding harnesses.
 
-## Plugin
+[![Validate marketplace](https://github.com/oovz/plugins/actions/workflows/validate.yml/badge.svg)](https://github.com/oovz/plugins/actions/workflows/validate.yml)
+![Node.js 20+](https://img.shields.io/badge/Node.js-20%2B-339933?logo=node.js&logoColor=white)
 
-| Plugin | Description |
-|---|---|
-| [senior-engineering-workflow](plugins/senior-engineering-workflow/) | Proportional, evidence-driven delivery for repository engineering work |
+</div>
 
-The main coding agent remains the Engineering Manager: it owns user dialogue, routing, decisions, integration, and completion. The plugin supplies five conditional specialists:
+## Available plugins
 
-- `workflow-researcher` — bounded evidence gathering and codebase exploration;
-- `workflow-architect` — architecture analysis and explicitly assigned planning or design artifacts when a contract or boundary changes;
-- `workflow-engineer` — production implementation plus first-line regression, unit, and affected integration tests;
-- `workflow-tester` — independent verification, missing risk coverage, and broader test execution;
-- `workflow-reviewer` — candidate-preserving adversarial correctness, security, scope, and prohibited-pattern review.
+| Plugin | Version | What it does |
+|---|---:|---|
+| [Senior Engineering Workflow](plugins/senior-engineering-workflow/) | 0.6.0 | Routes repository work through seven leaf roles, using only the research, planning, implementation, testing, and review steps the task needs. |
 
-Roles activate according to uncertainty and risk. A small local change does not automatically run the full team.
+Each plugin has its own README with behavior and usage details. The rest of this document covers the marketplace and its packaging tools.
 
-## Install
+## Supported hosts
+
+| Host | Package type | Notes |
+|---|---|---|
+| Claude Code | Native marketplace plugin | Installs the skill and namespaced agents together. |
+| Codex | Native skill plugin plus companion agents | A standalone static mode is also available. |
+| Gemini CLI | Native per-plugin extension | Subagents remain a preview host feature. |
+| Antigravity 2.0 and CLI | Native per-plugin package | Built separately from the Gemini extension. |
+| OpenCode stable | Static configuration bundle | Installs skills and Markdown agent profiles. |
+| OpenCode V2 | Separate static bundle | Preview target with its own permission schema. |
+| Agent Skills consumers | Portable skill bundle | Agents and permissions are not part of the portable specification. |
+
+See [host compatibility](docs/host-compatibility.md) for exact layouts, host constraints, and links to upstream documentation.
+
+## Install a plugin
 
 ### Claude Code
 
-Add the marketplace and install the plugin from a Claude Code session:
+Run these commands in Claude Code:
 
 ```text
 /plugin marketplace add oovz/plugins
 /plugin install senior-engineering-workflow@otto-plugins
+/reload-plugins
 ```
 
-To install without the interactive picker:
+The CLI equivalents are:
 
 ```text
-claude plugin install senior-engineering-workflow@otto-plugins
+claude plugin marketplace add oovz/plugins
+claude plugin install senior-engineering-workflow@otto-plugins --scope user
 ```
 
-The plugin installs the skill and all five specialist agents. Run `/reload-plugins` after installing or updating the plugin so Claude Code reloads its skills and agents; restart the session if needed.
-
 ### Codex
+
+Install the native skill plugin:
 
 ```text
 codex plugin marketplace add oovz/plugins
 codex plugin add senior-engineering-workflow@otto-plugins
 ```
 
-The Codex plugin installs the skill. Codex plugins do not currently package custom-agent TOML files, so install the five agents separately:
+Codex custom-agent profiles are installed separately. From a clone of this repository:
 
 ```text
-node scripts/install-adapters.mjs codex --scope user
+node scripts/install.mjs install \
+  --plugin senior-engineering-workflow \
+  --host codex \
+  --mode companion \
+  --scope user
 ```
 
-Use `--scope project --project <path>` for one project's `.codex/agents/` directory. Start a new Codex task after installing or updating the agents.
+Use `--mode standalone` when native plugin support is unavailable. Standalone mode installs both the skill and agent profiles. Start a new Codex session after installing or updating them.
 
-You can also install **Senior Engineering Workflow** from the ChatGPT desktop plugin directory, then run the adapter command for local Codex custom agents.
+### Gemini CLI and Antigravity
 
-### Gemini CLI
-
-Gemini extensions load skills and agents from the extension root. Generate that tree from the canonical sources, then install the extension:
+These hosts consume a generated, per-plugin directory rather than the marketplace root:
 
 ```text
-git clone https://github.com/oovz/plugins
-cd plugins
-npm run generate:gemini
-gemini extensions install .
+npm ci
+npm run build -- --plugin senior-engineering-workflow --host gemini-cli
+gemini extensions install ./dist/gemini-cli/senior-engineering-workflow
 ```
 
-For local development, use `gemini extensions link .`. Restart Gemini CLI after installation or update.
+```text
+npm run build -- --plugin senior-engineering-workflow --host antigravity
+agy plugin install ./dist/antigravity/senior-engineering-workflow
+```
+
+Restart Gemini CLI after installing or updating an extension. A Gemini release archive must place `gemini-extension.json` at its root, so the repository URL itself is not a valid remote extension target.
 
 ### OpenCode
 
-OpenCode's executable plugin API does not package skills and agents, so install them through its documented configuration directories:
+Use the local installer for the stable bundle:
 
 ```text
-git clone https://github.com/oovz/plugins
-cd plugins
-node scripts/install-adapters.mjs opencode --scope user
+node scripts/install.mjs install \
+  --plugin senior-engineering-workflow \
+  --host opencode \
+  --variant stable \
+  --scope user
 ```
 
-Use `--scope project --project <path>` for a project-local `.opencode/` installation. The installer refuses to overwrite changed files unless `--force` is supplied.
+The V2 preview is an explicit variant:
 
-## Host integration
+```text
+node scripts/install.mjs install \
+  --plugin senior-engineering-workflow \
+  --host opencode \
+  --variant v2-beta \
+  --scope project \
+  --project /absolute/path/to/project
+```
 
-| Host | Native integration | Skill | Five specialist agents |
-|---|---|---|---|
-| Claude Code | Host plugin catalog | Installed by plugin | Installed by plugin |
-| Codex | Host plugin catalog | Installed by plugin | Installed separately as TOML adapters |
-| Gemini CLI | Extension | Generated into extension root | Generated into extension root |
-| OpenCode | Configuration bundle | Installed by adapter script | Installed by adapter script |
+The installer also supports `update`, `uninstall`, project scope, and `--dry-run`. It records file ownership and content hashes, refuses unrelated existing files by default, and removes only files still owned by the selected plugin.
 
-Agent definitions inherit the user's selected model and, where supported, reasoning effort. The plugin sets no turn or step caps. Architect, Engineer, and Tester retain the tools needed to write their assigned artifacts; Researcher and Reviewer preserve the implementation candidate while retaining evidence-gathering and validation tools. Nested delegation is available where the host supports it and remains subject to host/user depth and permission controls.
+> [!NOTE]
+> Prefer a host's native installer when one is available. The repository installer is meant for static bundles, Codex companion profiles, and isolated verification.
 
-When upgrading from the previous three-role release, remove the obsolete executor agent file from user or project configuration. Version 0.3.1 does not install a legacy alias, and the installer does not delete user files automatically. The host catalog is now named `otto-plugins`, so installation targets use `senior-engineering-workflow@otto-plugins`.
+## Work on the marketplace
+
+Node.js 20 or later is required.
+
+```text
+npm ci
+npm run verify
+```
+
+`verify` validates manifests and host contracts, checks committed generated files, runs the test suite, and builds every enabled target. CI runs the same command on Node.js 20 and 24 across Linux, macOS, and Windows.
+
+For a narrower iteration:
+
+```text
+npm run generate -- --plugin senior-engineering-workflow
+npm run build -- --plugin senior-engineering-workflow --host antigravity
+```
+
+`generate` refreshes committed catalogs and adapters. `build` writes disposable packages under `dist/`; it does not modify host configuration directories.
+
+Generated bundles follow the same layout for every plugin:
+
+```text
+dist/claude-code/<plugin-id>/
+dist/codex/<plugin-id>/
+dist/gemini-cli/<plugin-id>/
+dist/antigravity/<plugin-id>/
+dist/opencode/stable/<plugin-id>/
+dist/opencode/v2-beta/<plugin-id>/
+dist/portable-agent-skills/<plugin-id>/
+```
+
+## Add a plugin
+
+Register the plugin in `marketplace.json`, then add its canonical manifest and components under `plugins/<plugin-id>/`. The generic discovery and rendering pipeline handles every enabled host.
+
+The full guide covers identities, schema fields, component layout, generation, collision checks, and independent releases: [Adding a marketplace plugin](docs/adding-a-plugin.md).
 
 ## Repository layout
 
 ```text
-plugins/<name>/                     canonical Claude plugin, skill, references, and agents
-adapters/codex/agents/              Codex TOML definitions for five specialist roles
-adapters/gemini/agents/             Gemini Markdown definitions for five specialist roles
-adapters/opencode/agents/           OpenCode Markdown definitions for five specialist roles
-.claude-plugin/marketplace.json     Claude host catalog manifest
-.agents/plugins/marketplace.json    Codex host catalog manifest
-gemini-extension.json               Gemini extension manifest
-scripts/install-adapters.mjs        host adapter installer and Gemini generator
-scripts/validate.mjs                manifests, topology, policy, and install-plan validation
+marketplace.json                  marketplace identity and plugin catalog
+schemas/                          canonical manifest and ownership schemas
+plugins/<plugin-id>/              canonical plugin source
+adapters/                         generated, checked-in host projections
+.claude-plugin/marketplace.json   generated Claude Code catalog
+.agents/plugins/marketplace.json  generated Codex catalog
+scripts/                          generation, installation, and validation tools
+test/                             marketplace and installer tests
+dist/                             disposable host bundles
 ```
 
-The root `skills/` and `agents/` directories are generated for Gemini CLI and are gitignored. Edit canonical sources under `plugins/` and `adapters/`, then regenerate.
+Canonical plugin files belong under `plugins/`. Do not edit generated catalogs, adapters, or `dist/` output by hand; change the canonical source and regenerate them.
 
-## Development
+## Documentation
 
-Run the repository validation after changing canonical sources, adapters, installers, manifests, or documentation:
+- [Host compatibility](docs/host-compatibility.md)
+- [Adding a marketplace plugin](docs/adding-a-plugin.md)
 
-```text
-npm run validate
-```
-
-Validation checks synchronized versions, host catalog paths, parseable YAML/TOML, the exact five-role topology, model and effort inheritance, absence of plugin-authored turn caps, scoped candidate ownership and nested delegation, required skill references, and both dry-run and isolated integration installs. GitHub Actions runs the same command on pushes and pull requests.
+> [!IMPORTANT]
+> Plugin capability declarations describe what an adapter requests from a host. Effective access still depends on the host, sandbox, approval mode, workspace trust, and administrator policy. Review a generated bundle before installing it in a sensitive environment.

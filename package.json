@@ -1,18 +1,23 @@
 {
-  "name": "plugins",
-  "version": "0.4.0",
+  "name": "oovz-plugin-marketplace-tooling",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
   "engines": {
     "node": ">=20"
   },
   "scripts": {
+    "build": "node scripts/generate.mjs build",
+    "check:generated": "node scripts/generate.mjs check --all",
+    "generate": "node scripts/generate.mjs generate",
+    "install:plugin": "node scripts/install.mjs",
+    "test": "node --test test/*.test.mjs",
     "validate": "node scripts/validate.mjs",
-    "install:codex-agents": "node scripts/install-adapters.mjs codex",
-    "install:opencode": "node scripts/install-adapters.mjs opencode",
-    "generate:gemini": "node scripts/install-adapters.mjs gemini"
+    "verify": "npm run validate && npm run check:generated && npm test && npm run build -- --all"
   },
   "devDependencies": {
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1",
     "smol-toml": "^1.7.0",
     "yaml": "^2.9.0"
   }

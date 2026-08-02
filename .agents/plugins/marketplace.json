@@ -8,7 +8,7 @@
       "name": "senior-engineering-workflow",
       "source": {
         "source": "local",
-        "path": "./plugins/senior-engineering-workflow"
+        "path": "./adapters/codex/senior-engineering-workflow"
       },
       "policy": {
         "installation": "AVAILABLE",

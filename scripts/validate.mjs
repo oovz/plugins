@@ -1,504 +1,223 @@
-import { mkdtemp, readFile, readdir, rm, stat } from "node:fs/promises";
-import os from "node:os";
+#!/usr/bin/env node
+import { lstat, readFile, readdir } from "node:fs/promises";
 import path from "node:path";
+import process from "node:process";
 import { fileURLToPath } from "node:url";
 import { parse as parseToml } from "smol-toml";
-import { parse as parseYaml } from "yaml";
-import { AGENT_ROLE_NAMES, installAdapters } from "./install-adapters.mjs";
+import YAML from "yaml";
+import { allHostTargets, renderHost, resolveHost, supportsHost } from "./lib/hosts.mjs";
+import { assert, decodeUtf8, discoverMarketplace, flatAgentId, inspectPlugin, parseFrontmatter, ROOT, walkFiles } from "./lib/marketplace.mjs";
+import { assertCatalogMatchesSchemas } from "./lib/schema.mjs";
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const NAME = "senior-engineering-workflow";
-const CATALOG_NAME = "otto-plugins";
-const PLUGIN = path.join(ROOT, "plugins", NAME);
-const errors = [];
+const GEMINI_TOOLS = new Set(["read_file", "read_many_files", "grep_search", "glob", "list_directory", "replace", "write_file", "run_shell_command", "google_web_search", "web_fetch", "ask_user"]);
+const ANTIGRAVITY_TOOLS = new Set(["view_file", "list_dir", "find_by_name", "grep_search", "write_to_file", "replace_file_content", "multi_replace_file_content", "run_command", "search_web", "read_url_content", "invoke_subagent", "ask_question"]);
+const CLAUDE_TOOLS = new Set(["Read", "Grep", "Glob", "Write", "Edit", "Bash", "WebSearch", "WebFetch", "Agent", "AskUserQuestion"]);
 
-const ROLES = Object.freeze([
-  {
-    id: "workflow-researcher",
-    candidateWrite: false,
-    nestedRoles: ["workflow-researcher", "workflow-reviewer"],
-  },
-  {
-    id: "workflow-architect",
-    candidateWrite: true,
-    nestedRoles: ["workflow-researcher", "workflow-reviewer"],
-  },
-  {
-    id: "workflow-engineer",
-    candidateWrite: true,
-    nestedRoles: ["workflow-researcher", "workflow-engineer", "workflow-tester", "workflow-reviewer"],
-  },
-  {
-    id: "workflow-tester",
-    candidateWrite: true,
-    nestedRoles: ["workflow-researcher", "workflow-tester", "workflow-reviewer"],
-  },
-  {
-    id: "workflow-reviewer",
-    candidateWrite: false,
-    nestedRoles: ["workflow-researcher", "workflow-reviewer"],
-  },
-]);
-
-const REFERENCES = Object.freeze([
-  "task-routing.md",
-  "manager.md",
-  "architecture.md",
-  "engineering.md",
-  "verification.md",
-  "review.md",
-  "delegation-and-state.md",
-  "prohibited-patterns.md",
-  "evidence-and-research.md",
-]);
-
-// Canonical semantic invariants that every host adapter must preserve for a role.
-// Hosts may differ in frontmatter, code fences, delegation framing, output-contract
-// formatting, and slash/word list punctuation; these normalizations collapse those
-// declared host-only differences so the check compares semantic content, not bytes.
-const SEMANTIC_INVARIANTS = Object.freeze({
-  "workflow-researcher": [
-    "Match evidence to the claim",
-    "Stop when the answer can be named with sufficient confidence",
-    "Run only commands compatible with candidate preservation",
-    "Do not weaken the read-only boundary silently",
-  ],
-  "workflow-architect": [
-    "Prefer the simplest design that satisfies accepted scope",
-    "Challenge every new wrapper, abstraction, callback, retry, fallback, defensive branch, compatibility path, or extension point",
-    "Do not create architecture documents merely as workflow ceremony",
-  ],
-  "workflow-engineer": [
-    "Choose the simplest accepted approach and carry it through",
-    "Do not repeatedly compare alternatives or rework already-settled code without new information",
-    "unexplained or duplicated domain values",
-    "transformations added only to conceal a defect or force checks green",
-  ],
-  "workflow-tester": [
-    "Add a test only when it protects an accepted requirement",
-    "Do not add tests for impossible internal states",
-    "Do not manufacture work to fill the matrix",
-    "Do not repeat the same implementation or test hypothesis without new evidence",
-  ],
-  "workflow-reviewer": [
-    "Check the categories implicated by the accepted requirements, architecture, diff, and risk",
-    "A defect finding requires",
-    "Do not report style preferences, hypothetical future concerns, impossible-state defenses, or unrequested compatibility as defects",
-  ],
-});
-const TEXT_FILENAMES = new Set(["LICENSE", ".gitattributes", ".gitignore"]);
-const TEXT_EXTENSIONS = new Set([".json", ".md", ".mjs", ".toml", ".yaml", ".yml"]);
-
-function check(condition, message) {
-  if (!condition) errors.push(message);
+function artifactMap(artifacts) {
+  return new Map(artifacts.map((artifact) => [artifact.path, artifact.content]));
 }
 
-async function exists(file) {
+function parseMarkdownArtifact(content, label) {
+  return parseFrontmatter(content.toString("utf8"), label);
+}
+
+function assertDeniedV2(frontmatter, action, label) {
+  assert(frontmatter.permissions.some((rule) => rule.action === action && rule.resource === "*" && rule.effect === "deny"), `${label} must deny ${action}`);
+}
+
+function validateRenderedAgent(plugin, agent, target, artifacts) {
+  const flat = flatAgentId(plugin.manifest.id, agent.id);
+  if (target.id === "claude-code") {
+    const parsed = parseMarkdownArtifact(artifacts.get(`agents/${agent.id}.md`), `Claude agent ${agent.id}`);
+    assert(parsed.frontmatter.name === agent.id && parsed.frontmatter.model === "inherit", `Claude agent ${agent.id} must use scoped id and inherit its model`);
+    const tools = new Set(String(parsed.frontmatter.tools).split(/,\s*/).filter(Boolean));
+    for (const tool of tools) assert(CLAUDE_TOOLS.has(tool), `Claude agent ${agent.id} has unknown tool ${tool}`);
+    if (agent.workspace === "read-only") for (const tool of ["Write", "Edit"]) assert(!tools.has(tool), `Claude read-only agent ${agent.id} exposes ${tool}`);
+    if (!agent.shell) assert(!tools.has("Bash"), `Claude shell-denied agent ${agent.id} exposes Bash`);
+    if (!agent.external) for (const tool of ["WebSearch", "WebFetch"]) assert(!tools.has(tool), `Claude external-denied agent ${agent.id} exposes ${tool}`);
+    if (agent.workspace === "workspace-write") for (const tool of ["Write", "Edit"]) assert(tools.has(tool), `Claude writable agent ${agent.id} must expose ${tool}`);
+    if (agent.shell) assert(tools.has("Bash"), `Claude shell-capable agent ${agent.id} must expose Bash`);
+    if (agent.external) for (const tool of ["WebSearch", "WebFetch"]) assert(tools.has(tool), `Claude external-capable agent ${agent.id} must expose ${tool}`);
+    if (agent.delegates) assert(tools.has("Agent"), `Claude delegating agent ${agent.id} must expose Agent`);
+    if (agent.question) assert(tools.has("AskUserQuestion"), `Claude question-capable agent ${agent.id} must expose AskUserQuestion`);
+    const denied = String(parsed.frontmatter.disallowedTools ?? "").split(/,\s*/).filter(Boolean);
+    if (!agent.delegates) assert(denied.includes("Agent"), `Claude leaf agent ${agent.id} must deny Agent`);
+    if (!agent.question) assert(denied.includes("AskUserQuestion"), `Claude agent ${agent.id} must deny direct user questions`);
+  } else if (target.id === "codex") {
+    const value = parseToml(artifacts.get(`companion/agents/${flat}.toml`).toString("utf8"));
+    assert(value.name === flat && value.sandbox_mode === agent.workspace, `Codex agent ${agent.id} has incorrect id or sandbox`);
+    assert(value.model === undefined && value.model_reasoning_effort === undefined, `Codex agent ${agent.id} must inherit model and reasoning`);
+  } else if (target.id === "gemini-cli") {
+    const parsed = parseMarkdownArtifact(artifacts.get(`agents/${flat}.md`), `Gemini agent ${agent.id}`);
+    assert(parsed.frontmatter.name === flat && parsed.frontmatter.kind === "local" && parsed.frontmatter.model === "inherit", `Gemini agent ${agent.id} has invalid identity/kind/model`);
+    for (const key of ["max_turns", "timeout_mins", "temperature"]) assert(parsed.frontmatter[key] === undefined, `Gemini agent ${agent.id} must not hard-code ${key}`);
+    for (const tool of parsed.frontmatter.tools) assert(GEMINI_TOOLS.has(tool), `Gemini agent ${agent.id} has unknown tool ${tool}`);
+    if (agent.workspace === "read-only") for (const tool of ["replace", "write_file"]) assert(!parsed.frontmatter.tools.includes(tool), `Gemini read-only agent ${agent.id} exposes ${tool}`);
+    if (!agent.shell) assert(!parsed.frontmatter.tools.includes("run_shell_command"), `Gemini shell-denied agent ${agent.id} exposes shell`);
+    if (agent.question) assert(parsed.frontmatter.tools.includes("ask_user"), `Gemini question-capable agent ${agent.id} must expose ask_user`);
+  } else if (target.id === "antigravity") {
+    const parsed = parseMarkdownArtifact(artifacts.get(`agents/${flat}.md`), `Antigravity agent ${agent.id}`);
+    const fm = parsed.frontmatter;
+    assert(fm.name === flat && fm.mainAgent === false && fm.subagent === true && fm.model === "inherit" && fm.commandExecutionPolicy === "sandbox", `Antigravity agent ${agent.id} has invalid required frontmatter`);
+    for (const tool of fm.tools) assert(ANTIGRAVITY_TOOLS.has(tool), `Antigravity agent ${agent.id} has unknown tool ${tool}`);
+    if (agent.workspace === "read-only") for (const tool of ["write_to_file", "replace_file_content", "multi_replace_file_content"]) assert(!fm.tools.includes(tool), `Antigravity read-only agent ${agent.id} exposes ${tool}`);
+    if (!agent.shell) assert(!fm.tools.includes("run_command"), `Antigravity shell-denied agent ${agent.id} exposes shell`);
+    if (agent.delegates) assert(fm.tools.includes("invoke_subagent"), `Antigravity delegating agent ${agent.id} must expose invoke_subagent`);
+    if (agent.question) assert(fm.tools.includes("ask_question"), `Antigravity question-capable agent ${agent.id} must expose ask_question`);
+  } else if (target.id === "opencode") {
+    const parsed = parseMarkdownArtifact(artifacts.get(`.opencode/agents/${flat}.md`), `OpenCode ${target.variant} agent ${agent.id}`);
+    const fm = parsed.frontmatter;
+    assert(fm.mode === "subagent" && fm.model === undefined && fm.steps === undefined, `OpenCode ${target.variant} agent ${agent.id} must be a model-inheriting subagent without step cap`);
+    if (target.variant === "stable") {
+      assert(fm.permission && fm.permissions === undefined, `OpenCode stable agent ${agent.id} must use permission`);
+      if (!agent.delegates) assert(fm.permission.task?.["*"] === "deny", `OpenCode stable leaf agent ${agent.id} must deny task`);
+      assert(fm.permission.external_directory === "deny", `OpenCode stable agent ${agent.id} must deny external_directory`);
+      if (agent.workspace === "read-only") assert(fm.permission.edit === "deny", `OpenCode stable read-only agent ${agent.id} must deny edit`);
+      if (!agent.shell) assert(fm.permission.bash === "deny", `OpenCode stable agent ${agent.id} must deny bash`);
+      if (!agent.external) for (const action of ["webfetch", "websearch"]) assert(fm.permission[action] === "deny", `OpenCode stable agent ${agent.id} must deny ${action}`);
+    } else {
+      assert(Array.isArray(fm.permissions) && fm.permission === undefined, `OpenCode V2 agent ${agent.id} must use native permissions array`);
+      for (const rule of fm.permissions) {
+        assert(Object.keys(rule).join(",") === "action,resource,effect", `OpenCode V2 agent ${agent.id} permission rule must use action/resource/effect order`);
+        assert(!["bash", "task"].includes(rule.action), `OpenCode V2 agent ${agent.id} uses a V1 action`);
+      }
+      if (!agent.delegates) assertDeniedV2(fm, "subagent", `OpenCode V2 leaf agent ${agent.id}`);
+      assertDeniedV2(fm, "external_directory", `OpenCode V2 agent ${agent.id}`);
+      if (agent.workspace === "read-only") assertDeniedV2(fm, "edit", `OpenCode V2 read-only agent ${agent.id}`);
+      if (!agent.shell) assertDeniedV2(fm, "shell", `OpenCode V2 shell-denied agent ${agent.id}`);
+      if (!agent.external) for (const action of ["webfetch", "websearch"]) assertDeniedV2(fm, action, `OpenCode V2 external-denied agent ${agent.id}`);
+    }
+  }
+}
+
+function validateContract(plugin, contract, label) {
+  assert(contract.schema_version && contract.contract_id, `${label} must identify its schema and contract`);
+  assert(contract.leaf_roles && Number.isInteger(contract.leaf_role_count), `${label} must declare leaf roles and count`);
+  const roles = Object.values(contract.leaf_roles);
+  assert(roles.length === contract.leaf_role_count, `${label} leaf_role_count does not match leaf_roles`);
+  const manifestIds = new Set(plugin.agents.map((agent) => agent.id));
+  const contractIds = new Set(roles.map((role) => role.logical_agent_id));
+  assert(manifestIds.size === contractIds.size && [...manifestIds].every((id) => contractIds.has(id)), `${label} roles do not match plugin.json agents`);
+  for (const role of roles) assert(role.is_leaf === true && role.delegates === false, `${label} role ${role.logical_agent_id} must be a non-delegating leaf`);
+  const fast = contract.routes?.supplied_plan_fast_path;
+  assert(fast && fast.required_roles?.includes("engineer") && fast.required_roles?.includes("tester"), `${label} supplied-plan route must hand directly to engineer and tester`);
+  for (const role of fast.forbidden_roles_unless_gate_is_invalidated ?? []) assert(!fast.required_roles.includes(role), `${label} supplied-plan route has conflicting required/forbidden role ${role}`);
+  const testFast = contract.routes?.supplied_test_plan_fast_path;
+  assert(testFast && testFast.production_changes_allowed === false && testFast.required_roles?.includes("tester") && !testFast.required_roles?.includes("engineer"), `${label} supplied-test-plan route must hand directly to Tester without production changes`);
+  for (const role of ["manager", "researcher", "architect", "planner", "engineer"]) assert(testFast.forbidden_roles_unless_gate_is_invalidated?.includes(role), `${label} supplied-test-plan route must bypass ${role}`);
+  assert(String(contract.supplied_plan_fast_path?.evaluation_order).includes("before"), `${label} must evaluate the supplied-plan fast path before redundant discovery`);
+  const cycle = contract.failure_loop?.cycle;
+  assert(Array.isArray(cycle) && cycle.length >= 4, `${label} must define the remediation cycle`);
+  const firstTester = cycle.findIndex((item) => item.startsWith("Tester"));
+  const owner = cycle.findIndex((item) => item.includes("owning role"));
+  const rerun = cycle.findIndex((item, index) => index > owner && item.startsWith("Tester") && item.includes("rerun"));
+  const reviewer = cycle.findIndex((item, index) => index > rerun && item.startsWith("Reviewer"));
+  assert(firstTester === 0 && owner > firstTester && rerun > owner && reviewer > rerun, `${label} remediation sequence must be tester -> owner root cause/fix -> tester rerun -> reviewer closure`);
+  const breaker = contract.failure_loop?.no_progress_circuit_breaker;
+  assert(Number.isInteger(breaker?.maximum_evidence_backed_no_progress_attempts) && breaker.maximum_evidence_backed_no_progress_attempts > 0, `${label} must bound no-progress attempts`);
+  assert(breaker.on_limit?.some((item) => item.includes("stop further mutation")), `${label} circuit breaker must stop further mutation`);
+}
+
+async function validatePlugin(plugin) {
+  const localLicense = plugin.license.content.toString("utf8");
+  assert(localLicense.trim().length > 0, `${plugin.manifest.id} plugin-local LICENSE is empty`);
+  if (plugin.manifest.license === "MIT") assert(/MIT License/i.test(localLicense), `${plugin.manifest.id} declares MIT but its LICENSE does not identify the MIT License`);
+  if (/^Apache-2\.0$/i.test(plugin.manifest.license)) assert(/Apache License[\s\S]*Version 2\.0/i.test(localLicense), `${plugin.manifest.id} declares Apache-2.0 but its LICENSE does not identify Apache 2.0`);
+  for (const agent of plugin.agents) {
+    assert(agent.frontmatter.name === agent.id, `${plugin.manifest.id} agent ${agent.id} frontmatter name must match logical id`);
+    assert(typeof agent.frontmatter.description === "string" && agent.frontmatter.description.trim(), `${plugin.manifest.id} agent ${agent.id} needs a description`);
+    const neutralFields = new Set(["name", "description"]);
+    for (const key of Object.keys(agent.frontmatter)) assert(neutralFields.has(key), `${plugin.manifest.id} canonical agent ${agent.id} has host-specific frontmatter field ${key}`);
+    assert(agent.body.trim().length > 0, `${plugin.manifest.id} canonical agent ${agent.id} body is empty`);
+    if (plugin.manifest.hosts?.["gemini-cli"]?.enabled === true) assert(!agent.delegates, `${plugin.manifest.id} cannot enable Gemini CLI for recursively delegating agent ${agent.id}`);
+  }
+
+  for (const target of allHostTargets()) {
+    if (!supportsHost(plugin, resolveHost(target.id, target.variant))) continue;
+    const rendered = renderHost(plugin, target.id, target.variant);
+    const artifacts = artifactMap(rendered.artifacts);
+    assert(artifacts.get("LICENSE")?.toString("utf8") === localLicense, `${target.id} bundle for ${plugin.manifest.id} is missing its exact license`);
+    for (const agent of plugin.agents) validateRenderedAgent(plugin, agent, target, artifacts);
+    for (const skill of plugin.skills) {
+      const prefix = target.id === "opencode" ? ".opencode/skills" : target.id === "portable-agent-skills" ? ".agents/skills" : "skills";
+      for (const file of skill.files) assert(artifacts.has(path.posix.join(prefix, skill.id, file.relative)), `${target.id} bundle omits ${skill.id}/${file.relative}`);
+      assert(artifacts.get(path.posix.join(prefix, skill.id, "LICENSE"))?.toString("utf8") === localLicense, `${target.id} bundle skill ${skill.id} lacks the plugin license`);
+    }
+    if (target.id === "codex") {
+      const manifest = JSON.parse(artifacts.get(".codex-plugin/plugin.json"));
+      assert(manifest.name === plugin.manifest.id && manifest.skills === "./skills/" && manifest.agents === undefined, `Codex manifest for ${plugin.manifest.id} is not native`);
+    }
+    if (target.id === "antigravity") {
+      const manifest = JSON.parse(artifacts.get("plugin.json"));
+      assert(manifest.name === plugin.manifest.id && manifest.version === undefined, `Antigravity manifest for ${plugin.manifest.id} has invalid fields`);
+    }
+    if (target.id === "gemini-cli") {
+      const manifest = JSON.parse(artifacts.get("gemini-extension.json"));
+      assert(manifest.name === plugin.manifest.id && manifest.version === plugin.manifest.version, `Gemini manifest for ${plugin.manifest.id} is invalid`);
+    }
+  }
+
+  const contractFiles = new Map();
+  for (const skill of plugin.skills) {
+    for (const file of skill.files.filter((entry) => /workflow-contract\.ya?ml$/i.test(entry.relative))) {
+      const parsed = YAML.parse(decodeUtf8(file.content, `${plugin.manifest.id}/${file.relative}`));
+      assert(parsed && typeof parsed === "object", `${plugin.manifest.id}/${file.relative} must contain a YAML object`);
+      const pluginRelative = path.relative(plugin.directory, file.absolute).split(path.sep).join("/");
+      contractFiles.set(pluginRelative, parsed);
+    }
+  }
+  const evalDirectory = path.join(plugin.directory, "evals");
+  const evalSuites = new Map();
   try {
-    await stat(file);
-    return true;
+    const evalFiles = await walkFiles(evalDirectory, plugin.directory);
+    for (const file of evalFiles.filter((entry) => /\.ya?ml$/i.test(entry.relative))) {
+      const suite = YAML.parse(decodeUtf8(file.content, `${plugin.manifest.id}/evals/${file.relative}`));
+      assert(suite && typeof suite === "object", `${plugin.manifest.id}/evals/${file.relative} must contain a YAML object`);
+      evalSuites.set(path.posix.join("evals", file.relative), suite);
+    }
   } catch (error) {
-    if (error.code === "ENOENT") return false;
-    throw error;
+    if (error.code !== "ENOENT") throw error;
+  }
+  if (plugin.manifest.validation) {
+    assert(plugin.manifest.validation.profile === "engineering-delivery-v1", `unknown declared validation profile: ${plugin.manifest.validation.profile}`);
+    const contract = contractFiles.get(plugin.manifest.validation.contract);
+    assert(contract, `${plugin.manifest.id} declared contract is missing from its skill tree: ${plugin.manifest.validation.contract}`);
+    validateContract(plugin, contract, `${plugin.manifest.id}/${plugin.manifest.validation.contract}`);
+    const suite = evalSuites.get(plugin.manifest.validation.evals);
+    assert(suite, `${plugin.manifest.id} declared eval suite is missing: ${plugin.manifest.validation.evals}`);
+    assert(Array.isArray(suite.cases) && suite.cases.length > 0, `${plugin.manifest.id}/${plugin.manifest.validation.evals} must contain cases`);
+    const capabilities = new Set(suite.cases.map((item) => item.capability));
+    for (const capability of ["supplied_plan_fast_path", "evidence_backed_remediation", "bounded_failure_loop"]) assert(capabilities.has(capability), `${plugin.manifest.id}/${plugin.manifest.validation.evals} lacks ${capability} coverage`);
   }
 }
 
-async function json(relativePath) {
-  return JSON.parse(await readFile(path.join(ROOT, relativePath), "utf8"));
-}
-
-function frontmatterBlock(text) {
-  return text.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n/)?.[1] ?? "";
-}
-
-function frontmatter(text) {
-  const block = frontmatterBlock(text);
-  return block ? (parseYaml(block) ?? {}) : {};
-}
-
-async function checkAgentDirectory(relativeDirectory, extension) {
-  const actual = (await readdir(path.join(ROOT, relativeDirectory)))
-    .filter((file) => file.endsWith(`.${extension}`))
-    .sort();
-  const expected = AGENT_ROLE_NAMES.map((role) => `${role}.${extension}`).sort();
-  check(
-    JSON.stringify(actual) === JSON.stringify(expected),
-    `${relativeDirectory} must contain exactly the five current agent roles`,
-  );
-}
-
-async function validateLineEndings(directory = ROOT) {
-  for (const entry of await readdir(directory, { withFileTypes: true })) {
-    if (entry.name === ".git" || entry.name === "node_modules") continue;
-    const file = path.join(directory, entry.name);
-    if (entry.isDirectory()) {
-      await validateLineEndings(file);
-      continue;
+export async function validateRepository(root = ROOT) {
+  const catalog = await discoverMarketplace(root);
+  await assertCatalogMatchesSchemas(catalog);
+  try { await lstat(path.join(root, "gemini-extension.json")); throw new Error("repository root must not be a Gemini extension; remove gemini-extension.json"); } catch (error) { if (error.code !== "ENOENT") throw error; }
+  const plugins = await Promise.all(catalog.plugins.map(inspectPlugin));
+  const flatIds = new Set();
+  const skillIds = new Set();
+  for (const plugin of plugins) {
+    for (const agent of plugin.agents) {
+      const id = flatAgentId(plugin.manifest.id, agent.id);
+      assert(!flatIds.has(id), `flat agent id collision: ${id}`);
+      flatIds.add(id);
     }
-    if (!TEXT_FILENAMES.has(entry.name) && !TEXT_EXTENSIONS.has(path.extname(entry.name))) continue;
-    const contents = await readFile(file);
-    check(!contents.includes(13), `${path.relative(ROOT, file)} must use LF line endings`);
-  }
-}
-
-async function validateClaudeAgent(role) {
-  const file = path.join(PLUGIN, "agents", `${role.id}.md`);
-  const text = await readFile(file, "utf8");
-  const meta = frontmatter(text);
-  const denied = new Set((meta.disallowedTools ?? "").split(/\s*,\s*/).filter(Boolean));
-
-  check(meta.name === role.id, `Claude ${role.id} agent name is invalid`);
-  check(meta.model === "inherit", `Claude ${role.id} must inherit the parent model`);
-  check(meta.effort === undefined, `Claude ${role.id} must inherit the session effort`);
-  check(meta.maxTurns === undefined, `Claude ${role.id} must not set a plugin turn limit`);
-  check(meta.tools === undefined, `Claude ${role.id} must inherit the parent tool set`);
-  check(!denied.has("Agent"), `Claude ${role.id} must not deny Agent`);
-  if (role.candidateWrite) {
-    check(meta.disallowedTools === undefined, `Claude ${role.id} must inherit editing and shell tools`);
-  } else {
-    for (const tool of ["Write", "Edit", "NotebookEdit"]) {
-      check(denied.has(tool), `Claude ${role.id} must deny candidate-writing tool ${tool}`);
+    for (const skill of plugin.skills) {
+      assert(!skillIds.has(skill.id), `marketplace skill id collision: ${skill.id}`);
+      skillIds.add(skill.id);
     }
-    check(!denied.has("Bash") && !denied.has("PowerShell"), `Claude ${role.id} must retain shell capability`);
+    await validatePlugin(plugin);
   }
+  return { catalog, plugins };
 }
 
-async function validateCodexAgent(role) {
-  const text = await readFile(path.join(ROOT, "adapters", "codex", "agents", `${role.id}.toml`), "utf8");
-  const config = parseToml(text);
-  const expectedSandbox = role.candidateWrite ? "workspace-write" : "read-only";
-
-  check(config.name === role.id, `Codex ${role.id} agent name is invalid`);
-  check((config.description ?? "").length > 40, `Codex ${role.id} description is too short`);
-  check(config.sandbox_mode === expectedSandbox, `Codex ${role.id} sandbox does not match candidate ownership`);
-  check(typeof config.developer_instructions === "string", `Codex ${role.id} instructions are missing`);
-  check(/nested delegation/i.test(config.developer_instructions ?? ""), `Codex ${role.id} must define scoped nested delegation`);
-  check(!/Do not [^.\n]*spawn agents/i.test(config.developer_instructions ?? ""), `Codex ${role.id} must not prohibit nested delegation`);
-  check(config.model === undefined, `Codex ${role.id} must inherit the configured model`);
-  check(config.model_reasoning_effort === undefined, `Codex ${role.id} must inherit configured reasoning effort`);
-}
-
-async function validateGeminiAgent(role) {
-  const text = await readFile(path.join(ROOT, "adapters", "gemini", "agents", `${role.id}.md`), "utf8");
-  const meta = frontmatter(text);
-
-  check(meta.name === role.id, `Gemini ${role.id} agent name is invalid`);
-  check(meta.kind === "local", `Gemini ${role.id} must be a local subagent`);
-  check(meta.model === "inherit", `Gemini ${role.id} must inherit the session model`);
-  check(meta.max_turns === undefined, `Gemini ${role.id} must not set a plugin turn limit`);
-  if (role.candidateWrite) {
-    check(meta.tools === undefined, `Gemini ${role.id} must inherit the parent tool set`);
-  } else {
-    const tools = new Set(meta.tools ?? []);
-    check(tools.has("run_shell_command"), `Gemini ${role.id} must retain shell capability`);
-    check(!tools.has("replace") && !tools.has("write_file"), `Gemini ${role.id} must not receive candidate-writing tools`);
-  }
-}
-
-async function validateOpenCodeAgent(role) {
-  const text = await readFile(path.join(ROOT, "adapters", "opencode", "agents", `${role.id}.md`), "utf8");
-  const meta = frontmatter(text);
-
-  check(meta.mode === "subagent", `OpenCode ${role.id} must use subagent mode`);
-  check(meta.model === undefined, `OpenCode ${role.id} must inherit the primary model`);
-  check(meta.reasoningEffort === undefined, `OpenCode ${role.id} must not pin provider-specific reasoning effort`);
-  check(meta.steps === undefined, `OpenCode ${role.id} must not set a plugin step limit`);
-  if (role.candidateWrite) {
-    check(meta.permission?.edit === undefined, `OpenCode ${role.id} must inherit edit permissions`);
-  } else {
-    check(meta.permission?.edit === "deny", `OpenCode ${role.id} must deny candidate edits`);
-  }
-  check(meta.permission?.bash === undefined, `OpenCode ${role.id} must inherit shell permissions`);
-  check(meta.permission?.task?.["*"] === "deny", `OpenCode ${role.id} must deny unrelated nested agents`);
-  const allowedNestedRoles = Object.entries(meta.permission?.task ?? {})
-    .filter(([nestedRole, action]) => nestedRole !== "*" && action === "allow")
-    .map(([nestedRole]) => nestedRole)
-    .sort();
-  check(
-    JSON.stringify(allowedNestedRoles) === JSON.stringify([...role.nestedRoles].sort()),
-    `OpenCode ${role.id} nested role allowlist exceeds or omits its authority`,
-  );
-}
-
-function stripFrontmatter(text) {
-  return text.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/, "");
-}
-
-// Collapse declared host-only surface differences (slash vs "or"/"and" lists,
-// punctuation, code fences, dashes, backticks) so the comparison is semantic.
-function normalizeSemantic(text) {
-  return text
-    .toLowerCase()
-    .replace(/```[\w]*\n?/g, " ")
-    .replace(/[\u2013\u2014]/g, "-")
-    .replace(/`/g, "")
-    .replace(/\s*\/\s*/g, " ")
-    .replace(/\s*\bor\b\s*/g, " ")
-    .replace(/\s*\band\b\s*/g, " ")
-    .replace(/[,:;]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-async function agentBody(host, role) {
-  if (host === "claude") {
-    return stripFrontmatter(await readFile(path.join(PLUGIN, "agents", `${role}.md`), "utf8"));
-  }
-  if (host === "codex") {
-    const config = parseToml(await readFile(path.join(ROOT, "adapters", "codex", "agents", `${role}.toml`), "utf8"));
-    return typeof config.developer_instructions === "string" ? config.developer_instructions : "";
-  }
-  if (host === "gemini") {
-    return stripFrontmatter(await readFile(path.join(ROOT, "adapters", "gemini", "agents", `${role}.md`), "utf8"));
-  }
-  if (host === "opencode") {
-    return stripFrontmatter(await readFile(path.join(ROOT, "adapters", "opencode", "agents", `${role}.md`), "utf8"));
-  }
-  return "";
-}
-
-// Deferred-generation parity: instead of byte-for-byte equality, verify each host
-// adapter preserves the canonical role invariants under semantic normalization.
-async function validateSemanticParity() {
-  const hosts = ["claude", "codex", "gemini", "opencode"];
-  for (const role of AGENT_ROLE_NAMES) {
-    const invariants = SEMANTIC_INVARIANTS[role] ?? [];
-    const raw = {};
-    const normalized = {};
-    await Promise.all(hosts.map(async (host) => {
-      const body = await agentBody(host, role);
-      raw[host] = body;
-      normalized[host] = normalizeSemantic(body);
-    }));
-    for (const phrase of invariants) {
-      const needle = normalizeSemantic(phrase);
-      for (const host of hosts) {
-        check(
-          normalized[host].includes(needle),
-          `${host} ${role} is missing canonical invariant: "${phrase}"`,
-        );
-      }
-    }
-    if (role === "workflow-reviewer") {
-      for (const host of hosts) {
-        check(!/severity[^\n]*suggestion/i.test(raw[host]), `${host} ${role} must not use the retired "suggestion" severity`);
-        check(/critical/i.test(raw[host]) && /warning/i.test(raw[host]), `${host} ${role} must define critical and warning severities`);
-      }
-    }
-  }
-}
-
-async function validateInstallerPlans() {
-  const dryRunProject = path.join(ROOT, ".validation-adapter-target");
-  for (const host of ["codex", "opencode", "gemini"]) {
-    const plans = await installAdapters({
-      host,
-      scope: "project",
-      project: dryRunProject,
-      dryRun: true,
-      force: true,
-    });
-    const extension = host === "codex" ? ".toml" : ".md";
-    const installedAgents = plans
-      .map((plan) => path.basename(plan.destination))
-      .filter((file) => file.startsWith("workflow-") && file.endsWith(extension))
-      .sort();
-    const expectedAgents = AGENT_ROLE_NAMES.map((role) => `${role}${extension}`).sort();
-    check(
-      JSON.stringify(installedAgents) === JSON.stringify(expectedAgents),
-      `${host} installer plan must contain exactly the five current agents`,
-    );
-
-    if (host !== "codex") {
-      check(
-        plans.some((plan) => plan.destination.endsWith(path.join("senior-engineering-workflow", "SKILL.md"))),
-        `${host} installer plan must include the workflow skill`,
-      );
-    }
-  }
-
-  const temporaryRoot = await mkdtemp(path.join(os.tmpdir(), "agents-adapter-validation-"));
-  try {
-    for (const host of ["codex", "opencode", "gemini"]) {
-      const project = path.join(temporaryRoot, host);
-      const plans = await installAdapters({
-        host,
-        scope: "project",
-        project,
-        dryRun: false,
-        force: false,
-      });
-      check(plans.every((plan) => plan.status === "copied"), `${host} integration install did not copy every file`);
-
-      const extension = host === "codex" ? "toml" : "md";
-      const hostAgentDirectory = host === "codex"
-        ? path.join(project, ".codex", "agents")
-        : host === "opencode"
-          ? path.join(project, ".opencode", "agents")
-          : path.join(project, "agents");
-
-      for (const role of AGENT_ROLE_NAMES) {
-        const file = `${role}.${extension}`;
-        const source = await readFile(path.join(ROOT, "adapters", host, "agents", file));
-        const installed = await readFile(path.join(hostAgentDirectory, file));
-        check(source.equals(installed), `${host} installed ${file} differs from its adapter source`);
-      }
-      check(
-        !(await exists(path.join(hostAgentDirectory, `workflow-executor.${extension}`))),
-        `${host} integration install produced the obsolete executor role`,
-      );
-
-      if (host !== "codex") {
-        const skillRoot = host === "opencode"
-          ? path.join(project, ".opencode", "skills", NAME)
-          : path.join(project, "skills", NAME);
-        check(await exists(path.join(skillRoot, "SKILL.md")), `${host} integration install omitted the skill`);
-        for (const reference of REFERENCES) {
-          check(
-            await exists(path.join(skillRoot, "references", reference)),
-            `${host} integration install omitted ${reference}`,
-          );
-        }
-      }
-    }
-  } finally {
-    await rm(temporaryRoot, { recursive: true, force: true });
-  }
-}
-
-export async function validateRepository() {
-  errors.length = 0;
-  const [packageManifest, codex, claude, gemini, codexMarket, claudeMarket] = await Promise.all([
-    json("package.json"),
-    json("plugins/senior-engineering-workflow/.codex-plugin/plugin.json"),
-    json("plugins/senior-engineering-workflow/.claude-plugin/plugin.json"),
-    json("gemini-extension.json"),
-    json(".agents/plugins/marketplace.json"),
-    json(".claude-plugin/marketplace.json"),
-  ]);
-  const claudeCatalogEntry = claudeMarket.plugins?.find((plugin) => plugin.name === NAME);
-  const codexCatalogEntry = codexMarket.plugins?.find((plugin) => plugin.name === NAME);
-
-  check(packageManifest.name === "plugins", "Package name must be plugins");
-  check(/^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/.test(packageManifest.version), "Package version is invalid");
-  for (const manifest of [codex, claude, gemini]) {
-    check(manifest.name === NAME, `Manifest name must be ${NAME}`);
-    check(manifest.version === packageManifest.version, `${manifest.name} version must match package.json`);
-    check(typeof manifest.description === "string" && manifest.description.length > 20, "Manifest description is too short");
-  }
-
-  check(gemini.contextFileName === undefined, "Gemini manifest must not reference an absent context file");
-  check(codex.skills === "./skills/", "Codex skills path is invalid");
-  check(codex.author?.name && codex.author?.url, "Codex plugin author must include name and url");
-  check(codex.homepage && codex.repository, "Codex plugin must have homepage and repository");
-  check(codex.license === "MIT", "Codex plugin license must be MIT");
-  check(Array.isArray(codex.keywords) && codex.keywords.length >= 3, "Codex plugin must have at least 3 keywords");
-  check(codex.interface?.developerName, "Codex plugin interface must have developerName");
-  check(codex.interface?.websiteURL, "Codex plugin interface must have websiteURL");
-  check(codex.interface?.brandColor, "Codex plugin interface must have brandColor");
-  check(
-    Array.isArray(codex.interface?.defaultPrompt)
-      && codex.interface.defaultPrompt.length > 0
-      && codex.interface.defaultPrompt.length <= 3,
-    "Codex defaultPrompt must contain one to three prompts",
-  );
-
-  check(claude.displayName === "Senior Engineering Workflow", "Claude plugin must have displayName");
-  check(claude.author?.name && claude.author?.url, "Claude plugin author must include name and url");
-  check(claude.homepage && claude.repository, "Claude plugin must have homepage and repository");
-  check(claude.license === "MIT", "Claude plugin license must be MIT");
-  check(Array.isArray(claude.keywords) && claude.keywords.length >= 3, "Claude plugin must have at least 3 keywords");
-  check(claude.skills === "./skills/", "Claude plugin skills path is invalid");
-  check(claude.agents === "./agents/", "Claude plugin agents path is invalid");
-
-  check(claudeMarket.name === CATALOG_NAME, "Claude catalog name is invalid");
-  check(claudeMarket.owner?.name && claudeMarket.owner?.url, "Claude marketplace owner is incomplete");
-  check(typeof claudeMarket.description === "string", "Claude marketplace description is missing");
-  check(claudeCatalogEntry?.source === `./plugins/${NAME}`, "Claude marketplace source is invalid");
-  check(claudeCatalogEntry?.version === packageManifest.version, "Claude marketplace plugin version must match");
-  check(claudeCatalogEntry?.license === "MIT", "Claude marketplace plugin entry must declare MIT license");
-  check(claudeCatalogEntry?.category === "Productivity", "Claude marketplace plugin entry must have category");
-
-  check(codexMarket.name === CATALOG_NAME, "Codex catalog name is invalid");
-  check(codexMarket.interface?.displayName === "Otto's plugins", "Codex catalog display name is invalid");
-  check(codexCatalogEntry?.source?.path === `./plugins/${NAME}`, "Codex marketplace source is invalid");
-  check(codexCatalogEntry?.policy?.installation === "AVAILABLE", "Codex plugin installation policy is invalid");
-  check(codexCatalogEntry?.policy?.authentication === "ON_INSTALL", "Codex authentication policy is invalid");
-  check(codexCatalogEntry?.category === "Productivity", "Codex marketplace category is invalid");
-
-  const licenseText = await readFile(path.join(ROOT, "LICENSE"), "utf8");
-  check(/MIT License/.test(licenseText), "LICENSE file must contain MIT License text");
-
-  const skillText = await readFile(path.join(PLUGIN, "skills", NAME, "SKILL.md"), "utf8");
-  const skillMeta = frontmatter(skillText);
-  check(skillMeta.name === NAME, "Skill name does not match its directory");
-  check(typeof skillMeta.description === "string" && skillMeta.description.length > 40, "Skill description is missing or too short");
-  check(!/workflow[-_]executor/.test(skillText), "Skill must not reference the removed executor role");
-  for (const role of AGENT_ROLE_NAMES) {
-    check(skillText.includes(role), `Skill must route the ${role} role`);
-  }
-  for (const reference of REFERENCES) {
-    check(
-      await exists(path.join(PLUGIN, "skills", NAME, "references", reference)),
-      `Skill reference is missing: ${reference}`,
-    );
-  }
-
-  await Promise.all([
-    checkAgentDirectory("plugins/senior-engineering-workflow/agents", "md"),
-    checkAgentDirectory("adapters/codex/agents", "toml"),
-    checkAgentDirectory("adapters/gemini/agents", "md"),
-    checkAgentDirectory("adapters/opencode/agents", "md"),
-    ...ROLES.flatMap((role) => [
-      validateClaudeAgent(role),
-      validateCodexAgent(role),
-      validateGeminiAgent(role),
-      validateOpenCodeAgent(role),
-    ]),
-  ]);
-  await validateSemanticParity();
-
-  check(
-    ROLES.map((role) => role.id).join("|") === AGENT_ROLE_NAMES.join("|"),
-    "Installer and validation role order differ",
-  );
-  await validateInstallerPlans();
-
-  const rootReadmeText = await readFile(path.join(ROOT, "README.md"), "utf8");
-  const publicText = (
-    await Promise.all([
-      readFile(path.join(PLUGIN, "README.md"), "utf8"),
-      readFile(path.join(PLUGIN, ".codex-plugin", "plugin.json"), "utf8"),
-      readFile(path.join(ROOT, ".claude-plugin", "marketplace.json"), "utf8"),
-      readFile(path.join(ROOT, ".agents", "plugins", "marketplace.json"), "utf8"),
-    ])
-  ).concat(rootReadmeText).join("\n");
-  check(!/workflow[-_]executor/.test(publicText), "Public documentation must not reference the removed executor role");
-  check(!/gpt-5\.6-(?:sol|terra|luna)/i.test(publicText), "Public documentation must not pin volatile model tiers");
-  check(!/\bthree tiered subagents?\b/i.test(publicText), "Public documentation still describes the old topology");
-  check(!/\ba marketplace repository\b/i.test(publicText), "The repository must not describe itself as a marketplace");
-  check(
-    rootReadmeText.startsWith(
-      "# Otto's plugins\n\nCross-host packaging for the Senior Engineering Workflow plugin",
-    ),
-    "The repository README must describe the shipped workflow directly",
-  );
-
-  const attributesText = await readFile(path.join(ROOT, ".gitattributes"), "utf8");
-  check(/^\* text=auto eol=lf$/m.test(attributesText), ".gitattributes must enforce LF for text files");
-  await validateLineEndings();
-
-  const pluginStat = await stat(PLUGIN);
-  check(pluginStat.isDirectory(), "Plugin directory is missing");
-  return [...errors];
-}
-
-if (typeof process !== "undefined" && fileURLToPath(import.meta.url) === path.resolve(process.argv[1] ?? "")) {
-  const validationErrors = await validateRepository();
-  if (validationErrors.length) {
-    for (const error of validationErrors) console.error(`ERROR: ${error}`);
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  validateRepository().then(({ plugins }) => {
+    process.stdout.write(`validated ${plugins.length} plugin${plugins.length === 1 ? "" : "s"} across ${allHostTargets().length} host targets\n`);
+  }).catch((error) => {
+    process.stderr.write(`validation failed: ${error.message}\n`);
     process.exitCode = 1;
-  } else {
-    console.log("Repository validation passed.");
-  }
+  });
 }
