@@ -41,9 +41,28 @@ test("canonical marketplace and semantic workflow contract validate", async () =
   assert.ok(contractFiles.length > 0, "a declared skill must carry the workflow contract");
 });
 
+test("Tauri v2 desktop is a skill-only all-host plugin", async () => {
+  const result = await validateRepository();
+  const plugin = result.plugins.find((item) => item.manifest.id === "tauri-v2-desktop");
+  assert.ok(plugin);
+  assert.deepEqual(plugin.manifest.components.agents, []);
+  assert.deepEqual(plugin.manifest.components.commands, []);
+  assert.equal(plugin.skills.length, 1);
+  assert.equal(plugin.skills[0].id, "tauri-v2-desktop");
+  for (const host of ["claude-code", "codex", "gemini-cli", "antigravity", "opencode", "opencode-v2", "portable"]) {
+    assert.equal(plugin.manifest.hosts[host].enabled, true, `${host} should be enabled`);
+  }
+  assert.equal(plugin.manifest.hosts["opencode-v2"].status, "preview");
+  const claudeManifest = await readJson(path.join(ROOT, "adapters", "claude-code", "tauri-v2-desktop", ".claude-plugin", "plugin.json"));
+  assert.equal(claudeManifest.agents, undefined);
+  assert.match(plugin.skills[0].frontmatter.description, /Windows, macOS, and Linux/);
+  assert.doesNotMatch(`${plugin.manifest.description}\n${plugin.skills[0].body}`, /cce-tauri|nodnarbnitram|claude-code-extensions/i);
+});
+
 test("validator CLI executes its platform-safe main entry point", async () => {
   const result = await execFileAsync(process.execPath, [path.join(ROOT, "scripts", "validate.mjs")], { cwd: ROOT });
-  assert.match(result.stdout, /validated 1 plugin across 7 host targets/);
+  const marketplace = await readJson(path.join(ROOT, "marketplace.json"));
+  assert.match(result.stdout, new RegExp(`validated ${marketplace.plugins.length} plugins across 7 host targets`));
 });
 
 test("two explicitly cataloged plugins build independently and deterministically", async (t) => {

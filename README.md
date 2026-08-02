@@ -14,6 +14,7 @@ My store for plugins used with agentic coding harnesses.
 | Plugin | Version | What it does |
 |---|---:|---|
 | [Senior Engineering Workflow](plugins/senior-engineering-workflow/) | 0.6.0 | Routes repository work through seven leaf roles, using only the research, planning, implementation, testing, and review steps the task needs. |
+| [Tauri v2 Desktop](plugins/tauri-v2-desktop/) | 1.0.0 | Secure, evidence-driven guidance for building, testing, upgrading, and distributing Tauri v2 desktop applications on Windows, macOS, and Linux. |
 
 Each plugin has its own README with behavior and usage details. The rest of this document covers the marketplace and its packaging tools.
 

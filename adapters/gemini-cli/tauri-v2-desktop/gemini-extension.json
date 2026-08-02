@@ -1,0 +1,5 @@
+{
+  "name": "tauri-v2-desktop",
+  "version": "1.0.0",
+  "description": "Secure, evidence-driven guidance for building, testing, upgrading, and distributing Tauri v2 desktop applications on Windows, macOS, and Linux."
+}

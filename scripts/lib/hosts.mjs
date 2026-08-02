@@ -97,7 +97,7 @@ function renderClaude(plugin) {
 }
 
 export function claudePluginManifest(plugin, repository = plugin.marketplace?.repository ?? plugin.manifest.author.url) {
-  return {
+  const manifest = {
     $schema: "https://json.schemastore.org/claude-code-plugin-manifest.json",
     name: plugin.manifest.id,
     displayName: plugin.manifest.displayName,
@@ -108,9 +108,10 @@ export function claudePluginManifest(plugin, repository = plugin.marketplace?.re
     repository,
     license: plugin.manifest.license,
     keywords: plugin.manifest.keywords ?? [],
-    skills: "./skills/",
-    agents: "./agents/"
+    skills: "./skills/"
   };
+  if (plugin.agents.length > 0) manifest.agents = "./agents/";
+  return manifest;
 }
 
 function renderCodex(plugin) {

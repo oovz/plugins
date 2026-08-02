@@ -1,0 +1,55 @@
+# Tauri v2 Desktop
+
+Version 1.0.0 is a host-neutral Agent Skill for building, reviewing, securing, testing, upgrading, and distributing Tauri v2 desktop applications on Windows, macOS, and Linux.
+
+## What it covers
+
+- Secure Rust commands and JavaScript IPC with typed, validated boundaries.
+- Capability and permission design for core APIs, official plugins, windows, and remote content.
+- Desktop lifecycle guidance for windows, menus, tray items, sidecars, deep links, and local assets.
+- Dependency and upgrade reviews that distinguish compatible release families from historical security floors.
+- Risk-based testing across operating systems, architectures, webviews, packaged artifacts, installers, and updaters.
+- Visual validation that distinguishes image inspection from screenshot capture and pairs visual evidence with interaction and accessibility checks.
+
+## Scope
+
+This skill intentionally covers desktop targets only: Windows, macOS, and Linux. It does not provide Android or iOS guidance. It does not install dependencies, run a background process, or require a subagent; the skill can be used directly by any supported host.
+
+## Layout
+
+```text
+plugins/tauri-v2-desktop/
+├── LICENSE
+├── plugin.json
+├── README.md
+└── skills/tauri-v2-desktop/
+    ├── SKILL.md
+    └── references/
+        ├── security-and-ipc.md
+        ├── versions-and-upgrades.md
+        ├── desktop-runtime-and-delivery.md
+        └── testing-and-visual-validation.md
+```
+
+The marketplace generates host-specific packages from this canonical source. Do not edit generated adapters or `dist/` output by hand.
+
+## Use
+
+After installation, the skill is addressed by the host-specific plugin namespace. For hosts using the marketplace namespace convention, use `tauri-v2-desktop:tauri-v2-desktop`.
+
+Read only the reference needed for the task:
+
+- [Security, capabilities, and IPC](skills/tauri-v2-desktop/references/security-and-ipc.md)
+- [Versions and upgrades](skills/tauri-v2-desktop/references/versions-and-upgrades.md)
+- [Desktop runtime and delivery](skills/tauri-v2-desktop/references/desktop-runtime-and-delivery.md)
+- [Testing and visual validation](skills/tauri-v2-desktop/references/testing-and-visual-validation.md)
+
+## Official sources
+
+- [Tauri v2 documentation](https://v2.tauri.app/)
+- [Calling Rust from the frontend](https://v2.tauri.app/develop/calling-rust/)
+- [Capabilities](https://v2.tauri.app/security/capabilities/)
+- [Tests](https://v2.tauri.app/develop/tests/)
+- [Updating dependencies](https://v2.tauri.app/develop/updating-dependencies/)
+- [Distribution](https://v2.tauri.app/distribute/)
+- [Updater](https://v2.tauri.app/plugin/updater/)

@@ -14,6 +14,10 @@
     {
       "id": "senior-engineering-workflow",
       "path": "plugins/senior-engineering-workflow"
+    },
+    {
+      "id": "tauri-v2-desktop",
+      "path": "plugins/tauri-v2-desktop"
     }
   ]
 }

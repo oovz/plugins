@@ -29,6 +29,31 @@
         "workflow"
       ],
       "category": "Productivity"
+    },
+    {
+      "name": "tauri-v2-desktop",
+      "source": "./adapters/claude-code/tauri-v2-desktop",
+      "description": "Secure, evidence-driven guidance for building, testing, upgrading, and distributing Tauri v2 desktop applications on Windows, macOS, and Linux.",
+      "displayName": "Tauri v2 Desktop",
+      "author": {
+        "name": "Otto",
+        "url": "https://github.com/oovz/plugins"
+      },
+      "homepage": "https://github.com/oovz/plugins",
+      "repository": "https://github.com/oovz/plugins",
+      "license": "MIT",
+      "keywords": [
+        "tauri",
+        "tauri-v2",
+        "desktop",
+        "rust",
+        "ipc",
+        "capabilities",
+        "testing",
+        "updater",
+        "distribution"
+      ],
+      "category": "Developer Tools"
     }
   ]
 }

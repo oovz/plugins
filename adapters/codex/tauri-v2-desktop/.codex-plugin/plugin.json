@@ -1,0 +1,38 @@
+{
+  "name": "tauri-v2-desktop",
+  "version": "1.0.0",
+  "description": "Secure, evidence-driven guidance for building, testing, upgrading, and distributing Tauri v2 desktop applications on Windows, macOS, and Linux.",
+  "author": {
+    "name": "Otto",
+    "url": "https://github.com/oovz/plugins"
+  },
+  "homepage": "https://github.com/oovz/plugins",
+  "repository": "https://github.com/oovz/plugins",
+  "license": "MIT",
+  "keywords": [
+    "tauri",
+    "tauri-v2",
+    "desktop",
+    "rust",
+    "ipc",
+    "capabilities",
+    "testing",
+    "updater",
+    "distribution"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Tauri v2 Desktop",
+    "shortDescription": "Secure, evidence-driven gui...",
+    "longDescription": "Secure, evidence-driven guidance for building, testing, upgrading, and distributing Tauri v2 desktop applications on Windows, macOS, and Linux.",
+    "developerName": "Otto",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Read"
+    ],
+    "defaultPrompt": [
+      "Use $tauri-v2-desktop for this task."
+    ],
+    "websiteURL": "https://github.com/oovz/plugins"
+  }
+}

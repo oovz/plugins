@@ -143,6 +143,11 @@ async function validatePlugin(plugin) {
       for (const file of skill.files) assert(artifacts.has(path.posix.join(prefix, skill.id, file.relative)), `${target.id} bundle omits ${skill.id}/${file.relative}`);
       assert(artifacts.get(path.posix.join(prefix, skill.id, "LICENSE"))?.toString("utf8") === localLicense, `${target.id} bundle skill ${skill.id} lacks the plugin license`);
     }
+    if (target.id === "claude-code") {
+      const manifest = JSON.parse(artifacts.get(".claude-plugin/plugin.json"));
+      const agents = plugin.agents.length > 0 ? "./agents/" : undefined;
+      assert(manifest.name === plugin.manifest.id && manifest.skills === "./skills/" && manifest.agents === agents, `Claude manifest for ${plugin.manifest.id} is not native`);
+    }
     if (target.id === "codex") {
       const manifest = JSON.parse(artifacts.get(".codex-plugin/plugin.json"));
       assert(manifest.name === plugin.manifest.id && manifest.skills === "./skills/" && manifest.agents === undefined, `Codex manifest for ${plugin.manifest.id} is not native`);
