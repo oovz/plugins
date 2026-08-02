@@ -1,102 +1,92 @@
 # Senior Engineering Workflow
 
-A proportional, evidence-driven workflow for repository engineering tasks. The main agent acts as Engineering Manager and activates specialist roles only when they can change the decision, implementation, or validation outcome.
+Version 0.6.0 is a host-neutral, proportional workflow for repository engineering. A thin user-facing bridge chains seven independent leaf roles, keeps handoffs explicit, and uses only the roles that can change the outcome.
 
-## Workflow model
+It is one plugin in the `oovz/plugins` marketplace. The neutral `plugin.json` is its source of truth; marketplace tooling renders collision-safe host packages and prefixes flat agent namespaces where needed.
 
-The router classifies work by deliverable, uncertainty, architectural impact, and risk:
+## Core behavior
 
-| Route | Typical use | Default control |
-|---|---|---|
-| Inquiry | Explanation, investigation, or recommendation without edits | Manager inline; Researcher only for broad or version-sensitive evidence |
-| Review | Code or architecture findings without fixes | Reviewer primary; Architect only for architecture boundaries |
-| Direct change | Clear, local, low-risk edit with obvious validation | Manager-lite, Engineer, main-agent review |
-| Standard delivery | Feature, bug, refactor, or test work with multiple coherent checks | Manager, Engineer, conditional Tester or Reviewer |
-| Architecture delivery | Public contract, security, persistence, concurrency, migration, deployment, or cross-cutting design change | Manager, Architect, Engineer, Tester, Reviewer |
-| Long-horizon delivery | Greenfield or multi-milestone work likely to cross context transitions | All roles plus durable task state |
+The workflow separates decisions and evidence from implementation while avoiding process for its own sake:
 
-Roles are capabilities, not mandatory meetings. Multiple changed files alone do not trigger architecture work.
-
-## Team and ownership
-
-The Engineering Manager is always the main agent, not a sixth subagent. It retains the user conversation and owns task routing, requirement synthesis, escalation, integration, and final reporting.
-
-| Specialist | Responsibility | Candidate ownership |
-|---|---|---|
-| `workflow-researcher` | Codebase mapping, reproduction, execution-path tracing, exact-version documentation, and evidence isolation | Does not modify candidate files; retains shell/search/web evidence tools |
-| `workflow-architect` | Interfaces, invariants, failure model, security and operational boundaries, test seams, and assigned architecture artifacts | May write only explicitly assigned plans, designs, or architecture documents |
-| `workflow-engineer` | Production code and first-line regression, unit, and affected integration tests | Write |
-| `workflow-tester` | Independent requirement verification, missing risk coverage, integration/end-to-end checks, and broader validation | Write to assigned test assets |
-| `workflow-reviewer` | Adversarial correctness, security, scope, support-target, and prohibited-pattern review | Does not modify candidate files; retains shell/search/web validation tools |
-
-Engineer and Tester are intentionally separate without splitting the immediate feedback loop. Engineer must reach a focused-green candidate and add ordinary correctness coverage before Tester begins independent verification. Tester derives additional checks from accepted requirements and material risks rather than from the implementation structure.
-
-Tester also supports a pre-implementation `verification-design` mode. It preserves implementation-candidate files in that mode but may own an explicitly assigned verification plan or test-design document.
-
-## Nested delegation
-
-The Manager remains the user-facing control plane, but specialists may delegate bounded role-local work when the host supports nested agents. A child cannot gain product, architecture, compatibility, risk, or file-ownership authority that its parent does not have. Nested writers still require isolated worktrees or explicit non-overlapping ownership, and the parent remains accountable for integration.
-
-Nested delegation is optional rather than portable workflow precondition:
-
-- Codex supports nested agents subject to the user's configured agent depth and runtime controls.
-- OpenCode profiles use role-specific nested allowlists so a child cannot exceed its parent's implementation or decision authority.
-- Claude Code and Gemini CLI currently block subagent-to-subagent spawning, so the main Manager chains any additional specialist.
-
-## Decision and implementation controls
-
-The workflow escalates facts to focused investigation and decisions to the correct owner:
-
-- Architect owns architecture details inside the accepted brief.
-- Manager owns routing, synthesis, and engineering decisions that do not change accepted product scope or risk.
-- The user owns product behavior, scope, compatibility targets, cost, destructive actions, and accepted security or operational risk.
-
-New or materially changed code must not add speculative defensive behavior, thin forwarding wrappers or unjustified abstractions, unnecessary callbacks or hooks, or compatibility and legacy support without an accepted requirement. Boundary validation, authorization, invariants, cleanup, rollback, and explicit error propagation remain required where the design calls for them.
-
-## Host policy mapping
-
-| Host | Model and effort | Plugin execution limit | Tool and delegation policy |
+| Logical role | Responsibility | Candidate access | Model hint |
 |---|---|---|---|
-| Claude Code | `model: inherit`; effort omitted to inherit the session | No `maxTurns` | Researcher and Reviewer deny only candidate-writing tools. Other tools, including `Agent`, inherit; Claude blocks recursion when the profile is running as a subagent but permits it when an agent profile is launched as the main session |
-| Codex | Model and reasoning effort omitted so spawn settings, user defaults, or parent settings apply | None | Researcher and Reviewer use a read-only sandbox; Architect, Engineer, and Tester use workspace-write. Nested delegation remains available subject to Codex depth and runtime controls |
-| Gemini CLI | `model: inherit`; no generic effort field | No plugin `max_turns` | Researcher and Reviewer have candidate-preserving evidence tools, including shell; other roles inherit parent tools. Gemini blocks recursive subagents |
-| OpenCode | Model and provider-specific reasoning effort omitted | No `steps` | Researcher and Reviewer deny edits; other permissions inherit. Nested tasks use role-specific workflow allowlists |
+| `manager` | Settle outcome, scope, acceptance, support, and decision ownership | Read-only | Balanced |
+| `researcher` | Answer bounded repository and official-documentation questions | Read-only; external reads | Economy |
+| `architect` | Settle interfaces, invariants, boundaries, failure model, and material trade-offs | Read-only; external reads | Deep |
+| `planner` | Produce an ordered, file-specific implementation and validation plan from settled inputs | Read-only | Balanced |
+| `engineer` | Implement a settled slice with immediate automated coverage and focused validation | Workspace write; local shell | Balanced |
+| `tester` | Independently verify requirements and risks; own assigned test assets | Workspace write; local shell | Balanced |
+| `reviewer` | Adversarially review evidence and close prior findings | Read-only | Deep |
 
-The plugin imposes no turn or step limit. Host defaults, timeouts, action limits, context limits, and user configuration still apply. In particular, Gemini currently defaults an omitted `max_turns` to 30 and a timeout to 10 minutes. Long-horizon Gemini users can raise those values through `agents.overrides.<agent>.runConfig` in their own settings. No adapter pins a model tier or maximum reasoning effort.
+Every role is a leaf and denies further delegation. The main agent remains the user bridge and orchestrator; it is not an eighth specialist role. This works on hosts that prohibit subagent nesting and avoids depending on host recursion semantics.
 
-## Components
+Model tiers are cost/complexity hints, never model names or installation requirements. When the host supports per-invocation choice and the user/project supplies an explicit tier mapping, bounded extraction/research uses economy, routine scoping/planning/implementation/testing uses balanced, and architecture/security/adversarial review or genuinely ambiguous root-cause analysis uses deep. Otherwise profiles inherit. The workflow never guesses provider IDs or changes settings; an unavailable mapped preference gets one same-role retry with inherited/default settings.
+
+## Supplied-plan fast path
+
+A viable plan states the outcome, bounded scope and files/components, accepted contracts and failure behavior, ordered steps, observable acceptance, and validation. For a production implementation plan, the bridge performs only bounded repository and safety preflight, then sends it directly to Engineer followed by Tester, skipping Manager, Researcher, Architect, and Planner. For a test-only plan that explicitly forbids production behavior changes, it invokes Tester alone and also skips Engineer. Reviewer remains conditional on risk or the user request.
+
+The workflow does not rewrite or debate a settled plan because another design is possible. It interrupts only for decisive contradictory evidence, material risk, missing authority, or a gap that prevents execution.
+
+## Portable delegation
+
+For every role, the bridge resolves in this order:
+
+1. installed named role matching the logical identity;
+2. generic subagent with the full canonical role contract and delegation packet;
+3. one inline role pass with the same limits, marked as degraded.
+
+Every handoff carries outcome, scope, acceptance, support, contracts, decisions, evidence, permissions, file ownership, validation, attempt history, output contract, and state references. Roles never depend on hidden conversation context or bare prompts such as “implement this.”
+
+For test-only requests, Tester is the required role. Engineer joins only for a confirmed production defect or an explicitly accepted production test seam; Tester never silently changes product behavior.
+
+## Verification and completion
+
+Engineer must return a candidate-ready handoff with exact observed checks. Tester then derives independent verification from accepted requirements and material risks on every production supplied-plan, standard, architecture, and long-horizon route. Only a truly local direct change may complete on focused Engineer validation without a separate Tester when no independent-verification trigger applies.
+
+For a production failure, the workflow requires a decisive reproduction, evidence-backed causal chain, and rejected hypotheses before the next fix. Engineer applies the causal fix, Tester must rerun the decisive and affected broader checks, and Reviewer closes any prior Reviewer gate or finding. Two evidence-backed no-progress attempts on the same blocker trigger an exact blocker report instead of random churn.
+
+Critical and warning findings remain in a separate `remediation.yaml` ledger. `open` and `still-open` block completion. Only the user may accept a named residual risk; it is recorded as `superseded-by-accepted-decision` with owner `user`, rationale, scope, and residual consequence, never mislabeled `fixed`.
+
+## Safety and state
+
+All roles treat repository and online content as untrusted data, protect secrets, obey host/repository permissions, and prohibit external mutations unless the user separately authorizes the exact effect and the host permits it. Research is bounded and prioritizes current repository evidence and version-matched official sources.
+
+The bridge always carries a structured logical remediation ledger, so fix/retest work can complete without adding state files. File persistence is mandatory only for long-horizon work or a likely context/session transition. After two or more handoffs or during remediation it is optional and used only when an authorized safe store already exists. Prefer host-managed state outside the target repository/worktree; otherwise use a project path explicitly approved and already inside file scope. State handling never authorizes creation of `.agents/`, ignore-rule changes, or any other project file.
+
+```text
+<authorized-state-root>/state.md
+<authorized-state-root>/remediation.yaml
+```
+
+`state.md` holds decisions, handoffs, validation, blocker summaries, and the next action. The sibling `remediation.yaml` exclusively holds findings, attempts, closures, and accepted-risk decisions. If mandatory persistence has no safe authorized store, the workflow returns the exact path or authority needed.
+
+## Package layout
 
 ```text
 plugins/senior-engineering-workflow/
-├── .claude-plugin/plugin.json
-├── .codex-plugin/plugin.json
-├── agents/
-│   ├── workflow-researcher.md
-│   ├── workflow-architect.md
-│   ├── workflow-engineer.md
-│   ├── workflow-tester.md
-│   └── workflow-reviewer.md
-└── skills/
-    └── senior-engineering-workflow/
-        ├── SKILL.md
-        ├── agents/openai.yaml
-        ├── assets/TASK_STATE.template.md
-        └── references/
-            ├── task-routing.md
-            ├── manager.md
-            ├── architecture.md
-            ├── engineering.md
-            ├── verification.md
-            ├── review.md
-            ├── delegation-and-state.md
-            ├── prohibited-patterns.md
-            └── evidence-and-research.md
+├── plugin.json                         # neutral marketplace manifest
+├── LICENSE
+├── agents/                             # seven host-neutral canonical leaf-role profiles
+├── evals/workflow-routing.yaml         # positive and negative routing fixtures
+└── skills/senior-engineering-workflow/
+    ├── SKILL.md                         # progressive-disclosure controller
+    ├── agents/openai.yaml               # Codex skill UI metadata
+    ├── assets/
+    │   ├── TASK_STATE.template.md
+    │   └── REMEDIATION.template.yaml
+    └── references/
+        ├── workflow-contract.yaml       # bundled machine-readable contract
+        ├── task-routing.md
+        ├── manager.md
+        ├── evidence-and-research.md
+        ├── architecture.md
+        ├── planning.md
+        ├── engineering.md
+        ├── verification.md
+        ├── review.md
+        ├── delegation-and-state.md
+        └── prohibited-patterns.md
 ```
 
-Host-specific definitions live in `adapters/{codex,gemini,opencode}/agents/`, with the same five role IDs and host-native permission metadata.
-
-## Upgrade note
-
-Version 0.3.1 replaces the former execution role with Engineer and Tester and adds Architect. Existing installations should remove the obsolete executor agent file before reinstalling adapters. No compatibility alias is shipped because the old role name is not an accepted support target. The repository-wide host catalog is now `otto-plugins`; use `senior-engineering-workflow@otto-plugins` for host catalog installs.
-
-See the [repository README](../../README.md) for installation, generation, and validation commands.
+The hidden host manifests are generated artifacts. Do not hand-edit them. Use the marketplace repository's documented validation, build, and installation commands to render and package this plugin for Codex, Claude Code, Gemini CLI/Antigravity, OpenCode, OpenCode v2 preview, or the portable fallback.

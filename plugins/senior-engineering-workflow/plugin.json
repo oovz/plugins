@@ -1,0 +1,169 @@
+{
+  "$schema": "../../schemas/plugin.schema.json",
+  "schemaVersion": 1,
+  "id": "senior-engineering-workflow",
+  "version": "0.6.0",
+  "displayName": "Senior Engineering Workflow",
+  "description": "A proportional, evidence-driven engineering workflow with portable leaf-role delegation and a direct path for viable supplied plans.",
+  "license": "MIT",
+  "author": {
+    "name": "Otto",
+    "url": "https://github.com/oovz/plugins"
+  },
+  "keywords": [
+    "engineering",
+    "architecture",
+    "research",
+    "planning",
+    "multi-agent",
+    "testing",
+    "review",
+    "workflow"
+  ],
+  "category": "Productivity",
+  "validation": {
+    "profile": "engineering-delivery-v1",
+    "contract": "skills/senior-engineering-workflow/references/workflow-contract.yaml",
+    "evals": "evals/workflow-routing.yaml"
+  },
+  "components": {
+    "skills": [
+      {
+        "id": "senior-engineering-workflow",
+        "path": "skills/senior-engineering-workflow/SKILL.md"
+      }
+    ],
+    "agents": [
+      {
+        "id": "manager",
+        "path": "agents/manager.md",
+        "description": "Settles outcome, scope, acceptance, support targets, and decision ownership without implementing.",
+        "workspace": "read-only",
+        "shell": false,
+        "external": false,
+        "delegates": false,
+        "question": false,
+        "model": {
+          "policy": "inherit",
+          "recommendedTier": "balanced"
+        },
+        "steps": null
+      },
+      {
+        "id": "researcher",
+        "path": "agents/researcher.md",
+        "description": "Answers bounded repository and external-documentation questions with cited, confidence-labeled evidence.",
+        "workspace": "read-only",
+        "shell": false,
+        "external": true,
+        "delegates": false,
+        "question": false,
+        "model": {
+          "policy": "inherit",
+          "recommendedTier": "economy"
+        },
+        "steps": null
+      },
+      {
+        "id": "architect",
+        "path": "agents/architect.md",
+        "description": "Settles material interfaces, invariants, boundaries, failure models, and architectural trade-offs.",
+        "workspace": "read-only",
+        "shell": false,
+        "external": true,
+        "delegates": false,
+        "question": false,
+        "model": {
+          "policy": "inherit",
+          "recommendedTier": "deep"
+        },
+        "steps": null
+      },
+      {
+        "id": "planner",
+        "path": "agents/planner.md",
+        "description": "Turns settled requirements and architecture into an ordered, file-specific implementation and validation plan.",
+        "workspace": "read-only",
+        "shell": false,
+        "external": false,
+        "delegates": false,
+        "question": false,
+        "model": {
+          "policy": "inherit",
+          "recommendedTier": "balanced"
+        },
+        "steps": null
+      },
+      {
+        "id": "engineer",
+        "path": "agents/engineer.md",
+        "description": "Implements settled slices with immediate regression coverage and candidate-ready validation.",
+        "workspace": "workspace-write",
+        "shell": true,
+        "external": false,
+        "delegates": false,
+        "question": false,
+        "model": {
+          "policy": "inherit",
+          "recommendedTier": "balanced"
+        },
+        "steps": null
+      },
+      {
+        "id": "tester",
+        "path": "agents/tester.md",
+        "description": "Independently verifies accepted behavior, material risks, and defect closures through repository-native checks.",
+        "workspace": "workspace-write",
+        "shell": true,
+        "external": false,
+        "delegates": false,
+        "question": false,
+        "model": {
+          "policy": "inherit",
+          "recommendedTier": "balanced"
+        },
+        "steps": null
+      },
+      {
+        "id": "reviewer",
+        "path": "agents/reviewer.md",
+        "description": "Performs independent, read-only adversarial review and closes prior findings against evidence.",
+        "workspace": "read-only",
+        "shell": false,
+        "external": false,
+        "delegates": false,
+        "question": false,
+        "model": {
+          "policy": "inherit",
+          "recommendedTier": "deep"
+        },
+        "steps": null
+      }
+    ],
+    "commands": []
+  },
+  "hosts": {
+    "claude-code": {
+      "enabled": true
+    },
+    "codex": {
+      "enabled": true
+    },
+    "gemini-cli": {
+      "enabled": true
+    },
+    "antigravity": {
+      "enabled": true
+    },
+    "opencode": {
+      "enabled": true
+    },
+    "opencode-v2": {
+      "enabled": true,
+      "status": "preview"
+    },
+    "portable": {
+      "enabled": true
+    }
+  }
+}
