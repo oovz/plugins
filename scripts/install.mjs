@@ -393,7 +393,7 @@ async function pruneEmptyOwnedDirectories(plan, removals) {
   for (const destination of removals) {
     const root = trustedRootFor(destination, plan.trustedRoots);
     let current = path.dirname(destination);
-    while (current !== root) {
+    while (ownershipKey(current) !== ownershipKey(root)) {
       within(root, current, "owned directory");
       candidates.set(portableDestinationKey(current), { directory: current, root });
       current = path.dirname(current);

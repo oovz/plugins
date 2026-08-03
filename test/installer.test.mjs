@@ -238,8 +238,9 @@ test("ownership records are checked for symlinks before they are read", async (t
   const recordRoot = path.join(ctx.home, ".state", "oovz-plugins", "projects", projectKey);
   const external = path.join(ctx.root, "external-record");
   await mkdir(recordRoot, { recursive: true });
-  await writeFile(external, "TOP_SECRET_SENTINEL not json\n");
-  await symlink(external, path.join(recordRoot, "ownership.json"), process.platform === "win32" ? "file" : "file");
+  await mkdir(external);
+  await writeFile(path.join(external, "sentinel"), "TOP_SECRET_SENTINEL not json\n");
+  await symlink(external, path.join(recordRoot, "ownership.json"), process.platform === "win32" ? "junction" : "dir");
   await assert.rejects(run(base("install", "codex", "project", ["--mode", "companion", "--project", ctx.project]), ctx), (error) => {
     assert.match(`${error.stderr}${error.message}`, /symlink/);
     assert.doesNotMatch(`${error.stderr}${error.message}`, /TOP_SECRET_SENTINEL/);
