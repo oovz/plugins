@@ -17,12 +17,17 @@ export async function createFixturePlugin(root, id, version, options = {}) {
   const directory = path.join(root, "plugins", id);
   const skillId = options.skillId ?? `${id}-skill`;
   const roleId = options.roleId ?? "worker";
-  await mkdir(path.join(directory, "skills", skillId, "references"), { recursive: true });
-  await mkdir(path.join(directory, "agents"), { recursive: true });
+  const includeSkill = options.includeSkill !== false;
+  const includeAgent = options.includeAgent !== false;
+  await mkdir(directory, { recursive: true });
+  if (includeSkill) await mkdir(path.join(directory, "skills", skillId, "references"), { recursive: true });
+  if (includeAgent) await mkdir(path.join(directory, "agents"), { recursive: true });
   await writeFile(path.join(directory, "LICENSE"), options.license ?? "fixture license\n");
-  await writeFile(path.join(directory, "skills", skillId, "SKILL.md"), `---\nname: ${skillId}\ndescription: Fixture skill for ${id}.\n---\n\n# ${id}\n`);
-  await writeFile(path.join(directory, "skills", skillId, "references", "guide.md"), `# ${id} guide\n`);
-  await writeFile(path.join(directory, "agents", `${roleId}.md`), `---\nname: ${roleId}\ndescription: Fixture role.\n---\n\nAct as a bounded role.\n`);
+  if (includeSkill) {
+    await writeFile(path.join(directory, "skills", skillId, "SKILL.md"), `---\nname: ${skillId}\ndescription: Fixture skill for ${id}.\n---\n\n# ${id}\n`);
+    await writeFile(path.join(directory, "skills", skillId, "references", "guide.md"), `# ${id} guide\n`);
+  }
+  if (includeAgent) await writeFile(path.join(directory, "agents", `${roleId}.md`), `---\nname: ${roleId}\ndescription: Fixture role.\n---\n\nAct as a bounded role.\n`);
   if (options.command) {
     await mkdir(path.dirname(path.join(directory, options.command.path)), { recursive: true });
     await writeFile(path.join(directory, options.command.path), options.command.content ?? "Run the fixture command.\n");
@@ -38,6 +43,18 @@ export async function createFixturePlugin(root, id, version, options = {}) {
     await writeFile(path.join(directory, options.hostFile.path), options.hostFile.content);
   }
   const hostFiles = options.hostFile ? [{ id: "fixture-policy", path: options.hostFile.path, hosts: options.hostFile.hosts, destination: options.hostFile.destination, executable: false }] : [];
+  const hosts = options.hosts ?? {
+    "claude-code": { enabled: true },
+    codex: { enabled: true },
+    "gemini-cli": { enabled: true },
+    antigravity: { enabled: true },
+    opencode: { enabled: true },
+    "opencode-v2": { enabled: true, status: "preview" },
+    portable: { enabled: true }
+  };
+  if (hosts.codex?.enabled === true && hosts.codex.capabilities === undefined) {
+    hosts.codex.capabilities = options.codexCapabilities ?? ["Read", "Write"];
+  }
   await writeJson(path.join(directory, "plugin.json"), {
     schemaVersion: 1,
     id,
@@ -49,8 +66,8 @@ export async function createFixturePlugin(root, id, version, options = {}) {
     keywords: ["fixture"],
     category: "Other",
     components: {
-      skills: [{ id: skillId, path: `skills/${skillId}/SKILL.md` }],
-      agents: [{
+      skills: includeSkill ? [{ id: skillId, path: `skills/${skillId}/SKILL.md` }] : [],
+      agents: includeAgent ? [{
         id: roleId,
         path: `agents/${roleId}.md`,
         description: "Fixture role.",
@@ -61,19 +78,11 @@ export async function createFixturePlugin(root, id, version, options = {}) {
         question: options.question ?? false,
         model: { policy: "inherit", recommendedTier: "economy" },
         steps: null
-      }],
+      }] : [],
       commands: options.command ? [{ id: options.command.id, path: options.command.path, hosts: options.command.hosts }] : [],
       hostFiles
     },
-    hosts: options.hosts ?? {
-      "claude-code": { enabled: true },
-      codex: { enabled: true },
-      "gemini-cli": { enabled: true },
-      antigravity: { enabled: true },
-      opencode: { enabled: true },
-      "opencode-v2": { enabled: true, status: "preview" },
-      portable: { enabled: true }
-    }
+    hosts
   });
   return directory;
 }

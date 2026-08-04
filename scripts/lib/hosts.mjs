@@ -1,5 +1,5 @@
 import { stringify as stringifyToml } from "smol-toml";
-import { copySkillArtifacts, flatAgentId, json, markdown, uniqueArtifacts } from "./marketplace.mjs";
+import { assert, assertSupportedListingText, classifyCodexComponents, copySkillArtifacts, flatAgentId, json, markdown, uniqueArtifacts } from "./marketplace.mjs";
 
 function hostFiles(plugin, hostKey) {
   return plugin.hostFiles
@@ -50,8 +50,17 @@ function compact(text, maximum) {
 }
 
 export function codexPluginManifest(plugin, repository = plugin.marketplace?.repository ?? plugin.manifest.author.url) {
-  const writable = plugin.agents.some((agent) => agent.workspace === "workspace-write");
   const firstSkill = plugin.skills[0]?.id;
+  const capabilities = plugin.manifest.hosts?.codex?.capabilities;
+  const codexComponents = classifyCodexComponents(plugin.manifest.components);
+  assert(codexComponents.invalidDestinations.length === 0, `${plugin.manifest.id} has unsupported Codex host-file destinations: ${codexComponents.invalidDestinations.map((file) => file.id).join(", ")}`);
+  if (plugin.manifest.hosts?.codex?.enabled === true && capabilities === undefined) {
+    throw new Error(`${plugin.manifest.id} must declare hosts.codex.capabilities before rendering its Codex manifest`);
+  }
+  if (capabilities !== undefined) {
+    assert(Array.isArray(capabilities), `${plugin.manifest.id} hosts.codex.capabilities must be an array`);
+    for (const capability of capabilities) assertSupportedListingText(capability, `${plugin.manifest.id} Codex capability`);
+  }
   return {
     name: plugin.manifest.id,
     version: plugin.manifest.version,
@@ -61,14 +70,16 @@ export function codexPluginManifest(plugin, repository = plugin.marketplace?.rep
     repository,
     license: plugin.manifest.license,
     keywords: plugin.manifest.keywords ?? [],
-    skills: "./skills/",
+    ...(plugin.skills.length > 0 ? { skills: "./skills/" } : {}),
+    ...(codexComponents.nativeFiles.some((file) => file.nativeKind === "hooks") ? { hooks: `./${codexComponents.nativeFiles.find((file) => file.nativeKind === "hooks").destination}` } : {}),
+    ...(codexComponents.nativeFiles.some((file) => file.nativeKind === "mcpServers") ? { mcpServers: `./${codexComponents.nativeFiles.find((file) => file.nativeKind === "mcpServers").destination}` } : {}),
     interface: {
       displayName: compact(plugin.manifest.displayName, 30),
       shortDescription: compact(plugin.manifest.description, 30),
       longDescription: plugin.manifest.description,
       developerName: plugin.manifest.author.name,
       category: plugin.manifest.category ?? "Other",
-      capabilities: writable ? ["Read", "Write"] : ["Read"],
+      ...(capabilities === undefined ? {} : { capabilities }),
       defaultPrompt: [compact(firstSkill ? `Use $${firstSkill} for this task.` : `Use ${plugin.manifest.displayName} for this task.`, 128)],
       websiteURL: repository
     }
@@ -107,9 +118,9 @@ export function claudePluginManifest(plugin, repository = plugin.marketplace?.re
     homepage: repository,
     repository,
     license: plugin.manifest.license,
-    keywords: plugin.manifest.keywords ?? [],
-    skills: "./skills/"
+    keywords: plugin.manifest.keywords ?? []
   };
+  if (plugin.skills.length > 0) manifest.skills = "./skills/";
   if (plugin.agents.length > 0) manifest.agents = "./agents/";
   return manifest;
 }
@@ -273,12 +284,29 @@ export function resolveHost(host, variant) {
 
 export function supportsHost(plugin, host) {
   const key = typeof host.manifestKey === "function" ? host.manifestKey(host.variant) : host.manifestKey;
-  return plugin.manifest.hosts?.[key]?.enabled === true;
+  if (plugin.manifest.hosts?.[key]?.enabled !== true) return false;
+  const components = plugin.manifest.components;
+  const skillsList = plugin.skills ?? components.skills;
+  const agentsList = plugin.agents ?? components.agents;
+  const commandsList = plugin.commands ?? components.commands;
+  const hostFilesList = plugin.hostFiles ?? components.hostFiles ?? [];
+  if (host.id === "codex") {
+    return skillsList.length > 0 || hostFilesList.some((file) => file.codexNativeFunctional === true);
+  }
+  if (host.id === "portable-agent-skills") return skillsList.length > 0;
+  const commandHost = key;
+  return skillsList.length > 0
+    || agentsList.length > 0
+    || commandsList.some((command) => command.hosts.includes(commandHost));
 }
 
-export function renderHost(plugin, hostId, variant) {
+export function renderHost(plugin, hostId, variant, options = {}) {
   const host = resolveHost(hostId, variant);
-  if (!supportsHost(plugin, host)) throw new Error(`${plugin.manifest.id} does not enable host ${hostId}${host.variant ? `/${host.variant}` : ""}`);
+  const allowCompanion = options.allowCompanion === true
+    && host.id === "codex"
+    && plugin.manifest.hosts?.codex?.enabled === true
+    && plugin.agents.length > 0;
+  if (!supportsHost(plugin, host) && !allowCompanion) throw new Error(`${plugin.manifest.id} does not enable host ${hostId}${host.variant ? `/${host.variant}` : ""}: projection has no functional component`);
   const artifacts = [{ path: "LICENSE", content: plugin.license.content }, ...host.render(plugin, host.variant === "v2-beta" ? "v2-beta" : host.variant)];
   return { host, artifacts: uniqueArtifacts(artifacts, `${hostId}/${host.variant ?? "default"}/${plugin.manifest.id}`) };
 }

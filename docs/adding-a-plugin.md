@@ -84,7 +84,10 @@ Every plugin must include its own `LICENSE` as a regular file. The declared lice
   },
   "hosts": {
     "claude-code": { "enabled": true },
-    "codex": { "enabled": true },
+    "codex": {
+      "enabled": true,
+      "capabilities": ["Read", "Write"]
+    },
     "gemini-cli": { "enabled": true },
     "antigravity": { "enabled": true },
     "opencode": { "enabled": true },
@@ -106,6 +109,8 @@ The manifest capabilities are declarative inputs to host renderers:
 | `model.policy` | Must be `inherit` so the plugin does not require an unavailable provider model |
 | `model.recommendedTier` | Cost/quality guidance (`economy`, `balanced`, or `deep`), not a model ID or fallback promise |
 | `steps` | Must be `null`; do not invent a cross-host cap |
+
+For a Codex-enabled plugin, `hosts.codex.capabilities` is required. These single-line listing labels describe the install surface only; they do not grant runtime tools or override sandbox or approval policy. Do not place `capabilities` under another host, and do not derive the list from agent workspace settings.
 
 Use semantic versions per plugin. The root package version belongs to marketplace tooling and does not need to change when only `example-plugin` is released.
 

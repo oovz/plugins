@@ -6,7 +6,7 @@ import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 import { renderHost, resolveHost } from "./lib/hosts.mjs";
-import { assert, discoverMarketplace, inspectPlugin, json, ROOT, within } from "./lib/marketplace.mjs";
+import { assert, classifyCodexComponents, discoverMarketplace, inspectPlugin, json, ROOT, within } from "./lib/marketplace.mjs";
 import { assertCatalogMatchesSchemas } from "./lib/schema.mjs";
 
 export const USAGE = `Usage:
@@ -125,7 +125,24 @@ function resolveOwnershipContext(args, env = process.env, cwd = process.cwd()) {
 }
 
 export function resolveInstallPlan(plugin, args, env = process.env, cwd = process.cwd()) {
-  const rendered = renderHost(plugin, args.host, args.variant);
+  const codexComponents = args.host === "codex" ? classifyCodexComponents(plugin.manifest.components) : null;
+  if (args.host === "codex") {
+    assert(plugin.manifest.hosts?.codex?.enabled === true, `${plugin.manifest.id} does not enable host codex`);
+    assert(codexComponents.invalidDestinations.length === 0, `Codex host files must target declared skill support paths: ${codexComponents.invalidDestinations.map((file) => file.id).join(", ")}`);
+    const hasStandaloneSkills = codexComponents.standaloneSkills.length > 0;
+    const hasCompanionAgents = codexComponents.companionAgents.length > 0;
+    const nativeCodexFiles = codexComponents.nativeFiles;
+    if (args.mode === "companion" && !hasCompanionAgents) {
+      if (nativeCodexFiles.length > 0) {
+        throw new Error(`Codex companion mode cannot install "${plugin.manifest.displayName}": it declares native Codex host files (${nativeCodexFiles.map((file) => file.id).join(", ")}) but no companion agents. Install the native Codex plugin through its marketplace; there is no companion artifact to install.`);
+      }
+      if (hasStandaloneSkills) {
+        throw new Error(`Codex companion mode is unavailable for the skill-only plugin "${plugin.manifest.displayName}". Install its skill through the native Codex marketplace, or use standalone mode when native plugin support is unavailable.`);
+      }
+      throw new Error(`Codex companion mode cannot install "${plugin.manifest.displayName}": it declares no companion agents or standalone skills.`);
+    }
+  }
+  const rendered = renderHost(plugin, args.host, args.variant, { allowCompanion: args.host === "codex" && args.mode === "companion" });
   const context = resolveOwnershipContext(args, env, cwd);
   const { home, project, scopeRoot, recordRoot, recordFile } = context;
   const files = [];
@@ -146,10 +163,18 @@ export function resolveInstallPlan(plugin, args, env = process.env, cwd = proces
     const skillRoot = args.scope === "project" ? path.join(project, ".agents", "skills") : path.join(home, ".agents", "skills");
     files.push(...mapArtifacts(rendered.artifacts, (relative) => relative.startsWith("companion/agents/"), (relative) => path.join(agentRoot, relative.slice("companion/agents/".length))));
     if (args.mode === "standalone") {
-      const unsupported = plugin.hostFiles.filter((file) => file.hosts.includes("codex") && !file.destination.startsWith("skills/"));
-      if (unsupported.length) throw new Error(`Codex standalone cannot install native host files (${unsupported.map((file) => file.id).join(", ")}); use the native plugin plus --mode companion`);
+      const unsupported = codexComponents.nativeFiles;
+      if (unsupported.length) {
+        const alternative = codexComponents.companionAgents.length > 0
+          ? "use the native plugin plus --mode companion"
+          : "install the native Codex plugin through its marketplace";
+        throw new Error(`Codex standalone cannot install native host files (${unsupported.map((file) => file.id).join(", ")}); ${alternative}`);
+      }
+      if (codexComponents.standaloneSkills.length === 0) {
+        throw new Error(`Codex standalone cannot install "${plugin.manifest.displayName}": it declares no standalone skills; use companion mode for its custom agents.`);
+      }
       files.push(...mapArtifacts(rendered.artifacts, (relative) => relative.startsWith("skills/"), (relative) => path.join(skillRoot, relative.slice("skills/".length))));
-    } else if (plugin.hostFiles.some((file) => file.hosts.includes("codex"))) {
+    } else if (codexComponents.nativeFiles.length > 0) {
       notices.push("Codex companion mode installs agent TOMLs only; native plugin host files must already be installed by the Codex plugin marketplace.");
     }
   } else if (args.host === "opencode") {

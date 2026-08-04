@@ -38,21 +38,21 @@
     "hosts": {
       "type": "object",
       "minProperties": 1,
-      "propertyNames": { "enum": ["claude-code", "codex", "gemini-cli", "antigravity", "opencode", "opencode-v2", "portable"] },
-      "additionalProperties": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": ["enabled"],
-        "properties": {
-          "enabled": { "type": "boolean" },
-          "status": { "enum": ["stable", "preview", "experimental"] }
-        }
+      "additionalProperties": false,
+      "properties": {
+        "claude-code": { "$ref": "#/$defs/host" },
+        "codex": { "$ref": "#/$defs/codexHost" },
+        "gemini-cli": { "$ref": "#/$defs/host" },
+        "antigravity": { "$ref": "#/$defs/host" },
+        "opencode": { "$ref": "#/$defs/host" },
+        "opencode-v2": { "$ref": "#/$defs/host" },
+        "portable": { "$ref": "#/$defs/host" }
       }
     },
     "validation": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["profile", "contract", "evals"],
+      "required": ["profile", "evals"],
       "properties": {
         "profile": { "type": "string", "minLength": 1 },
         "contract": { "$ref": "#/$defs/relativePath" },
@@ -61,6 +61,42 @@
     }
   },
   "$defs": {
+    "host": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "status": { "enum": ["stable", "preview", "experimental"] }
+      }
+    },
+    "codexHost": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "status": { "enum": ["stable", "preview", "experimental"] },
+        "capabilities": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 20,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "pattern": "^[^\\u0000-\\u001f\\u007f\\u0085\\u00ad\\u034f\\u061c\\u115f\\u1160\\u17b4\\u17b5\\u180b-\\u180e\\u200b\\u200c\\u200e\\u200f\\u2028\\u2029\\u202a-\\u202e\\u2060-\\u206f\\ufeff]+$"
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "enabled": { "const": true } } },
+          "then": { "required": ["capabilities"] }
+        }
+      ]
+    },
     "id": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
     "relativePath": { "type": "string", "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\).+$" },
     "fileComponent": {

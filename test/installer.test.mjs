@@ -78,6 +78,37 @@ test("Codex standalone and companion use exact project paths", async (t) => {
   await assert.rejects(readFile(skill), /ENOENT/);
 });
 
+test("Codex companion rejects skill-only plugins before creating ownership state", async (t) => {
+  const ctx = await fixture(t);
+  const env = { ...process.env, HOME: ctx.home, USERPROFILE: ctx.home, XDG_STATE_HOME: path.join(ctx.home, ".state") };
+  await assert.rejects(
+    runInstaller(
+      ["install", "--plugin", "tauri-v2-desktop", "--host", "codex", "--scope", "project", "--mode", "companion", "--project", ctx.project, "--dry-run"],
+      { root: ROOT, env, cwd: ctx.project, stdout: { write() {} } }
+    ),
+    (error) => {
+      assert.match(error.message, /skill-only plugin/i);
+      assert.match(error.message, /native Codex marketplace/i);
+      assert.match(error.message, /standalone mode/i);
+      return true;
+    }
+  );
+  await assert.rejects(lstat(path.join(ctx.home, ".state")), /ENOENT/);
+});
+
+test("Codex standalone dry-run lists skill-only files and license", async (t) => {
+  const ctx = await fixture(t);
+  let output = "";
+  const env = { ...process.env, HOME: ctx.home, USERPROFILE: ctx.home, XDG_STATE_HOME: path.join(ctx.home, ".state") };
+  await runInstaller(
+    ["install", "--plugin", "tauri-v2-desktop", "--host", "codex", "--scope", "project", "--mode", "standalone", "--project", ctx.project, "--dry-run"],
+    { root: ROOT, env, cwd: ctx.project, stdout: { write(value) { output += value; } } }
+  );
+  assert.match(output, /would write .*\.agents[\\/]skills[\\/]tauri-v2-desktop[\\/]SKILL\.md/);
+  assert.match(output, /would write .*\.agents[\\/]skills[\\/]tauri-v2-desktop[\\/]LICENSE/);
+  await assert.rejects(lstat(path.join(ctx.project, ".agents")), /ENOENT/);
+});
+
 test("Codex user scope splits Agent Skills from CODEX_HOME agents", async (t) => {
   const ctx = await fixture(t);
   const codexHome = path.join(ctx.root, "custom-codex");
@@ -279,7 +310,7 @@ test("Codex standalone rejects native-only host files instead of silently droppi
     version: "1.0.0",
     options: {
       hosts: { codex: { enabled: true } },
-      hostFile: { path: "native/hooks.json", hosts: ["codex"], destination: "hooks/hooks.json", content: "{}\n" }
+      hostFile: { path: "native/hooks.json", hosts: ["codex"], destination: "hooks/hooks.json", content: "{\"hooks\":{\"SessionStart\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"true\"}]}]}}\n" }
     }
   }]);
   const env = { ...process.env, HOME: home, USERPROFILE: home, XDG_STATE_HOME: path.join(home, ".state") };
@@ -289,6 +320,124 @@ test("Codex standalone rejects native-only host files instead of silently droppi
   await runInstaller(["install", ...common, "--mode", "companion"], { root, env, cwd: project, stdout: { write(value) { output += value; } } });
   assert.match(output, /native plugin host files must already be installed/);
   assert.ok(await readFile(path.join(project, ".codex", "agents", "native-file-plugin-worker.toml")));
+});
+
+test("Codex mode guidance follows skills, agents, and native host-file components", async (t) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "oovz-codex-component-matrix-"));
+  const home = path.join(root, "home");
+  const project = path.join(root, "project");
+  await mkdir(home);
+  await mkdir(project);
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const nativeFile = { path: "native/policy.json", hosts: ["codex"], destination: "hooks/policy.json", content: "{\"hooks\":{\"SessionStart\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"true\"}]}]}}\n" };
+  await createFixtureMarketplace(root, [
+    { id: "skill-only", version: "1.0.0", options: { includeAgent: false } },
+    { id: "agent-only", version: "1.0.0", options: { includeSkill: false } },
+    { id: "skill-native", version: "1.0.0", options: { includeAgent: false, hostFile: nativeFile } },
+    { id: "agent-native", version: "1.0.0", options: { hostFile: nativeFile } },
+    { id: "native-only", version: "1.0.0", options: { includeSkill: false, includeAgent: false, hostFile: nativeFile } }
+  ]);
+  const env = { ...process.env, HOME: home, USERPROFILE: home, XDG_STATE_HOME: path.join(home, ".state") };
+  const args = (plugin, mode) => ["install", "--plugin", plugin, "--host", "codex", "--scope", "project", "--mode", mode, "--project", project];
+
+  let output = "";
+  await runInstaller(args("agent-only", "companion"), { root, env, cwd: project, stdout: { write(value) { output += value; } } });
+  assert.ok(await readFile(path.join(project, ".codex", "agents", "agent-only-worker.toml")));
+  output = "";
+  await runInstaller(args("agent-native", "companion"), { root, env, cwd: project, stdout: { write(value) { output += value; } } });
+  assert.match(output, /native plugin host files must already be installed/);
+  assert.ok(await readFile(path.join(project, ".codex", "agents", "agent-native-worker.toml")));
+
+  await assert.rejects(
+    runInstaller(args("skill-native", "companion"), { root, env, cwd: project, stdout: { write() {} } }),
+    (error) => {
+      assert.match(error.message, /native Codex host files/);
+      assert.match(error.message, /native Codex plugin/);
+      assert.doesNotMatch(error.message, /standalone mode/);
+      return true;
+    }
+  );
+  await assert.rejects(
+    runInstaller(args("skill-native", "standalone"), { root, env, cwd: project, stdout: { write() {} } }),
+    /install the native Codex plugin through its marketplace/
+  );
+  await assert.rejects(
+    runInstaller(args("native-only", "companion"), { root, env, cwd: project, stdout: { write() {} } }),
+    /no companion agents/
+  );
+  await assert.rejects(
+    runInstaller(args("native-only", "standalone"), { root, env, cwd: project, stdout: { write() {} } }),
+    /install the native Codex plugin through its marketplace/
+  );
+  await assert.rejects(readFile(path.join(project, ".codex", "agents", "skill-native-worker.toml")), /ENOENT/);
+  await assert.rejects(readFile(path.join(project, ".codex", "agents", "native-only-worker.toml")), /ENOENT/);
+});
+
+test("Codex companion mode honors explicit host disablement before writes", async (t) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "oovz-codex-disabled-companion-"));
+  const home = path.join(root, "home");
+  const project = path.join(root, "project");
+  await mkdir(home);
+  await mkdir(project);
+  t.after(() => rm(root, { recursive: true, force: true }));
+  await createFixtureMarketplace(root, [{
+    id: "codex-disabled-plugin",
+    version: "1.0.0",
+    options: {
+      hosts: {
+        "claude-code": { enabled: true },
+        codex: { enabled: false }
+      }
+    }
+  }]);
+  const env = { ...process.env, HOME: home, USERPROFILE: home, XDG_STATE_HOME: path.join(home, ".state") };
+  const args = ["install", "--plugin", "codex-disabled-plugin", "--host", "codex", "--scope", "project", "--mode", "companion", "--project", project];
+  await assert.rejects(runInstaller(args, { root, env, cwd: project, stdout: { write() {} } }), /does not enable host codex/);
+  await assert.rejects(readFile(path.join(project, ".codex", "agents", "codex-disabled-plugin-worker.toml")), /ENOENT/);
+  await assert.rejects(readFile(path.join(home, ".state", "oovz-plugins"), "utf8"), /ENOENT|EISDIR/);
+});
+
+test("Codex skill overlays require a declared owner and share route guidance", async (t) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "oovz-codex-skill-overlay-"));
+  const home = path.join(root, "home");
+  const project = path.join(root, "project");
+  await mkdir(home);
+  await mkdir(project);
+  t.after(() => rm(root, { recursive: true, force: true }));
+  await createFixtureMarketplace(root, [{
+    id: "overlay-plugin",
+    version: "1.0.0",
+    options: {
+      includeAgent: false,
+      hostFile: { path: "host/note.md", hosts: ["codex"], destination: "skills/overlay-plugin-skill/references/note.md", content: "overlay\n" }
+    }
+  }]);
+  const env = { ...process.env, HOME: home, USERPROFILE: home, XDG_STATE_HOME: path.join(home, ".state") };
+  const common = ["install", "--plugin", "overlay-plugin", "--host", "codex", "--scope", "project", "--project", project];
+  await assert.rejects(
+    runInstaller([...common, "--mode", "companion", "--dry-run"], { root, env, cwd: project, stdout: { write() {} } }),
+    (error) => {
+      assert.match(error.message, /skill-only plugin/);
+      assert.doesNotMatch(error.message, /native Codex host files/);
+      return true;
+    }
+  );
+  let output = "";
+  await runInstaller([...common, "--mode", "standalone", "--dry-run"], { root, env, cwd: project, stdout: { write(value) { output += value; } } });
+  assert.match(output, /references[\\/]note\.md/);
+
+  const orphanRoot = await mkdtemp(path.join(os.tmpdir(), "oovz-codex-orphan-"));
+  t.after(() => rm(orphanRoot, { recursive: true, force: true }));
+  await createFixtureMarketplace(orphanRoot, [{
+    id: "orphan-plugin",
+    version: "1.0.0",
+    options: { includeSkill: false, hostFile: { path: "host/note.md", hosts: ["codex"], destination: "skills/orphan/references/note.md", content: "orphan\n" } }
+  }]);
+  await assert.rejects(
+    runInstaller(["install", "--plugin", "orphan-plugin", "--host", "codex", "--scope", "project", "--mode", "standalone", "--project", project, "--dry-run"], { root: orphanRoot, env, cwd: project, stdout: { write() {} } }),
+    /declared skill support path/
+  );
+  await assert.rejects(lstat(path.join(home, ".state")), /ENOENT/);
 });
 
 test("direct skill installs include the plugin-local license when the source skill does not", async (t) => {

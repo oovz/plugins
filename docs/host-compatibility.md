@@ -83,6 +83,8 @@ Use `codex plugin marketplace upgrade [marketplace-name]` to refresh a configure
 
 Native plugins are available in Codex CLI and the ChatGPT desktop plugin surface, but the current Codex IDE extension does not expose them. Start a new Codex session after a native plugin install. Standalone local skills and custom agents remain the compatibility path for IDE use.
 
+Every Codex-enabled canonical manifest must explicitly declare `hosts.codex.capabilities`; the list is copied to `interface.capabilities` for the Codex listing and is never inferred from agent topology. It is reviewed install-surface metadata only; it does not grant runtime tools or override sandbox and approval policy. The repository validates Codex's current submission bounds of 1–20 unique non-empty single-line strings, each at most 120 characters. Capability metadata belongs only under the Codex host configuration.
+
 Codex native plugins package skills, hooks, MCP configuration, app mappings, and assets. The native plugin format does not package local custom-agent TOML profiles, so the workflow supports two explicit local modes:
 
 - `companion`: install only collision-safe custom agents, while a native plugin supplies the skill;

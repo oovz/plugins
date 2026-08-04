@@ -8,6 +8,17 @@ export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "
 export const ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 export const SEMVER_PATTERN = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*))*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/;
 const WINDOWS_DEVICE = /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i;
+const CAPABILITY_CONTROL_CHARACTER = /[\u0000-\u001f\u007f\u0085\u2028\u2029]/u;
+const CAPABILITY_DEFAULT_IGNORABLE = /\p{Default_Ignorable_Code_Point}/u;
+const CAPABILITY_EMOJI = /\p{Emoji}/u;
+const CAPABILITY_EXTENDED_PICTOGRAPHIC = /\p{Extended_Pictographic}/u;
+const CAPABILITY_VISIBLE_CHARACTER = /[\p{L}\p{N}\p{P}\p{S}\p{Zs}]/u;
+
+function codexNativeComponentKind(destination) {
+  if (/^hooks\/[^/]+\.json$/i.test(destination)) return "hooks";
+  if (destination === ".mcp.json") return "mcpServers";
+  return null;
+}
 
 export async function readJson(file) {
   return JSON.parse(decodeUtf8(await readFile(file), file));
@@ -31,6 +42,102 @@ export function sha256(value) {
 
 export function assert(condition, message) {
   if (!condition) throw new Error(message);
+}
+
+function assertWellFormedUnicode(value, label) {
+  for (let index = 0; index < value.length; index += 1) {
+    const codeUnit = value.charCodeAt(index);
+    if (codeUnit >= 0xd800 && codeUnit <= 0xdbff) {
+      const next = value.charCodeAt(index + 1);
+      assert(next >= 0xdc00 && next <= 0xdfff, `${label} must contain well-formed Unicode`);
+      index += 1;
+    } else {
+      assert(codeUnit < 0xdc00 || codeUnit > 0xdfff, `${label} must contain well-formed Unicode`);
+    }
+  }
+}
+
+function supportedCapabilityFormatting(characters, index) {
+  const current = characters[index];
+  if (current === "\u200d") {
+    let previousIndex = index - 1;
+    if (/\p{Emoji_Modifier}/u.test(characters[previousIndex] ?? "")) previousIndex -= 1;
+    if (characters[previousIndex] === "\ufe0e" || characters[previousIndex] === "\ufe0f") previousIndex -= 1;
+    return CAPABILITY_EXTENDED_PICTOGRAPHIC.test(characters[previousIndex] ?? "")
+      && CAPABILITY_EXTENDED_PICTOGRAPHIC.test(characters[index + 1] ?? "");
+  }
+  if (current === "\ufe0e" || current === "\ufe0f") {
+    return CAPABILITY_EMOJI.test(characters[index - 1] ?? "");
+  }
+  return false;
+}
+
+export function assertSupportedListingText(value, label) {
+  assert(typeof value === "string", `${label} must be a string`);
+  assertWellFormedUnicode(value, label);
+  const characters = [...value];
+  for (const [index, character] of characters.entries()) {
+    if (CAPABILITY_DEFAULT_IGNORABLE.test(character)) {
+      assert(supportedCapabilityFormatting(characters, index), `${label} contains unsupported invisible or unattached zero-width joiner formatting`);
+    }
+  }
+  const normalized = value.normalize("NFKC");
+  assert(normalized.trim().length > 0, `${label} must not be empty after normalization`);
+  assert(!CAPABILITY_CONTROL_CHARACTER.test(value), `${label} must be single-line text without control characters`);
+  assert(CAPABILITY_VISIBLE_CHARACTER.test(normalized), `${label} must contain visible text`);
+  assert(characters.length <= 120, `${label} must be at most 120 characters`);
+  return normalized;
+}
+
+export function classifyCodexComponents(components) {
+  const skills = components?.skills ?? [];
+  const agents = components?.agents ?? [];
+  const hostFiles = (components?.hostFiles ?? []).filter((file) => file.hosts?.includes("codex"));
+  const skillIds = new Set(skills.map((skill) => skill.id));
+  const skillSupportFiles = [];
+  const nativeFiles = [];
+  const invalidDestinations = [];
+  const destinations = new Set();
+  const nativeKinds = new Set();
+  for (const file of hostFiles) {
+    const parts = file.destination.split("/");
+    if (parts[0] !== "skills") {
+      const nativeKind = codexNativeComponentKind(file.destination);
+      if (!nativeKind || nativeKinds.has(nativeKind)) {
+        invalidDestinations.push(file);
+        continue;
+      }
+      nativeKinds.add(nativeKind);
+      nativeFiles.push({ ...file, nativeKind });
+      continue;
+    }
+    const skillId = parts[1];
+    const relative = parts.slice(2).join("/");
+    if (!skillId || !skillIds.has(skillId) || !relative) {
+      invalidDestinations.push(file);
+      continue;
+    }
+    const firstSegment = parts[2].toLowerCase();
+    if (["skill.md", "license"].includes(firstSegment)) {
+      invalidDestinations.push(file);
+      continue;
+    }
+    const key = file.destination.toLowerCase();
+    if (destinations.has(key)) {
+      invalidDestinations.push(file);
+      continue;
+    }
+    destinations.add(key);
+    skillSupportFiles.push({ ...file, skillId });
+  }
+  return {
+    standaloneSkills: skills,
+    skillSupportFiles,
+    companionAgents: agents,
+    nativeFiles,
+    invalidDestinations,
+    hasNativeComponents: skills.length > 0 || nativeFiles.length > 0
+  };
 }
 
 export function assertRelative(relative, label = "path") {
@@ -160,8 +267,15 @@ export function validatePluginManifest(manifest, directoryName) {
   assert(manifest.hosts && typeof manifest.hosts === "object" && !Array.isArray(manifest.hosts), "hosts is required and must be an object");
   for (const hostId of Object.keys(manifest.hosts ?? {})) assert(hostIds.has(hostId), `unsupported manifest host ${hostId}`);
   assert(Object.values(manifest.hosts).some((host) => host?.enabled === true), "at least one host must be explicitly enabled");
-  for (const [hostId, host] of Object.entries(manifest.hosts)) assert(typeof host?.enabled === "boolean", `hosts.${hostId}.enabled must be boolean`);
+  for (const [hostId, host] of Object.entries(manifest.hosts)) {
+    assert(typeof host?.enabled === "boolean", `hosts.${hostId}.enabled must be boolean`);
+    assert(hostId === "codex" || host.capabilities === undefined, `hosts.${hostId}.capabilities is only valid for the codex host`);
+  }
   if (manifest.hosts.codex?.enabled === true) {
+    const capabilities = manifest.hosts.codex.capabilities;
+    assert(Array.isArray(capabilities) && capabilities.length > 0 && capabilities.length <= 20, "hosts.codex.capabilities must contain 1-20 entries");
+    const normalizedCapabilities = capabilities.map((capability) => assertSupportedListingText(capability, "hosts.codex.capabilities entries"));
+    assert(new Set(normalizedCapabilities).size === normalizedCapabilities.length, "hosts.codex.capabilities must not contain duplicates after normalization");
     assert(/^https:\/\//.test(manifest.author.url ?? ""), "Codex-enabled plugins require an HTTPS author.url");
     const categories = new Set(["Productivity", "Creativity", "Developer Tools", "Business & Operations", "Data & Analytics", "Communication", "Education & Research", "Security", "Finance", "Healthcare", "Travel", "Entertainment", "Other"]);
     assert(categories.has(manifest.category ?? "Other"), `unsupported Codex category: ${manifest.category}`);
@@ -174,9 +288,12 @@ export function validatePluginManifest(manifest, directoryName) {
       assert(manifest.hosts[host]?.enabled === true, `command ${command.id} targets disabled host ${host}`);
     }
   }
+  const hostFileIds = new Set();
   for (const hostFile of manifest.components.hostFiles ?? []) {
     assert(hostFile, "host file must be an object");
     assertId(hostFile.id, "host file id");
+    assert(!hostFileIds.has(hostFile.id), `duplicate host file id: ${hostFile.id}`);
+    hostFileIds.add(hostFile.id);
     assertRelative(hostFile.path, `hostFiles.${hostFile.id}.path`);
     assertRelative(hostFile.destination, `hostFiles.${hostFile.id}.destination`);
     assert(Array.isArray(hostFile.hosts) && hostFile.hosts.length > 0, `hostFiles.${hostFile.id}.hosts must not be empty`);
@@ -188,9 +305,13 @@ export function validatePluginManifest(manifest, directoryName) {
     if (hostFile.hosts.includes("portable")) assert(hostFile.destination.startsWith(".agents/"), `hostFiles.${hostFile.id} must use an .agents/ destination for portable Agent Skills`);
     assert(hostFile.executable === undefined || typeof hostFile.executable === "boolean", `hostFiles.${hostFile.id}.executable must be boolean`);
   }
+  const codexComponents = classifyCodexComponents(manifest.components);
+  for (const file of codexComponents.invalidDestinations) {
+    assert(false, `Codex host file ${file.id} must target a declared skill support path or a supported native component and must not overwrite SKILL.md or LICENSE: ${file.destination}`);
+  }
   if (manifest.validation !== undefined) {
     assert(manifest.validation && typeof manifest.validation.profile === "string" && manifest.validation.profile, "validation.profile is required");
-    assertRelative(manifest.validation.contract, "validation.contract");
+    if (manifest.validation.contract !== undefined) assertRelative(manifest.validation.contract, "validation.contract");
     assertRelative(manifest.validation.evals, "validation.evals");
   }
 }
@@ -251,12 +372,40 @@ export async function inspectPlugin(plugin) {
     assert(stat.isFile() && !stat.isSymbolicLink(), `host file ${component.id} must be a regular file`);
     hostFiles.push({ ...component, file, content: await readFile(file) });
   }
+  const codexComponents = classifyCodexComponents(plugin.manifest.components);
+  for (const component of codexComponents.nativeFiles) {
+    const hostFile = hostFiles.find((file) => file.id === component.id);
+    let parsed;
+    try {
+      parsed = JSON.parse(decodeUtf8(hostFile.content, `${plugin.manifest.id}/${hostFile.path}`));
+    } catch (error) {
+      throw new Error(`Codex ${component.nativeKind} component ${component.id} must contain valid JSON`, { cause: error });
+    }
+    assert(parsed && typeof parsed === "object" && !Array.isArray(parsed), `Codex ${component.nativeKind} component ${component.id} must contain a JSON object`);
+    if (component.nativeKind === "mcpServers") {
+      const servers = parsed.mcp_servers ?? parsed;
+      assert(servers && typeof servers === "object" && !Array.isArray(servers) && Object.keys(servers).length > 0, `Codex mcpServers component ${component.id} must declare at least one MCP server`);
+      for (const [name, server] of Object.entries(servers)) {
+        assert(server && typeof server === "object" && !Array.isArray(server) && Object.keys(server).length > 0, `Codex MCP server ${name} in ${component.id} must be a non-empty object`);
+        assert((typeof server.command === "string" && server.command.trim()) || (typeof server.url === "string" && server.url.trim()), `Codex MCP server ${name} in ${component.id} must declare a command or URL`);
+      }
+    } else {
+      const hooks = parsed.hooks;
+      const hasHandler = hooks && typeof hooks === "object" && !Array.isArray(hooks)
+        && Object.values(hooks).some((entries) => Array.isArray(entries) && entries.some((entry) => entry && typeof entry === "object" && !Array.isArray(entry)
+          && Array.isArray(entry.hooks) && entry.hooks.some((handler) => handler && typeof handler === "object" && !Array.isArray(handler) && Object.keys(handler).length > 0)));
+      assert(hasHandler, `Codex hooks component ${component.id} must declare at least one hook handler`);
+    }
+    hostFile.codexNativeKind = component.nativeKind;
+    hostFile.codexNativeFunctional = true;
+  }
   return { ...plugin, license, skills, agents, commands, hostFiles };
 }
 
 export async function walkFiles(directory, containmentRoot = directory) {
   await assertSecureSourcePath(containmentRoot, directory, "source tree");
-  const rootReal = await realpath(directory);
+  const logicalDirectory = path.resolve(directory);
+  const rootReal = await realpath(logicalDirectory);
   const output = [];
   async function walk(current) {
     const entries = await readdir(current, { withFileTypes: true });
@@ -266,9 +415,9 @@ export async function walkFiles(directory, containmentRoot = directory) {
       if (entry.isDirectory()) await walk(absolute);
       else if (entry.isFile()) {
         const info = await lstat(absolute);
-        const relative = path.relative(directory, absolute).split(path.sep).join("/");
+        const relative = path.relative(rootReal, absolute).split(path.sep).join("/");
         assertRelative(relative, "skill support file path");
-        output.push({ absolute, relative, content: await readFile(absolute), executable: (info.mode & 0o111) !== 0 });
+        output.push({ absolute: path.join(logicalDirectory, ...relative.split("/")), relative, content: await readFile(absolute), executable: (info.mode & 0o111) !== 0 });
       }
       else throw new Error(`unsupported plugin source entry: ${absolute}`);
     }

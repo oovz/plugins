@@ -73,7 +73,7 @@ function claudeMarketplace(catalog) {
     name: catalog.marketplace.id,
     owner: catalog.marketplace.owner,
     description: catalog.marketplace.description,
-    plugins: catalog.plugins.filter((plugin) => plugin.manifest.hosts?.["claude-code"]?.enabled === true).map((plugin) => ({
+    plugins: catalog.plugins.filter((plugin) => supportsHost(plugin, resolveHost("claude-code"))).map((plugin) => ({
       name: plugin.manifest.id,
       source: `./adapters/claude-code/${plugin.manifest.id}`,
       description: plugin.manifest.description,
@@ -92,7 +92,7 @@ function codexMarketplace(catalog) {
   return json({
     name: catalog.marketplace.id,
     interface: { displayName: catalog.marketplace.displayName },
-    plugins: catalog.plugins.filter((plugin) => plugin.manifest.hosts?.codex?.enabled === true).map((plugin) => ({
+    plugins: catalog.plugins.filter((plugin) => supportsHost(plugin, resolveHost("codex"))).map((plugin) => ({
       name: plugin.manifest.id,
       source: { source: "local", path: `./adapters/codex/${plugin.manifest.id}` },
       policy: { installation: "AVAILABLE", authentication: "ON_INSTALL" },

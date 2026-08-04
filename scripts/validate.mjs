@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import { parse as parseToml } from "smol-toml";
 import YAML from "yaml";
 import { allHostTargets, renderHost, resolveHost, supportsHost } from "./lib/hosts.mjs";
-import { assert, decodeUtf8, discoverMarketplace, flatAgentId, inspectPlugin, parseFrontmatter, ROOT, walkFiles } from "./lib/marketplace.mjs";
+import { assert, classifyCodexComponents, decodeUtf8, discoverMarketplace, flatAgentId, inspectPlugin, parseFrontmatter, ROOT, walkFiles } from "./lib/marketplace.mjs";
 import { assertCatalogMatchesSchemas } from "./lib/schema.mjs";
 
 const GEMINI_TOOLS = new Set(["read_file", "read_many_files", "grep_search", "glob", "list_directory", "replace", "write_file", "run_shell_command", "google_web_search", "web_fetch", "ask_user"]);
@@ -118,6 +118,178 @@ function validateContract(plugin, contract, label) {
   assert(breaker.on_limit?.some((item) => item.includes("stop further mutation")), `${label} circuit breaker must stop further mutation`);
 }
 
+function sourceFiles(plugin) {
+  const files = new Map();
+  for (const skill of plugin.skills) {
+    for (const file of skill.files) {
+      const relative = path.relative(plugin.directory, file.absolute).split(path.sep).join("/");
+      files.set(relative, decodeUtf8(file.content, `${plugin.manifest.id}/${relative}`));
+    }
+  }
+  return files;
+}
+
+async function validateActiveMarketplaceReadme(catalog) {
+  let readme;
+  try {
+    readme = await readFile(path.join(catalog.root, "README.md"), "utf8");
+  } catch (error) {
+    if (error.code === "ENOENT") return;
+    throw error;
+  }
+  const heading = "## Available plugins";
+  const start = readme.indexOf(heading);
+  assert(start >= 0, "README.md must contain an Available plugins table");
+  const nextHeading = readme.indexOf("\n## ", start + heading.length);
+  const section = readme.slice(start, nextHeading < 0 ? readme.length : nextHeading);
+  const rows = new Map();
+  const rowPattern = /^\|\s*\[[^\]]+\]\(([^)]+)\)\s*\|\s*([^|]+?)\s*\|/gm;
+  for (const match of section.matchAll(rowPattern)) {
+    const link = match[1].replace(/\\/g, "/").replace(/^\.\//, "").replace(/\/$/, "");
+    assert(!rows.has(link), `README.md contains duplicate marketplace plugin row: ${link}`);
+    rows.set(link, match[2].trim());
+  }
+  assert(rows.size > 0, "README.md Available plugins table must contain plugin rows");
+  for (const plugin of catalog.plugins) {
+    const catalogPath = plugin.marketplace.plugins.find((entry) => entry.id === plugin.manifest.id)?.path.replace(/\\/g, "/").replace(/^\.\//, "").replace(/\/$/, "");
+    assert(catalogPath && rows.has(catalogPath), `README.md is missing an Available plugins row for ${plugin.manifest.id}`);
+    assert(rows.get(catalogPath) === plugin.manifest.version, `README.md version for ${plugin.manifest.id} does not match ${plugin.manifest.version}`);
+  }
+  for (const link of rows.keys()) assert(catalog.plugins.some((plugin) => plugin.marketplace.plugins.find((entry) => entry.id === plugin.manifest.id)?.path.replace(/\\/g, "/").replace(/^\.\//, "").replace(/\/$/, "") === link), `README.md references an uncataloged plugin path: ${link}`);
+}
+
+function normalizedGuidance(source) {
+  return source
+    .normalize("NFKC")
+    .replace(/[`*>#]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function guidanceSentences(source) {
+  return source
+    .normalize("NFKC")
+    .replace(/[`*>#]/g, " ")
+    .split(/\r?\n+|(?<=[.!?])\s+(?=[A-Z0-9])/u)
+    .map((sentence) => sentence.replace(/\s+/g, " ").trim())
+    .filter(Boolean);
+}
+
+function guidanceCandidates(source) {
+  const sentences = guidanceSentences(source);
+  return [...sentences, ...sentences.flatMap((sentence) => {
+    const historicalPrefix = /^\s*(?:before|prior to|pre[- ]?)\s*Tauri\s+2\.11\.1\b/iu.test(sentence);
+    const separator = historicalPrefix
+      ? /[:;()—]|\b(?:although|and|because|but|however|while|whereas|yet)\b/iu
+      : /[:,;()—]|\b(?:although|and|because|but|however|while|whereas|yet)\b/iu;
+    return sentence.split(separator).map((clause) => clause.trim()).filter(Boolean);
+  })];
+}
+
+function isExplicitRefutation(sentence) {
+  const normalized = sentence.toLowerCase().trim();
+  return /\b(?:do not|don't|never|avoid)\s+(?:claim|say|describe|state|treat|assume|suggest)\b/.test(normalized)
+    || /^(?:it is|this is|that is)\s+(?:false|incorrect|unsafe|not true|not correct)\s+(?:to\s+)?(?:claim|say|describe|state|treat|assume|suggest)\b/.test(normalized);
+}
+
+function isHistoricalContext(sentence, item, source) {
+  if (item.historical_scope !== "remote-ipc"
+    || !/\b(?:before|prior to|pre[- ]?)\s*Tauri\s+2\.11\.1\b/i.test(sentence)
+    || !/\b(?:remote|ACL|IPC|command|AppManifest)\b/i.test(sentence)) return false;
+  const normalizedSource = normalizedGuidance(source);
+  const normalizedSentence = normalizedGuidance(sentence);
+  const index = normalizedSource.lastIndexOf(normalizedSentence);
+  if (index < 0) return false;
+  const correctionWindow = normalizedSource.slice(index, index + normalizedSentence.length + 400);
+  const capabilityCorrected = /\b(?:current|supported)\s+releases?\b(?:(?!\b(?:do not|don\x27t|never|not)\b).){0,180}\brequire(?:s|d)?\b.{0,100}\bexplicit\b.{0,80}\bremote capability\b/i.test(correctionWindow);
+  const aclCorrected = /\bhistorical behavior\s+is\s+fixed\b/i.test(correctionWindow)
+    || /\b(?:current|supported)\s+releases?\b(?:(?!\b(?:do not|don\x27t|never|not)\b).){0,180}\b(?:(?:always|remain(?:s|ed)?)\b.{0,80}\bACL[- ]resolved|subject to ACL)\b/i.test(correctionWindow);
+  return capabilityCorrected && aclCorrected;
+}
+
+function unrefutedPhrasePresent(source, phrase, item) {
+  const normalizedPhrase = normalizedGuidance(phrase);
+  return guidanceCandidates(source).some((candidate) => candidate.includes(normalizedPhrase) && !isExplicitRefutation(candidate) && !isHistoricalContext(candidate, item, source));
+}
+
+function compileSemanticPattern(pattern, label) {
+  assert(typeof pattern === "string" && pattern.trim(), `${label} semantic patterns must be non-empty strings`);
+  try {
+    return new RegExp(pattern, "i");
+  } catch (error) {
+    throw new Error(`${label} contains an invalid semantic pattern: ${pattern}`, { cause: error });
+  }
+}
+function validateSemanticCase(source, item, label) {
+  const violation = semanticCaseViolation(source, item, label);
+  assert(!violation, violation);
+}
+
+function semanticCaseViolation(source, item, label) {
+  for (const kind of ["required", "forbidden"]) {
+    assert(Array.isArray(item[kind]) && item[kind].length > 0, `${label} must declare ${kind} phrases`);
+    for (const phrase of item[kind]) assert(typeof phrase === "string" && phrase.length > 0, `${label} ${kind} phrases must be non-empty strings`);
+  }
+  for (const phrase of item.required) if (!source.includes(phrase)) return `${label} is missing required guidance: ${phrase}`;
+  for (const phrase of item.forbidden) if (unrefutedPhrasePresent(source, phrase, item)) return `${label} contains forbidden guidance: ${phrase}`;
+  const semantic = item.semantic;
+  assert(semantic && typeof semantic === "object" && !Array.isArray(semantic), `${label} semantic checks are required`);
+  for (const kind of ["required_patterns", "forbidden_patterns"]) assert(Array.isArray(semantic[kind]) && semantic[kind].length > 0, `${label} must declare ${kind}`);
+  const normalized = normalizedGuidance(source);
+  const candidates = guidanceCandidates(source);
+  for (const pattern of semantic.required_patterns) {
+    const matcher = compileSemanticPattern(pattern, label);
+    if (!matcher.test(normalized)) return `${label} is missing semantic guidance: ${pattern}`;
+  }
+  for (const pattern of semantic.forbidden_patterns) {
+    const matcher = compileSemanticPattern(pattern, label);
+    if (candidates.some((candidate) => !isExplicitRefutation(candidate) && !isHistoricalContext(candidate, item, source) && matcher.test(candidate))) return `${label} contains forbidden guidance (semantic pattern): ${pattern}`;
+  }
+  return null;
+}
+
+function validateSemanticProfile(plugin, suite, label) {
+  assert(suite?.schema_version === 1, `${label} must declare schema_version 1`);
+  assert(Array.isArray(suite.cases) && suite.cases.length > 0, `${label} must contain cases`);
+  const files = sourceFiles(plugin);
+  const ids = new Set();
+  for (const item of suite.cases) {
+    assert(item && typeof item.id === "string" && item.id.trim(), `${label} case id is required`);
+    assert(!ids.has(item.id), `${label} contains duplicate case ${item.id}`);
+    ids.add(item.id);
+    assert(typeof item.file === "string" && item.file.trim(), `${label}/${item.id} file is required`);
+    assert(item.historical_scope === undefined || item.historical_scope === "remote-ipc", `${label}/${item.id} has an unsupported historical scope`);
+    const source = files.get(item.file);
+    assert(source !== undefined, `${label}/${item.id} references missing skill file ${item.file}`);
+    validateSemanticCase(source, item, `${label}/${item.id}`);
+    const corpus = item.corpus;
+    assert(corpus && Array.isArray(corpus.unsafe) && corpus.unsafe.length >= 3, `${label}/${item.id} must declare at least three unsafe corpus examples`);
+    assert(Array.isArray(corpus.safe) && corpus.safe.length >= 2, `${label}/${item.id} must declare at least two safe corpus examples`);
+    for (const mutation of corpus.unsafe) {
+      assert(typeof mutation === "string" && mutation.trim(), `${label}/${item.id} unsafe corpus entries must be non-empty strings`);
+      const violation = semanticCaseViolation(`${source}\n${mutation}`, item, `${label}/${item.id}`);
+      assert(violation, `${label}/${item.id} unsafe corpus example was accepted: ${mutation}`);
+    }
+    for (const mutation of corpus.safe) {
+      assert(typeof mutation === "string" && mutation.trim(), `${label}/${item.id} safe corpus entries must be non-empty strings`);
+      validateSemanticCase(`${source}\n${mutation}`, item, `${label}/${item.id}`);
+    }
+  }
+}
+
+function validateEngineeringProfile(plugin, contract, suite, label) {
+  assert(contract, `${label} declared contract is missing from its skill tree`);
+  validateContract(plugin, contract, label);
+  assert(Array.isArray(suite?.cases) && suite.cases.length > 0, `${label} must contain cases`);
+  const capabilities = new Set(suite.cases.map((item) => item.capability));
+  for (const capability of ["supplied_plan_fast_path", "evidence_backed_remediation", "bounded_failure_loop"]) assert(capabilities.has(capability), `${label} lacks ${capability} coverage`);
+}
+
+const VALIDATION_PROFILES = new Map([
+  ["engineering-delivery-v1", validateEngineeringProfile],
+  ["semantic-guidance-v1", (plugin, _contract, suite, label) => validateSemanticProfile(plugin, suite, label)]
+]);
+
 async function validatePlugin(plugin) {
   const localLicense = plugin.license.content.toString("utf8");
   assert(localLicense.trim().length > 0, `${plugin.manifest.id} plugin-local LICENSE is empty`);
@@ -133,7 +305,16 @@ async function validatePlugin(plugin) {
   }
 
   for (const target of allHostTargets()) {
-    if (!supportsHost(plugin, resolveHost(target.id, target.variant))) continue;
+    const resolvedTarget = resolveHost(target.id, target.variant);
+    if (!supportsHost(plugin, resolvedTarget)) {
+      const codex = target.id === "codex" ? classifyCodexComponents(plugin.manifest.components) : null;
+      if (target.id === "codex" && plugin.manifest.hosts?.codex?.enabled === true && codex?.companionAgents.length > 0 && !codex.hasNativeComponents) continue;
+      const manifestKey = typeof resolvedTarget.manifestKey === "function" ? resolvedTarget.manifestKey(resolvedTarget.variant) : resolvedTarget.manifestKey;
+      if (plugin.manifest.hosts?.[manifestKey]?.enabled === true) {
+        throw new Error(`${plugin.manifest.id} enables ${target.id}${target.variant ? `/${target.variant}` : ""} without a functional host component`);
+      }
+      continue;
+    }
     const rendered = renderHost(plugin, target.id, target.variant);
     const artifacts = artifactMap(rendered.artifacts);
     assert(artifacts.get("LICENSE")?.toString("utf8") === localLicense, `${target.id} bundle for ${plugin.manifest.id} is missing its exact license`);
@@ -146,11 +327,24 @@ async function validatePlugin(plugin) {
     if (target.id === "claude-code") {
       const manifest = JSON.parse(artifacts.get(".claude-plugin/plugin.json"));
       const agents = plugin.agents.length > 0 ? "./agents/" : undefined;
-      assert(manifest.name === plugin.manifest.id && manifest.skills === "./skills/" && manifest.agents === agents, `Claude manifest for ${plugin.manifest.id} is not native`);
+      const skills = plugin.skills.length > 0 ? "./skills/" : undefined;
+      assert(manifest.name === plugin.manifest.id && manifest.skills === skills && manifest.agents === agents, `Claude manifest for ${plugin.manifest.id} is not native`);
     }
     if (target.id === "codex") {
       const manifest = JSON.parse(artifacts.get(".codex-plugin/plugin.json"));
-      assert(manifest.name === plugin.manifest.id && manifest.skills === "./skills/" && manifest.agents === undefined, `Codex manifest for ${plugin.manifest.id} is not native`);
+      const skills = plugin.skills.length > 0 ? "./skills/" : undefined;
+      const codexComponents = classifyCodexComponents(plugin.manifest.components);
+      const hooks = codexComponents.nativeFiles.find((file) => file.nativeKind === "hooks");
+      const mcpServers = codexComponents.nativeFiles.find((file) => file.nativeKind === "mcpServers");
+      assert(manifest.name === plugin.manifest.id
+        && manifest.skills === skills
+        && manifest.hooks === (hooks ? `./${hooks.destination}` : undefined)
+        && manifest.mcpServers === (mcpServers ? `./${mcpServers.destination}` : undefined)
+        && manifest.agents === undefined,
+      `Codex manifest for ${plugin.manifest.id} is not native`);
+      for (const file of plugin.hostFiles.filter((entry) => entry.hosts.includes("codex"))) {
+        assert(artifacts.has(file.destination), `Codex bundle for ${plugin.manifest.id} omits ${file.destination}`);
+      }
     }
     if (target.id === "antigravity") {
       const manifest = JSON.parse(artifacts.get("plugin.json"));
@@ -184,21 +378,20 @@ async function validatePlugin(plugin) {
     if (error.code !== "ENOENT") throw error;
   }
   if (plugin.manifest.validation) {
-    assert(plugin.manifest.validation.profile === "engineering-delivery-v1", `unknown declared validation profile: ${plugin.manifest.validation.profile}`);
-    const contract = contractFiles.get(plugin.manifest.validation.contract);
-    assert(contract, `${plugin.manifest.id} declared contract is missing from its skill tree: ${plugin.manifest.validation.contract}`);
-    validateContract(plugin, contract, `${plugin.manifest.id}/${plugin.manifest.validation.contract}`);
-    const suite = evalSuites.get(plugin.manifest.validation.evals);
-    assert(suite, `${plugin.manifest.id} declared eval suite is missing: ${plugin.manifest.validation.evals}`);
-    assert(Array.isArray(suite.cases) && suite.cases.length > 0, `${plugin.manifest.id}/${plugin.manifest.validation.evals} must contain cases`);
-    const capabilities = new Set(suite.cases.map((item) => item.capability));
-    for (const capability of ["supplied_plan_fast_path", "evidence_backed_remediation", "bounded_failure_loop"]) assert(capabilities.has(capability), `${plugin.manifest.id}/${plugin.manifest.validation.evals} lacks ${capability} coverage`);
+    const validation = plugin.manifest.validation;
+    const profile = VALIDATION_PROFILES.get(validation.profile);
+    assert(profile, `unknown declared validation profile: ${validation.profile}`);
+    const suite = evalSuites.get(validation.evals);
+    assert(suite, `${plugin.manifest.id} declared eval suite is missing: ${validation.evals}`);
+    const contract = validation.contract ? contractFiles.get(validation.contract) : undefined;
+    profile(plugin, contract, suite, `${plugin.manifest.id}/${validation.evals}`);
   }
 }
 
 export async function validateRepository(root = ROOT) {
   const catalog = await discoverMarketplace(root);
   await assertCatalogMatchesSchemas(catalog);
+  await validateActiveMarketplaceReadme(catalog);
   try { await lstat(path.join(root, "gemini-extension.json")); throw new Error("repository root must not be a Gemini extension; remove gemini-extension.json"); } catch (error) { if (error.code !== "ENOENT") throw error; }
   const plugins = await Promise.all(catalog.plugins.map(inspectPlugin));
   const flatIds = new Set();
