@@ -147,7 +147,11 @@
       "enabled": true
     },
     "codex": {
-      "enabled": true
+      "enabled": true,
+      "capabilities": [
+        "Read",
+        "Write"
+      ]
     },
     "gemini-cli": {
       "enabled": true
