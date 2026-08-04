@@ -4,9 +4,15 @@ Use this reference for application commands, core/plugin permissions, remote con
 
 ## Distinguish the two command models
 
-Application commands registered with `tauri::Builder::invoke_handler` are callable by application windows and webviews by default. Capability files chiefly control frontend access to Tauri core and plugin commands. Do not write a capability entry and then claim it restricts an ordinary application command.
+### Bundled local application content
+
+Bundled local application content may invoke ordinary application commands registered with `tauri::Builder::invoke_handler` by default. Capability files chiefly control frontend access to Tauri core and plugin commands. Do not write a capability entry and then claim it restricts an ordinary local application command.
 
 To enroll custom commands in the capability ACL, declare them in `build.rs` with `tauri_build::AppManifest::commands`, generate permissions, and grant only those permissions to the intended windows/webviews. Confirm the current manifest/permission syntax in the [capabilities documentation](https://v2.tauri.app/security/capabilities/).
+
+### Remote origins (Tauri 2.11.1 and later)
+
+Remote-origin IPC is always ACL-resolved, even without an `AppManifest`. A remote origin needs an explicit, narrowly scoped remote capability before it can reach a custom command; never describe remote-origin IPC as bypassing ACL resolution.
 
 Regardless of the ACL model, Rust must authorize the action. A permitted caller can still supply malicious arguments.
 
@@ -78,8 +84,8 @@ Managed state must be thread-safe for the access pattern. Prefer immutable confi
 Use:
 
 - commands for a bounded request and response;
-- events for small, lossy notifications where a response is not required;
-- channels for ordered progress, streams, or larger data flows.
+- events for small notifications or multi-producer/multi-consumer communication where a response is not required; they are not designed for low-latency or high-throughput streaming;
+- channels for fast, ordered progress, streams, or larger data flows.
 
 Listeners need cleanup when a component unmounts or a window closes. Scope event names and targets; do not broadcast secrets. Apply limits and backpressure to untrusted or high-volume streams.
 

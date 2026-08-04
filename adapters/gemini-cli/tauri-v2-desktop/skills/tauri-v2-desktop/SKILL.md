@@ -32,7 +32,8 @@ Use the official documentation links in those references for uncommon details. V
 
 - Register application commands once with `invoke_handler(tauri::generate_handler![...])`; use the command's defining module path when it is not at crate root.
 - Treat every frontend argument as untrusted. Validate shape, length, ranges, paths, URLs, identifiers, authorization, and resource ownership in Rust.
-- Do not claim that capabilities automatically restrict ordinary application commands registered through `invoke_handler`. If application commands must enter the capability ACL, explicitly declare them through `tauri_build::AppManifest::commands` and define permissions.
+- Bundled local application content may invoke ordinary custom commands registered through `invoke_handler` by default. To bring those commands into per-command capability control, explicitly declare them through `tauri_build::AppManifest::commands` and define permissions.
+- On Tauri 2.11.1 and later, remote-origin IPC is always ACL-resolved and requires an explicit, narrowly scoped remote capability. Never describe remote origins as bypassing ACL resolution.
 - Grant only the core/plugin permissions, windows/webviews, URL origins, targets, and scopes the feature needs. Capability platform names are `linux`, `macOS`, and `windows`.
 - Treat remote origins and navigated remote content as hostile. Avoid exposing native APIs to them; use narrow remote URL patterns only when unavoidable.
 - Keep secrets and privileged operations in Rust or the operating-system credential store, never in frontend source, logs, events, or updater metadata.

@@ -1,6 +1,6 @@
 {
   "name": "tauri-v2-desktop",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Secure, evidence-driven guidance for building, testing, upgrading, and distributing Tauri v2 desktop applications on Windows, macOS, and Linux.",
   "author": {
     "name": "Otto",
@@ -28,7 +28,8 @@
     "developerName": "Otto",
     "category": "Developer Tools",
     "capabilities": [
-      "Read"
+      "Read",
+      "Write"
     ],
     "defaultPrompt": [
       "Use $tauri-v2-desktop for this task."

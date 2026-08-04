@@ -2,7 +2,7 @@
   "$schema": "../../schemas/plugin.schema.json",
   "schemaVersion": 1,
   "id": "tauri-v2-desktop",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "displayName": "Tauri v2 Desktop",
   "description": "Secure, evidence-driven guidance for building, testing, upgrading, and distributing Tauri v2 desktop applications on Windows, macOS, and Linux.",
   "license": "MIT",
@@ -32,12 +32,20 @@
     "agents": [],
     "commands": []
   },
+  "validation": {
+    "profile": "semantic-guidance-v1",
+    "evals": "evals/security-guidance.yaml"
+  },
   "hosts": {
     "claude-code": {
       "enabled": true
     },
     "codex": {
-      "enabled": true
+      "enabled": true,
+      "capabilities": [
+        "Read",
+        "Write"
+      ]
     },
     "gemini-cli": {
       "enabled": true

@@ -1,6 +1,13 @@
 # Tauri v2 Desktop
 
-Version 1.0.0 is a host-neutral Agent Skill for building, reviewing, securing, testing, upgrading, and distributing Tauri v2 desktop applications on Windows, macOS, and Linux.
+Version 1.0.1 is a host-neutral Agent Skill for building, reviewing, securing, testing, upgrading, and distributing Tauri v2 desktop applications on Windows, macOS, and Linux.
+
+## Release notes
+
+### 1.0.1
+
+- Clarifies that bundled local commands and remote-origin IPC follow different Tauri ACL paths, with remote origins on Tauri 2.11.1 and later requiring an explicit, narrowly scoped remote capability.
+- Adds deterministic semantic guidance checks and a platform-safe test launcher for release verification.
 
 ## What it covers
 
@@ -22,6 +29,8 @@ plugins/tauri-v2-desktop/
 ├── LICENSE
 ├── plugin.json
 ├── README.md
+├── evals/
+│   └── security-guidance.yaml
 └── skills/tauri-v2-desktop/
     ├── SKILL.md
     └── references/
@@ -30,6 +39,8 @@ plugins/tauri-v2-desktop/
         ├── desktop-runtime-and-delivery.md
         └── testing-and-visual-validation.md
 ```
+
+The deterministic validation suite is `evals/security-guidance.yaml`.
 
 The marketplace generates host-specific packages from this canonical source. Do not edit generated adapters or `dist/` output by hand.
 

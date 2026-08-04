@@ -1,0 +1,198 @@
+schema_version: 1
+cases:
+  - id: local-and-remote-command-acl
+    file: skills/tauri-v2-desktop/references/security-and-ipc.md
+    historical_scope: remote-ipc
+    required:
+      - "### Bundled local application content"
+      - "`tauri_build::AppManifest::commands`"
+      - "### Remote origins (Tauri 2.11.1 and later)"
+      - "remote capability"
+    forbidden:
+      - "Application commands registered with `tauri::Builder::invoke_handler` are callable by application windows and webviews by default."
+      - "Remote-origin IPC bypasses ACL resolution"
+      - "remote origins bypass ACL"
+    semantic:
+      required_patterns:
+        - '\b(?:bundled local application (?:content|code)|local bundled content)\b.{0,120}\b(?:may|can|is allowed to)\s+(?:invoke|call)\b.{0,120}\b(?:ordinary|custom)\s+(?:application\s+)?commands?\b.{0,140}\binvoke_handler\b.{0,100}\b(?:by default|without a capability)\b'
+        - '\b(?:remote[- ]origin IPC|remote[- ]origin requests?|remote IPC from an external origin)\b.{0,180}\b(?:always\s+ACL[- ]resolved|remains? subject to ACL resolution|(?:go|goes) through ACL checks?|is checked by the ACL|subject to ACL authorization)\b'
+        - '\bTauri\s+2\.11\.1\b.{0,30}\b(?:and|or)\s+later\b'
+      forbidden_patterns:
+        - '\b(?:capabilities?|capability files?)\b[^.!?\n]{0,160}\b(?:automatically|directly|always|by default)\b[^.!?\n]{0,120}\b(?:restrict|control|authorize|gate)\b[^.!?\n]{0,140}\b(?:ordinary|custom|application)\s+commands?\b[^.!?\n]{0,120}\binvoke_handler\b'
+        - '\bbundled local application content\b[^.!?\n]{0,120}\b(?:cannot|can not|may not|must not|is unable to)\b[^.!?\n]{0,120}\b(?:invoke|call|reach|access)\b[^.!?\n]{0,120}\b(?:ordinary|custom|application)\s+commands?\b'
+        - '\b(?:application|custom|ordinary)\s+commands?\b[^.!?\n]{0,160}\b(?:callable|available|accessible)\b[^.!?\n]{0,160}\b(?:by|from)\b[^.!?\n]{0,120}\b(?:webviews?|remote|windows?)\b[^.!?\n]{0,120}\bby default\b'
+        - '\b(?:ordinary|custom|application)\s+commands?\b[^.!?\n]{0,160}\b(?:require|needs?|must have)\b[^.!?\n]{0,120}\b(?:capabilit(?:y|ies)|ACL)\b'
+        - '\bremote[- ]origin(?: IPC)?\s+(?:(?:can|may|does|will)\s+)?bypass(?:es|ed|ing)?\s+ACL\b'
+        - '\bremote(?:[- ]origin)?[^.!?\n]{0,120}\b(?:can|may|is able to)\b[^.!?\n]{0,100}\b(?:call|invoke|reach|access)\b[^.!?\n]{0,120}\b(?:every|all|any)\b[^.!?\n]{0,120}\b(?:custom|ordinary|application)\s+commands?\b[^.!?\n]{0,140}\bwithout\b[^.!?\n]{0,100}\b(?:an?\s+)?(?:matching|explicit)?\s*remote capability\b'
+        - '\bremote(?:[- ]origin)?[^.!?\n]{0,100}\b(?:does not|do not|need not|never needs?|requires? no)\b[^.!?\n]{0,100}\b(?:an?\s+)?(?:explicit\s+)?remote capability\b'
+        - '\bremote(?:[- ]origin)?[^.!?\n]{0,120}\b(?:custom|ordinary|application)\s+commands?\b[^.!?\n]{0,160}\b(?:without|despite not having)\b[^.!?\n]{0,100}\bremote capability\b'
+        - '\b(?:external|remote)\s+(?:web|website|content|origin)[^.!?\n]{0,100}\b(?:exempt|excluded|not subject)\b[^.!?\n]{0,100}\bACL\b[^.!?\n]{0,120}\b(?:invoke|call|reach)\b[^.!?\n]{0,120}\b(?:custom|application)\s+commands?\b'
+        - '\bACL\b[^.!?\n]{0,100}\b(?:is not|isn\x27t|never)\b[^.!?\n]{0,100}\b(?:consulted|checked|resolved)\b[^.!?\n]{0,100}\bremote\b'
+        - '\b(?:do not|don\x27t|never)\s+require\b[^.!?\n]{0,120}\bremote capability\b[^.!?\n]{0,160}\b(?:external|remote|internet[- ]hosted)\b'
+        - '\b(?:internet[- ]hosted|external|remote)\s+(?:pages?|websites?|content|origins?)\b[^.!?\n]{0,120}\b(?:outside|exempt from|not subject to)\b[^.!?\n]{0,100}\b(?:capability|ACL)\s+(?:checks?|enforcement)\b'
+        - '\b(?:internet[- ]hosted|external|remote)\s+(?:pages?|websites?|content|origins?)\b[^.!?\n]{0,120}\b(?:outside|exempt from)\b[^.!?\n]{0,100}\b(?:capability|ACL)\b[^.!?\n]{0,160}\b(?:dispatch|invoke|call|reach)\b[^.!?\n]{0,120}\b(?:registered handlers?|commands?)\b'
+        - '\b(?:current|supported)\s+releases?\b[^.!?\n]{0,120}\b(?:allow|permit)\b[^.!?\n]{0,100}\b(?:the\s+)?same behavior\b'
+        - '\b(?:current|supported)\s+releases?\b[^.!?\n]{0,100}\b(?:do not|don\x27t|need not|never)\b[^.!?\n]{0,100}\b(?:require|enforce)\b[^.!?\n]{0,100}\bremote capability\b'
+        - '\bremote[- ]origin IPC\b[^.!?\n]{0,100}\b(?:is not|isn\x27t|never remains?)\b[^.!?\n]{0,80}\b(?:ACL[- ]resolved|subject to ACL)\b'
+    corpus:
+      unsafe:
+        - "External web content is exempt from the ACL and may invoke registered custom commands."
+        - "The ACL is not consulted for requests originating from a remote website."
+        - "Remote origins do not need an explicit remote capability."
+        - "Do not require a remote capability for pages loaded from external websites."
+        - "Before Tauri 2.11.1, remote origins bypassed ACL resolution, and current releases allow the same behavior."
+        - "Do not claim that remote-origin IPC bypasses ACL resolution, because remote websites are actually exempt from capability checks."
+        - "Internet-hosted pages sit outside capability enforcement and may dispatch every registered handler."
+        - "Current releases do not require an explicit remote capability."
+        - "Before Tauri 2.11.1, remote origins could bypass ACL checks. Current releases require an explicit remote capability, but remote-origin IPC is not ACL-resolved."
+      safe:
+        - "Bundled local code may call ordinary commands by default, while remote requests remain ACL-resolved."
+        - "Do not claim that remote-origin IPC bypasses ACL resolution."
+        - "Prior to Tauri 2.11.1, a missing AppManifest could let remote origins bypass ACL checks. That historical behavior is fixed; supported releases require an explicit remote capability."
+  - id: skill-local-and-remote-command-acl
+    file: skills/tauri-v2-desktop/SKILL.md
+    historical_scope: remote-ipc
+    required:
+      - "Bundled local application content"
+      - "invoke_handler"
+      - "remote-origin IPC"
+    forbidden:
+      - "Do not claim that capabilities automatically restrict ordinary application commands registered through `invoke_handler`."
+      - "remote-origin IPC bypasses ACL resolution"
+    semantic:
+      required_patterns:
+        - '\bTauri\s+2\.11\.1\b.{0,30}\b(?:and|or)\s+later\b'
+        - '\b(?:remote[- ]origin IPC|remote[- ]origin requests?|remote IPC from an external origin)\b.{0,180}\b(?:always\s+ACL[- ]resolved|remains? subject to ACL resolution|(?:go|goes) through ACL checks?|is checked by the ACL|subject to ACL authorization)\b'
+        - '\bremote(?:[- ]origin IPC| origins?)\b.{0,180}\bexplicit(?:ly)?\b.{0,100}\bremote capability\b'
+      forbidden_patterns:
+        - '\bremote[- ]origin(?: IPC)?\s+(?:(?:can|may|does|will)\s+)?bypass(?:es|ed|ing)?\s+ACL\b'
+        - '\bremote(?:[- ]origin)?[^.!?\n]{0,120}\b(?:can|may|is able to)\b[^.!?\n]{0,100}\b(?:call|invoke|reach|access)\b[^.!?\n]{0,120}\b(?:every|all|any)\b[^.!?\n]{0,120}\b(?:custom|ordinary|application)\s+commands?\b[^.!?\n]{0,140}\bwithout\b[^.!?\n]{0,100}\b(?:an?\s+)?(?:matching|explicit)?\s*remote capability\b'
+        - '\bremote(?:[- ]origin)?[^.!?\n]{0,100}\b(?:does not|do not|need not|never needs?|requires? no)\b[^.!?\n]{0,100}\b(?:an?\s+)?(?:explicit\s+)?remote capability\b'
+        - '\bremote(?:[- ]origin)?[^.!?\n]{0,120}\b(?:custom|ordinary|application)\s+commands?\b[^.!?\n]{0,160}\b(?:without|despite not having)\b[^.!?\n]{0,100}\bremote capability\b'
+        - '\bACL\b[^.!?\n]{0,100}\b(?:is not|isn\x27t|never)\b[^.!?\n]{0,100}\b(?:consulted|checked|resolved)\b[^.!?\n]{0,100}\bremote\b'
+    corpus:
+      unsafe:
+        - "Remote-origin IPC can bypass ACL resolution."
+        - "The ACL is not consulted for requests originating from a remote website."
+        - "Remote origins do not need an explicit remote capability."
+      safe:
+        - "Remote-origin requests remain subject to ACL checks on current Tauri releases."
+        - "Do not claim that remote-origin IPC bypasses ACL resolution."
+  - id: paired-official-plugin-versions
+    file: skills/tauri-v2-desktop/references/versions-and-upgrades.md
+    required:
+      - "`tauri`"
+      - "`@tauri-apps/api`"
+      - "official plugin"
+    forbidden:
+      - "Rust and JavaScript halves of an official plugin may use unrelated releases"
+      - "Do not keep the Rust crate and JavaScript package on the same plugin release"
+    semantic:
+      required_patterns:
+        - '\btauri\b[^.!?\n]{0,100}\b(?:compatible|matching)\s+major/minor\b'
+        - '\bRust crate\b[^.!?\n]{0,160}\bJavaScript package\b[^.!?\n]{0,160}\b(?:same|matching|identical) plugin release\b'
+      forbidden_patterns:
+        - '\bRust\b[^.!?\n]{0,100}\bJavaScript\b[^.!?\n]{0,120}\b(?:unrelated|different|independent)\s+(?:release|version)s?\b'
+        - '\b(?:Rust crate|JavaScript package)\b[^.!?\n]{0,140}\b(?:can|may|should|must)\b[^.!?\n]{0,80}\b(?:be|use)\b[^.!?\n]{0,80}\b(?:newer|older|different)\b[^.!?\n]{0,100}\b(?:Rust crate|JavaScript package)\b'
+        - '\b(?:do not|not necessary|no need)\b[^.!?\n]{0,140}\bsame plugin release\b'
+        - '\bversion skew\b[^.!?\n]{0,120}\b(?:supported|safe|allowed)\b'
+        - '\b(?:Rust|JavaScript)\b[^.!?\n]{0,100}\b(?:may|can|should)\b[^.!?\n]{0,100}\b(?:use|be on)\b[^.!?\n]{0,100}\b(?:different|unrelated|independent)\b[^.!?\n]{0,100}\b(?:release|version)\b'
+    corpus:
+      unsafe:
+        - "Version skew between the Rust crate and JavaScript package is supported."
+        - "Rust and JavaScript packages may use different releases."
+        - "The Rust crate can be newer than the JavaScript package."
+      safe:
+        - "Keep the Rust crate and JavaScript package on the same plugin release."
+        - "Official plugin halves should use matching major/minor and plugin release."
+  - id: updater-signatures
+    file: skills/tauri-v2-desktop/references/desktop-runtime-and-delivery.md
+    required:
+      - "Updater signatures"
+      - "private updater key"
+    forbidden:
+      - "Updater signatures are optional"
+      - "Updater signature verification is optional"
+    semantic:
+      required_patterns:
+        - '(?:\b(?:updater|updates?)\b[^.!?\n]{0,120}\b(?:signature|signed)\w*\b[^.!?\n]{0,100}\b(?:mandatory|required|must|verified)\b|\b(?:every|all)\b[^.!?\n]{0,80}\b(?:updater|updates?)\b[^.!?\n]{0,80}\b(?:must|required)\b[^.!?\n]{0,80}\b(?:signature|signed)\w*\b)'
+        - '\bprivate updater key\b[^.!?\n]{0,100}\boutside source control\b'
+      forbidden_patterns:
+        - '\bUpdater signatures?\b[^.!?\n]{0,80}\b(?:optional|not required|may be omitted|need not|can be skipped)\b'
+        - '\b(?:unsigned|unverified) updates?\b[^.!?\n]{0,100}\b(?:accepted|allowed|install(?:ed)?|safe)\b'
+        - '\bsignature verification\b[^.!?\n]{0,80}\b(?:optional|can be skipped|not required)\b'
+        - '\b(?:trusted|internal|release)\s+(?:servers?|publishers?)\b[^.!?\n]{0,100}\b(?:publish|ship|release)\b[^.!?\n]{0,100}\bunsigned updates?\b'
+        - '\bunsigned updates?\b[^.!?\n]{0,100}\b(?:accepted|allowed|safe|may be published)\b'
+        - '\b(?:do not|don\x27t|never)\s+require\b[^.!?\n]{0,100}\b(?:signatures?|attestations?)\b[^.!?\n]{0,160}\b(?:updater|update artifacts?|release system)\b'
+        - '\bartifacts?\b[^.!?\n]{0,100}\b(?:internal|own|trusted)\b[^.!?\n]{0,100}\b(?:release|service|system)\b[^.!?\n]{0,100}\b(?:may|can)\s+omit\b[^.!?\n]{0,80}\b(?:cryptographic\s+)?(?:signatures?|attestations?)\b'
+    corpus:
+      unsafe:
+        - "Trusted release servers may publish unsigned updates."
+        - "Updater signatures are optional for internal releases."
+        - "Signature verification can be skipped for trusted updates."
+        - "Do not require signatures for updater artifacts served by an internal release system."
+        - "Artifacts from our own release service may omit cryptographic attestations."
+      safe:
+        - "Every updater artifact must carry a verified signature."
+        - "Keep the private updater key outside source control and verify signed updates."
+  - id: evidence-classification
+    file: skills/tauri-v2-desktop/references/testing-and-visual-validation.md
+    required:
+      - "cross-build"
+      - "mock test"
+      - "native coverage"
+    forbidden:
+      - "A successful cross-build proves native runtime behavior"
+      - "A mock test proves native permissions"
+      - "emulated coverage is native coverage"
+    semantic:
+      required_patterns:
+        - '\bcross-build\b.{0,260}\b(?:does not prove|only proves|only establishes|cannot establish|not)\b.{0,140}\b(?:runtime|native|packaging|compilation|works?|behavior|execution)\b'
+        - '(?:\bmock(?:ed)? test\b.{0,120}\b(?:not|never|cannot|must not)\b|\b(?:never|do not)\b.{0,40}\bmock(?:ed)? test\b.{0,120})\b(?:proof|evidence|prove|establish)\b.{0,100}\b(?:native|permissions?|backend|webview|packaging|behavior)\b'
+        - '\b(?:native|virtualized|emulated|cross-built|mocked|untested) coverage\b'
+      forbidden_patterns:
+        - '\bcross-build\b(?![^.!?\n]{0,100}\b(?:does not|cannot|never)\b[^.!?\n]{0,40}\bproves?\b)[^.!?\n]{0,100}\b(?:proves?|demonstrates?|confirms?)\b[^.!?\n]{0,100}\b(?:native runtime|target architecture behavior|webview works)\b'
+        - '\bmock(?:ed)? test\b[^.!?\n]{0,100}\b(?:proves?|demonstrates?|confirms?)\b[^.!?\n]{0,100}\b(?:native|permissions?|backend|webview)\b'
+        - '\b(?:emulated|emulation|qemu)\b(?![^.!?\n]{0,100}\bnever\b)[^.!?\n]{0,100}\b(?:counts as|is equivalent to|equals)\b[^.!?\n]{0,80}\bnative\b'
+        - '\b(?:emulated|emulation|qemu)\b[^.!?\n]{0,20}\bis\s+(?:equivalent\s+to\s+)?native\b'
+        - '\b(?:emulated|emulation|qemu)\b(?![^.!?\n]{0,160}\bnever counts as native\b)[^.!?\n]{0,120}\b(?:proof|proves?|evidence|demonstrates?)\b[^.!?\n]{0,100}\b(?:native|target)\b'
+        - '\bcross-build\b(?![^.!?\n]{0,100}\b(?:does not|cannot|never)\b[^.!?\n]{0,40}\bproves?\b)[^.!?\n]{0,120}\b(?:proves?|demonstrates?|confirms?)\b[^.!?\n]{0,120}\bnative\b'
+        - '\bmock(?:ed)?(?: coverage| test)?\b[^.!?\n]{0,120}\b(?:is|counts as|equals)\b(?![^.!?\n]{0,100}\bnot\b)[^.!?\n]{0,100}\bnative\b'
+        - '\b(?:successful\s+)?(?:QEMU|emulat(?:ed|ion))\b[^.!?\n]{0,80}\b(?:run|test)\b[^.!?\n]{0,120}\b(?:sufficient|enough)\b[^.!?\n]{0,120}\b(?:actual|physical|target)\b[^.!?\n]{0,80}\b(?:hardware|behavior|validation)\b'
+    corpus:
+      unsafe:
+        - "Treat an emulated run as proof of target-native behavior."
+        - "A cross-build proves native runtime behavior."
+        - "Mocked coverage is native coverage."
+        - "A successful QEMU run is sufficient validation of actual target hardware behavior."
+      safe:
+        - "A cross-build only establishes compilation and does not prove native runtime behavior."
+        - "A mocked test is not evidence of native permissions; run native coverage."
+  - id: event-and-channel-semantics
+    file: skills/tauri-v2-desktop/references/security-and-ipc.md
+    required:
+      - "events"
+      - "channels"
+    forbidden:
+      - "events for small, lossy notifications"
+    semantic:
+      required_patterns:
+        - '\bevents?\b.{0,160}\b(?:small notifications?|multi-producer/multi-consumer|low-volume)\b'
+        - '\bevents?\b.{0,160}\bnot designed for low-latency or high-throughput\b'
+        - '\bchannels?\b.{0,160}\b(?:fast|ordered)\b.{0,100}\b(?:progress|streams?|data flows?)\b'
+      forbidden_patterns:
+        - '\bevents?\b[^.!?\n]{0,100}\b(?:are|provide|offer|designed for)\b[^.!?\n]{0,100}\blossy notifications?\b'
+        - '\bevents?\b(?![^.!?\n]{0,120}\b(?:not|never)\b)[^.!?\n]{0,120}\b(?:fast|high-throughput|low-latency)\s+(?:stream(?:ing)?|transport|delivery)\b'
+        - '\bchannels?\b[^.!?\n]{0,120}\b(?:unordered|lossy|best-effort)\b'
+        - '\bevents?\b[^.!?\n]{0,120}\b(?:drop|lose|discard)\b[^.!?\n]{0,100}\bmessages?\b'
+        - '\bevents?\b(?![^.!?\n]{0,120}\b(?:not|never)\b)[^.!?\n]{0,120}\b(?:fast|high-throughput|low-latency)\b[^.!?\n]{0,100}\b(?:stream(?:ing)?|transport)\b'
+        - '\bevent(?:s| bus)?\b[^.!?\n]{0,120}\bsilently\b[^.!?\n]{0,80}\b(?:drop|lose|discard)\b[^.!?\n]{0,100}\b(?:messages?|notifications?)\b'
+    corpus:
+      unsafe:
+        - "Events may drop messages under load."
+        - "Events are fast high-throughput streaming transport."
+        - "Channels are unordered and lossy."
+        - "The event bus may silently lose notifications when saturated."
+      safe:
+        - "Use events for small notifications and channels for fast ordered streams."
+        - "Events are not designed for low-latency or high-throughput streaming."
