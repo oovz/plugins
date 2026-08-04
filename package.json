@@ -11,7 +11,7 @@
     "check:generated": "node scripts/generate.mjs check --all",
     "generate": "node scripts/generate.mjs generate",
     "install:plugin": "node scripts/install.mjs",
-    "test": "node --test test/*.test.mjs",
+    "test": "node scripts/test.mjs",
     "validate": "node scripts/validate.mjs",
     "verify": "npm run validate && npm run check:generated && npm test && npm run build -- --all"
   },
