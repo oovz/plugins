@@ -1,8 +1,12 @@
 # Tauri v2 Desktop
 
-Version 1.0.1 is a host-neutral Agent Skill for building, reviewing, securing, testing, upgrading, and distributing Tauri v2 desktop applications on Windows, macOS, and Linux.
+Version 1.0.2 is a host-neutral Agent Skill for building, reviewing, securing, testing, upgrading, and distributing Tauri v2 desktop applications on Windows, macOS, and Linux.
 
 ## Release notes
+
+### 1.0.2
+
+- Removes the redundant OpenCode V2 preview projection. This plugin is skill-only, so its V2 output was byte-for-byte equivalent to the stable OpenCode bundle and provided no additional behavior.
 
 ### 1.0.1
 
