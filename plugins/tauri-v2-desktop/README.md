@@ -27,9 +27,13 @@ Version 1.1.0 is a host-neutral Agent Skill for building, reviewing, securing, t
 - Risk-based testing across operating systems, architectures, webviews, packaged artifacts, installers, and updaters.
 - Visual validation that distinguishes image inspection from screenshot capture and pairs visual evidence with interaction and accessibility checks.
 
+## Install
+
+Per-harness steps are in the [root README](../README.md#install).
+
 ## Scope
 
-This skill intentionally covers desktop targets only: Windows, macOS, and Linux. It does not provide Android or iOS guidance. It does not install dependencies, run a background process, or require a subagent; the skill can be used directly by any supported host.
+The skill covers desktop targets only: Windows, macOS, and Linux. No Android or iOS guidance. It does not install dependencies, run a background process, or require a subagent; any supported host can use it directly.
 
 ## Layout
 

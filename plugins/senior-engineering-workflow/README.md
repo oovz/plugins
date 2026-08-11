@@ -12,9 +12,9 @@ Version 0.8.3 is a proportional engineering workflow for coding repositories. Th
 | Verifier | Acceptance, adversarial review, design challenge, or finding closure | Inherit |
 | Worker | One exact or bounded shell, search, build, test, log, documentation, or MCP operation | Inherit |
 
-Manager, Architect, and Planner are main-agent capabilities rather than autonomous stages. Tester and Reviewer are consolidated into Verifier modes. Every specialist result returns to the main agent; no role automatically starts another phase.
+Manager, Architect, and Planner are main-agent capabilities, not separate stages. Tester and Reviewer are consolidated into Verifier modes. Every specialist result returns to the main agent; no role automatically starts another phase.
 
-Canonical subagents add no thinking, tool, permission, sandbox, hook, or turn-limit overrides. Their model is explicitly inherited where the host supports that field and otherwise omitted so the host applies its normal parent/default resolution. The host and user session remain authoritative. Role prompts still constrain scope and decision authority.
+Canonical subagents add no thinking, tool, permission, sandbox, hook, or turn-limit overrides. Their model is inherited where the host supports the field, and omitted elsewhere so the host falls back to its normal resolution. The host and user session stay authoritative; role prompts still bound scope and decision authority.
 
 ## Supported coding harnesses
 
@@ -27,11 +27,11 @@ Canonical subagents add no thinking, tool, permission, sandbox, hook, or turn-li
 | Antigravity | The plugin ships the skill; the main agent uses Antigravity's inherited `self`/generic or dynamically defined subagents for bounded roles |
 | Oh My Pi (`omp`) | Four plugin task agents |
 
-Senior Engineering Workflow is not emitted as a portable skill-only bundle because its acceptance contract depends on subagent-capable coding harnesses. Antigravity is the one deliberate shape difference: static custom agents default to an empty tool list, so generating named model/permission-neutral roles would silently remove the parent tool set. The workflow therefore uses Antigravity's inherited generic or dynamic subagent facilities instead.
+Senior Engineering Workflow is not emitted as a portable skill-only bundle; its acceptance contract depends on subagent-capable harnesses. Antigravity is the exception: static custom agents default to an empty tool list, so named model/permission-neutral roles would silently drop the parent tool set. The workflow uses Antigravity's inherited generic or dynamic subagents there.
 
 ## Install
 
-No repository clone is required:
+No repository clone is required. Per-harness steps are in the [root README](../README.md#install); here is the short version:
 
 ```text
 npx @oovz/sew install --host codex --scope user
@@ -39,7 +39,7 @@ npx @oovz/sew install --host opencode --scope project --project /absolute/path/t
 npx @oovz/sew doctor
 ```
 
-Claude Code and Oh My Pi use their native marketplaces. The published CLI contains version-matched payloads for the remaining hosts. Release CI builds those payloads from canonical plugin source and bundles them into the npm tarball; no host payload is committed inside `packages/sew/`.
+Claude Code and Oh My Pi install through their native marketplaces. The published CLI ships version-matched payloads for the rest. Release CI builds those from canonical plugin source; no host payload is committed under `packages/sew/`.
 
 Native Claude Code installation:
 
@@ -84,7 +84,7 @@ Restore canonical inheritance:
 npx @oovz/sew models configure --host codex --scope user --preset inherit
 ```
 
-Model aliases are supported for Claude Code, Codex, OpenCode, Gemini CLI, and Oh My Pi. Gemini CLI does not expose a per-custom-agent thinking field. Antigravity aliases are not generated because preserving the inherited tool set is more important than pinning a static role model.
+Model aliases work on Claude Code, Codex, OpenCode, Gemini CLI, and Oh My Pi. Gemini CLI has no per-custom-agent thinking field. Antigravity gets no aliases: preserving the inherited tool set matters more than pinning a role model.
 
 ## Workflow guarantees
 
@@ -115,4 +115,4 @@ plugins/senior-engineering-workflow/
     └── references/
 ```
 
-The host-neutral manifest and role prompts are canonical. Generated adapters under `adapters/` are checked in and must be regenerated rather than edited directly. The npm release payloads and role templates are staged only under `release-build/sew/package/` from freshly built projections during CI; `packages/sew/` intentionally contains source only, and disposable host bundles remain under `dist/`.
+The host-neutral manifest and role prompts are canonical. Generated adapters under `adapters/` are checked in; edit the source and regenerate, never the adapters. CI stages npm payloads and role templates under `release-build/sew/package/` from fresh projections. `packages/sew/` holds source only; `dist/` holds disposable bundles.
