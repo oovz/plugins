@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { spawnSync as realSpawnSync } from "node:child_process";
 import { lstat, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -78,7 +79,7 @@ function codexRunner({ installed = true, enabled = true, malformed = false, stat
       if (malformed) return { status, stdout: "not-json", stderr: "" };
       return {
         status,
-        stdout: JSON.stringify({ installed: installed ? [{ pluginId: "senior-engineering-workflow@otto-plugins", installed, enabled, version: "0.9.0" }] : [] }),
+        stdout: JSON.stringify({ installed: installed ? [{ pluginId: "senior-engineering-workflow@otto-plugins", installed, enabled, version: "0.9.1" }] : [] }),
         stderr: status === 0 ? "" : "inspection failed",
       };
     }
@@ -257,6 +258,60 @@ test("Codex inspection fails closed and dry-run never invokes the host", async (
   assert.equal(result.plugin.status, "conditional");
   assert.equal(result.actions[0].status, "would-inspect");
   assert.ok(result.actions.some((item) => item.status === "if-missing-or-disabled"));
+});
+
+test("a missing host CLI fails with actionable guidance instead of the raw spawn error", async () => {
+  const project = await temp("sew-codex-no-binary-");
+  const env = { HOME: path.join(project, "home"), XDG_STATE_HOME: path.join(project, "state") };
+  const spawnSync = () => ({ error: { code: "ENOENT", message: "spawnSync codex ENOENT" } });
+  const result = await capture(["install", "--host", "codex", "--scope", "project", "--project", project], { env, spawnSync });
+  assert.equal(result.code, 1);
+  assert.match(result.stderr, /Could not find the codex CLI on PATH/u);
+  assert.doesNotMatch(result.stderr, /spawnSync codex ENOENT/u);
+  assert.equal(await exists(path.join(project, ".codex", "agents")), false);
+});
+
+test("win32 PATH/PATHEXT search resolves npm-style shims and returns null when absent", async () => {
+  const bin = await temp("sew-win32-path-");
+  await writeFile(path.join(bin, "fakecodex.cmd"), "@echo off\n");
+  const env = { PATH: bin, PATHEXT: ".COM;.EXE;.BAT;.CMD" };
+  assert.equal(internals.findWin32Executable("fakecodex", env), path.join(bin, "fakecodex.cmd"));
+  assert.equal(internals.findWin32Executable("missing-tool", env), null);
+  assert.equal(internals.findWin32Executable("fakecodex", {}), null);
+});
+
+test("Windows retries .cmd shims through the shell after an ENOENT spawn", { skip: process.platform !== "win32" && "requires Windows .cmd shims" }, async () => {
+  const project = await temp("sew-codex-shim-");
+  const bin = await temp("sew-codex-bin-");
+  await writeFile(path.join(bin, "codex.cmd"), [
+    "@echo off",
+    "if /i \"%1\"==\"plugin\" if /i \"%2\"==\"list\" (",
+    "  echo {\"installed\":[]}",
+    "  exit /b 0",
+    ")",
+    "exit /b 0",
+    "",
+  ].join("\r\n"));
+  const env = { HOME: path.join(project, "home"), XDG_STATE_HOME: path.join(project, "state"), PATH: `${bin};${process.env.PATH}`, PATHEXT: ".COM;.EXE;.BAT;.CMD" };
+  const calls = [];
+  const spawnSync = (executable, args, options) => {
+    calls.push({ executable, args: [...args], shell: options.shell });
+    if (options.shell !== true) return { error: { code: "ENOENT", message: `spawnSync ${executable} ENOENT` } };
+    return realSpawnSync(executable, args, options);
+  };
+  const install = await capture(["install", "--host", "codex", "--scope", "project", "--project", project, "--json"], { env, spawnSync });
+  assert.equal(install.code, 0, install.stderr);
+  assert.equal(calls.length, 6, "each command attempts a bare spawn then retries through the shell");
+  const shellRetries = calls.filter((item) => item.shell === true);
+  const failedAttempts = calls.filter((item) => item.shell !== true);
+  assert.equal(shellRetries.length, 3, "inspect plus two install commands succeed only through the shell");
+  assert.ok(shellRetries.every((item) => item.executable.includes("codex")), "shell retries must target the codex shim");
+  assert.ok(failedAttempts.every((item) => item.executable === "codex"), "bare spawns must use the plain codex name");
+  const result = JSON.parse(install.stdout);
+  assert.equal(result.plugin.status, "installed");
+  for (const role of ROLES) {
+    assert.equal(await exists(path.join(project, ".codex", "agents", `senior-engineering-workflow-${role}.toml`)), true);
+  }
 });
 
 test("native Claude Code and Oh My Pi commands are exact and dry-run safe", async () => {

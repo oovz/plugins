@@ -14,7 +14,7 @@ My plugins for agentic coding harnesses.
 
 | Plugin | Version | What it does |
 |---|---:|---|
-| [Senior Engineering Workflow](plugins/senior-engineering-workflow/) | 0.9.0 | Keeps coding decisions in the capable main agent while bounded Researcher, Engineer, Verifier, and Worker roles isolate implementation and noisy evidence when useful. |
+| [Senior Engineering Workflow](plugins/senior-engineering-workflow/) | 0.9.1 | Keeps coding decisions in the capable main agent while bounded Researcher, Engineer, Verifier, and Worker roles isolate implementation and noisy evidence when useful. |
 | [Tauri v2 Desktop](plugins/tauri-v2-desktop/) | 1.1.0 | Secure, evidence-driven guidance for building, testing, upgrading, and distributing Tauri v2 desktop applications on Windows, macOS, and Linux. |
 
 ## Compatibility

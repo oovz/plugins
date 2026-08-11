@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
+import { existsSync } from "node:fs";
 import { lstat, mkdir, readFile, readdir, rename, rm, rmdir, unlink, writeFile } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
 import os from "node:os";
@@ -565,14 +566,38 @@ function parseCodexPluginStatus(stdout) {
   };
 }
 
-function inspectCodexPlugin(project, runner = spawnSync) {
-  const result = runner("codex", ["plugin", "list", "--json"], {
-    cwd: project,
-    encoding: "utf8",
-    stdio: "pipe",
-    shell: false,
-  });
-  if (result.error) throw new CliError(`Could not inspect Codex plugins: ${result.error.message}. Re-run with --force to reinstall the marketplace skill and companion agents.`, 1);
+function findWin32Executable(name, env = process.env) {
+  const extensions = (env.PATHEXT ?? ".COM;.EXE;.BAT;.CMD").split(";").map((ext) => ext.trim().toLowerCase()).filter(Boolean);
+  const candidates = [...new Set([name.toLowerCase(), ...extensions.map((ext) => `${name.toLowerCase()}${ext}`)])];
+  for (const directory of (env.PATH ?? "").split(";")) {
+    if (!directory) continue;
+    for (const candidate of candidates) {
+      const absolute = path.join(directory, candidate);
+      if (!existsSync(absolute)) continue;
+      return absolute;
+    }
+  }
+  return null;
+}
+
+function spawnHost(executable, args, options) {
+  const runner = options.spawnSync ?? spawnSync;
+  const env = options.env ?? process.env;
+  const spawn = { cwd: options.cwd, encoding: "utf8", stdio: options.stdio ?? "pipe", env, shell: false };
+  const result = runner(executable, args, spawn);
+  if (result.error?.code !== "ENOENT" || process.platform !== "win32") return result;
+  const resolved = findWin32Executable(executable, env);
+  if (!resolved) return result;
+  const commandLine = `"${resolved}" ${args.map((arg) => (/\s/u.test(arg) ? `"${arg}"` : arg)).join(" ")}`;
+  return runner(commandLine, [], { ...spawn, shell: true });
+}
+
+function inspectCodexPlugin(project, runner = spawnSync, env = process.env) {
+  const result = spawnHost("codex", ["plugin", "list", "--json"], { cwd: project, stdio: "pipe", spawnSync: runner, env });
+  if (result.error) {
+    if (result.error.code === "ENOENT") throw new CliError("Could not find the codex CLI on PATH. Install the Codex CLI (npm install -g @openai/codex) or add it to PATH, then re-run.", 1);
+    throw new CliError(`Could not inspect Codex plugins: ${result.error.message}. Re-run with --force to reinstall the marketplace skill and companion agents.`, 1);
+  }
   if ((result.status ?? 1) !== 0) {
     const stderr = String(result.stderr ?? "").trim();
     throw new CliError(`codex plugin list --json failed (${result.status})${stderr ? `: ${stderr}` : ""}. Re-run with --force to reinstall the marketplace skill and companion agents.`, 1);
@@ -599,11 +624,14 @@ function executeNative(commands, options = {}) {
     if (options.dryRun) { results.push({ command: display, status: "would-run" }); continue; }
     const [executable, ...args] = command.argv;
     const captureOutput = options.json || command.tolerateAlreadyExists;
-    const result = runner(executable, args, { cwd: command.cwd, encoding: "utf8", stdio: captureOutput ? "pipe" : "inherit", shell: false });
+    const result = spawnHost(executable, args, { cwd: command.cwd, stdio: captureOutput ? "pipe" : "inherit", spawnSync: runner, env: options.env ?? process.env });
     const stderr = captureOutput ? String(result.stderr ?? "") : "";
     const stdout = captureOutput ? String(result.stdout ?? "") : "";
     const alreadyExists = command.tolerateAlreadyExists && /already|exists|configured|duplicate/iu.test(`${stdout}\n${stderr}`);
-    if (result.error) throw new CliError(`Could not execute ${executable}: ${result.error.message}`, 1);
+    if (result.error) {
+      if (result.error.code === "ENOENT") throw new CliError(`Could not find the ${executable} CLI on PATH. Install it or add it to PATH, then re-run.`, 1);
+      throw new CliError(`Could not execute ${executable}: ${result.error.message}`, 1);
+    }
     if (!options.json && captureOutput) {
       if (stdout) process.stdout.write(stdout);
       if (stderr) process.stderr.write(stderr);
@@ -652,10 +680,10 @@ async function runCodexOperation(operation, options, runtime, scope, project) {
       plugin = { status: "conditional", inspected: false };
     }
   } else {
-    const inspected = options.force ? null : inspectCodexPlugin(project, runtime.spawnSync ?? spawnSync);
+    const inspected = options.force ? null : inspectCodexPlugin(project, runtime.spawnSync ?? spawnSync, runtime.env ?? process.env);
     const installPlugin = options.force === true || !inspected.installed || !inspected.enabled;
     if (installPlugin) {
-      pluginActions = executeNative(codexPluginInstallCommands(project), { json: options.json === true, spawnSync: runtime.spawnSync });
+      pluginActions = executeNative(codexPluginInstallCommands(project), { json: options.json === true, spawnSync: runtime.spawnSync, env: runtime.env ?? process.env });
     }
     plugin = {
       status: options.force ? "reinstalled" : installPlugin ? "installed" : "already-installed",
@@ -689,7 +717,7 @@ async function runInstallOperation(operation, options, runtime = {}) {
   if (host === "codex") return runCodexOperation(operation, options, runtime, scope, project);
   if (NATIVE_INSTALL_HOSTS.has(host)) {
     const commands = nativeCommands(operation, host, scope, project, options.force === true);
-    const actions = executeNative(commands, { dryRun: options["dry-run"] === true, json: options.json === true, spawnSync: runtime.spawnSync });
+    const actions = executeNative(commands, { dryRun: options["dry-run"] === true, json: options.json === true, spawnSync: runtime.spawnSync, env: runtime.env ?? process.env });
     const completedStatus = { install: "installed", update: "updated", uninstall: "uninstalled" }[operation];
     const result = { command: operation, status: options["dry-run"] ? "dry-run" : completedStatus, host, scope, method: "native", actions };
     printOperation(result, options.json);
@@ -1078,6 +1106,8 @@ export const internals = Object.freeze({
   stateFile,
   staticPlan,
   nativeCommands,
+  findWin32Executable,
+  spawnHost,
   codexPluginIdentifier,
   parseCodexPluginStatus,
   inspectCodexPlugin,
