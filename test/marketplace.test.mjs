@@ -50,11 +50,10 @@ test("Tauri v2 desktop is a skill-only all-host plugin", async () => {
   assert.deepEqual(plugin.manifest.components.commands, []);
   assert.equal(plugin.skills.length, 1);
   assert.equal(plugin.skills[0].id, "tauri-v2-desktop");
-  assert.equal(plugin.manifest.version, "1.0.1");
-  for (const host of ["claude-code", "codex", "gemini-cli", "antigravity", "opencode", "opencode-v2", "portable"]) {
+  assert.equal(plugin.manifest.version, "1.0.2");
+  for (const host of ["claude-code", "codex", "gemini-cli", "antigravity", "opencode", "portable"]) {
     assert.equal(plugin.manifest.hosts[host].enabled, true, `${host} should be enabled`);
   }
-  assert.equal(plugin.manifest.hosts["opencode-v2"].status, "preview");
   const claudeManifest = await readJson(path.join(ROOT, "adapters", "claude-code", "tauri-v2-desktop", ".claude-plugin", "plugin.json"));
   const codexManifest = await readJson(path.join(ROOT, "adapters", "codex", "tauri-v2-desktop", ".codex-plugin", "plugin.json"));
   const geminiManifest = await readJson(path.join(ROOT, "adapters", "gemini-cli", "tauri-v2-desktop", "gemini-extension.json"));
@@ -247,7 +246,7 @@ test("Codex capability metadata is explicit, scoped, and single-line", async (t)
 test("validator CLI executes its platform-safe main entry point", async () => {
   const result = await execFileAsync(process.execPath, [path.join(ROOT, "scripts", "validate.mjs")], { cwd: ROOT });
   const marketplace = await readJson(path.join(ROOT, "marketplace.json"));
-  assert.match(result.stdout, new RegExp(`validated ${marketplace.plugins.length} plugins across 7 host targets`));
+  assert.match(result.stdout, new RegExp(`validated ${marketplace.plugins.length} plugins across 6 host targets`));
 });
 
 test("two explicitly cataloged plugins build independently and deterministically", async (t) => {
@@ -642,7 +641,6 @@ test("generic delegating/question-capable plugin and unrelated contract validate
         "claude-code": { enabled: true },
         codex: { enabled: true },
         opencode: { enabled: true },
-        "opencode-v2": { enabled: true, status: "preview" },
         portable: { enabled: true }
       }
     }
@@ -656,10 +654,50 @@ test("generic delegating/question-capable plugin and unrelated contract validate
   assert.doesNotMatch(agent, /task:\n\s+"\*": deny|question: deny/);
 });
 
+test("permission-inheriting agents add no host-level restrictions", async (t) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "oovz-inherit-permissions-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  await createFixtureMarketplace(root, [{
+    id: "inherit-plugin",
+    version: "1.0.0",
+    options: {
+      permissionPolicy: "inherit",
+      hosts: {
+        "claude-code": { enabled: true },
+        codex: { enabled: true },
+        opencode: { enabled: true },
+        portable: { enabled: true },
+      },
+    },
+  }]);
+  await addSchemas(root);
+  const result = await validateRepository(root);
+  const plugin = await inspectPlugin(result.catalog.plugins[0]);
+  const { renderHost } = await import("../scripts/lib/hosts.mjs");
+
+  const claude = renderHost(plugin, "claude-code").artifacts
+    .find((item) => item.path.endsWith("agents/worker.md")).content.toString("utf8");
+  assert.doesNotMatch(claude, /^tools:/mu);
+  assert.doesNotMatch(claude, /^disallowedTools:/mu);
+
+  const codex = renderHost(plugin, "codex").artifacts
+    .find((item) => item.path.endsWith("inherit-plugin-worker.toml")).content.toString("utf8");
+  assert.doesNotMatch(codex, /^sandbox_mode\s*=/mu);
+
+  const stable = renderHost(plugin, "opencode", "stable").artifacts
+    .find((item) => item.path.endsWith("inherit-plugin-worker.md")).content.toString("utf8");
+  assert.doesNotMatch(stable, /^permission:/mu);
+
+  assert.throws(
+    () => renderHost(plugin, "opencode", "v2-beta"),
+    /does not support variant v2-beta/,
+  );
+});
+
 test("commands receive collision-safe flat IDs outside scoped Claude bundles", async (t) => {
   const root = await mkdtemp(path.join(os.tmpdir(), "oovz-command-namespace-"));
   t.after(() => rm(root, { recursive: true, force: true }));
-  const command = { id: "review", path: "commands/review.md", hosts: ["claude-code", "gemini-cli", "opencode", "opencode-v2"] };
+  const command = { id: "review", path: "commands/review.md", hosts: ["claude-code", "gemini-cli", "opencode"] };
   await createFixtureMarketplace(root, [
     { id: "first-plugin", version: "1.0.0", options: { command } },
     { id: "second-plugin", version: "2.0.0", options: { command } }

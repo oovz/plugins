@@ -13,12 +13,17 @@
     "install:plugin": "node scripts/install.mjs",
     "test": "node scripts/test.mjs",
     "validate": "node scripts/validate.mjs",
-    "verify": "npm run validate && npm run check:generated && npm test && npm run build -- --all"
+    "verify": "npm run validate && npm run check:generated && npm test && npm run build -- --all",
+    "test:sew-models": "node --test test/senior-engineering-workflow-models.test.mjs",
+    "pack:sew-models": "npm pack --workspace @oovz/sew-models --dry-run"
   },
   "devDependencies": {
     "ajv": "^8.17.1",
     "ajv-formats": "^3.0.1",
     "smol-toml": "^1.7.0",
     "yaml": "^2.9.0"
-  }
+  },
+  "workspaces": [
+    "packages/*"
+  ]
 }

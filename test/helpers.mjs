@@ -49,7 +49,6 @@ export async function createFixturePlugin(root, id, version, options = {}) {
     "gemini-cli": { enabled: true },
     antigravity: { enabled: true },
     opencode: { enabled: true },
-    "opencode-v2": { enabled: true, status: "preview" },
     portable: { enabled: true }
   };
   if (hosts.codex?.enabled === true && hosts.codex.capabilities === undefined) {
@@ -76,7 +75,8 @@ export async function createFixturePlugin(root, id, version, options = {}) {
         external: options.external ?? false,
         delegates: options.delegates ?? false,
         question: options.question ?? false,
-        model: { policy: "inherit", recommendedTier: "economy" },
+        ...(options.permissionPolicy ? { permissionPolicy: options.permissionPolicy } : {}),
+        model: { policy: "inherit" },
         steps: null
       }] : [],
       commands: options.command ? [{ id: options.command.id, path: options.command.path, hosts: options.command.hosts }] : [],

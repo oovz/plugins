@@ -1,52 +1,47 @@
-# Architecture pass
+# Main-agent architecture checklist
 
-Architect is a read-only leaf subagent. Use it only on a trigger in `task-routing.md`. Give it the accepted brief, bounded evidence, current architecture, constraints, support target, and exact unresolved architecture questions. It does not decide product scope or accepted risk, edit files, spawn workers, or speak to the user.
+Architecture is a main-agent responsibility. Use this checklist only when the task changes or may change a material boundary, contract, invariant, trust model, persistence model, deployment model, or other consequential design decision. Do not create a separate architecture stage merely because several files are involved.
 
 ## Decision surface
 
-Cover only material topics:
+Cover only applicable topics:
 
-- affected components and ownership;
-- interfaces, schemas, contracts, and invariants;
+- affected components, ownership, and dependency direction;
+- interfaces, schemas, protocols, public contracts, and invariants;
 - data flow, state transitions, persistence, consistency, transactions, concurrency, and ordering;
-- trust, authentication, authorization, privacy, and security boundaries;
-- accepted failure behavior, explicit error propagation, retry safety, and idempotency;
+- trust, authentication, authorization, privacy, secrets, and security boundaries;
+- accepted failure behavior, explicit error propagation, retry safety, idempotency, and recovery;
 - performance, resources, observability, deployment, migration, rollback, and removal;
-- test seams for unit, integration, and end-to-end behavior;
+- test seams for unit, integration, end-to-end, migration, recovery, and operational behavior;
 - real alternatives, decisive trade-offs, one recommendation, and remaining uncertainty.
 
-Prefer the simplest design satisfying accepted scope. Do not introduce provider-neutral layers, generic frameworks, compatibility paths, thin wrappers, callbacks, retries, fallbacks, or speculative extension points without a named accepted requirement.
+Prefer the simplest design satisfying the accepted scope. Do not introduce provider-neutral layers, generic frameworks, compatibility paths, thin wrappers, callbacks, retries, fallbacks, or speculative extension points without a named accepted requirement or concrete boundary need.
 
-One architecture pass is the default. Repeat only when new evidence contradicts a material assumption or validation shows the design cannot meet an accepted contract. Do not revisit a settled decision merely because another viable design exists.
+Use repository and runtime evidence for the current system. Commission a bounded Researcher work item only when an unresolved fact can change the decision. One architecture pass is the default. Reconsider only when new evidence contradicts a material assumption or validation shows that the design cannot satisfy an accepted contract.
 
 ## Exit condition
 
-Architecture is ready when Planner and Engineer can proceed without making a new product, interface, invariant, failure-model, support-target, migration, trust-boundary, or accepted-risk decision.
+Architecture is sufficiently settled when the main agent can create bounded implementation work without leaving a product, interface, invariant, failure-model, support-target, migration, trust-boundary, or accepted-risk decision to an Engineer.
 
-If a user-owned choice remains, return an escalation packet instead of choosing silently:
+When a user-owned choice remains, ask one targeted question that includes the current accepted requirement, decisive evidence, options and consequences, and a recommendation.
 
-```text
-Decision needed
-- owner | current accepted requirement | decisive evidence | options/consequences | recommendation | exact question
-```
+## Optional architecture record
 
-## Required return
+Produce this only when the design itself is a requested deliverable or when the work is consequential enough to require a durable decision record:
 
 ```text
 Architecture status
 - ready | blocked
 
-Affected boundaries and current evidence
+Affected boundaries and evidence
 - component/interface | current behavior | evidence
 
 Decisions
 - decision | invariant/failure behavior | rationale | rejected alternative | consequence
 
-Data, trust, operational, and verification implications
+Data, trust, operational, migration, and verification implications
 - only applicable items
 
-Open blocker
-- owner | decisive evidence | smallest decision needed
+Open decision
+- owner | decisive evidence | recommendation | exact question
 ```
-
-When no architecture trigger applies, do not create an architecture artifact merely to satisfy process.

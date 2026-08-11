@@ -1,92 +1,160 @@
 # Senior Engineering Workflow
 
-Version 0.6.0 is a host-neutral, proportional workflow for repository engineering. A thin user-facing bridge chains seven independent leaf roles, keeps handoffs explicit, and uses only the roles that can change the outcome.
+Version 0.7.2 is a host-neutral, proportional workflow for repository coding. The user-selected main agent owns the accepted contract, architecture, planning, orchestration, integration, iteration control, and completion. Four bounded specialist roles isolate research, implementation, verification, and noisy tool work only when delegation adds value.
 
 It is one plugin in the `oovz/plugins` marketplace. The neutral `plugin.json` is its source of truth; marketplace tooling renders collision-safe host packages and prefixes flat agent namespaces where needed.
 
+## Main-agent and permission assumptions
+
+Run the user-facing session with the most capable model you consider appropriate for the task. The plugin does not choose or reconfigure the main model. Canonical subagents inherit model and thinking settings from the host session.
+
+The plugin also does not add host-level tool allowlists, denylists, sandbox overrides, or per-agent permission rules for its four canonical subagents. Claude Code, Codex, and OpenCode apply their normal inherited or resolved session configuration. Role prompts remain behaviorally bounded by their work orders; inherited tool access is not authority to broaden scope, change the accepted contract, or perform external side effects.
+
 ## Core behavior
 
-The workflow separates decisions and evidence from implementation while avoiding process for its own sake:
+| Logical role | Responsibility | Canonical runtime configuration |
+| --- | --- | --- |
+| Main agent | Contract, architecture, planning, routing, integration, loop control, completion | User-selected session configuration |
+| `researcher` | Bounded repository, runtime, dependency, and authoritative-documentation evidence | Inherit model, thinking, tools, and permissions |
+| `engineer` | One bounded production or test-only slice with immediate coverage | Inherit model, thinking, tools, and permissions |
+| `verifier` | Acceptance, adversarial review, design challenge, or finding closure | Inherit model, thinking, tools, and permissions |
+| `worker` | One exact or bounded shell, search, build, test, log, documentation, or MCP operation | Inherit model, thinking, tools, and permissions |
 
-| Logical role | Responsibility | Candidate access | Model hint |
-|---|---|---|---|
-| `manager` | Settle outcome, scope, acceptance, support, and decision ownership | Read-only | Balanced |
-| `researcher` | Answer bounded repository and official-documentation questions | Read-only; external reads | Economy |
-| `architect` | Settle interfaces, invariants, boundaries, failure model, and material trade-offs | Read-only; external reads | Deep |
-| `planner` | Produce an ordered, file-specific implementation and validation plan from settled inputs | Read-only | Balanced |
-| `engineer` | Implement a settled slice with immediate automated coverage and focused validation | Workspace write; local shell | Balanced |
-| `tester` | Independently verify requirements and risks; own assigned test assets | Workspace write; local shell | Balanced |
-| `reviewer` | Adversarially review evidence and close prior findings | Read-only | Deep |
+Manager, Architect, and Planner are main-agent capabilities, not autonomous stages. Tester and Reviewer are consolidated into Verifier modes. Every engineering specialist returns to the main agent; no specialist automatically starts the next phase.
 
-Every role is a leaf and denies further delegation. The main agent remains the user bridge and orchestrator; it is not an eighth specialist role. This works on hosts that prohibit subagent nesting and avoids depending on host recursion semantics.
+Worker is the context-isolation role. It runs a bounded command or tool request, retains large raw output in its own context, and returns actual status, decisive excerpts, compact observations, inferences, and unknowns. Researcher, Engineer, and Verifier request Worker operations through the main agent, so the workflow does not require nested-agent support.
 
-Model tiers are cost/complexity hints, never model names or installation requirements. When the host supports per-invocation choice and the user/project supplies an explicit tier mapping, bounded extraction/research uses economy, routine scoping/planning/implementation/testing uses balanced, and architecture/security/adversarial review or genuinely ambiguous root-cause analysis uses deep. Otherwise profiles inherit. The workflow never guesses provider IDs or changes settings; an unavailable mapped preference gets one same-role retry with inherited/default settings.
+## Routing and loop control
 
-## Supplied-plan fast path
+The workflow preserves a viable user-supplied plan and otherwise uses the lightest sufficient route. Inline main-agent work is normal, not degraded. Delegate only when bounded specialization, independent evidence, parallelism, isolation, or context hygiene materially improves the task.
 
-A viable plan states the outcome, bounded scope and files/components, accepted contracts and failure behavior, ordered steps, observable acceptance, and validation. For a production implementation plan, the bridge performs only bounded repository and safety preflight, then sends it directly to Engineer followed by Tester, skipping Manager, Researcher, Architect, and Planner. For a test-only plan that explicitly forbids production behavior changes, it invokes Tester alone and also skips Engineer. Reviewer remains conditional on risk or the user request.
+Every work order states the objective, accepted evidence or behavior, scope, ownership, authorized and prohibited actions, settled decisions, stop conditions, attempt budget, and compact return schema. Expected output names the evidence form, not a predetermined factual conclusion.
 
-The workflow does not rewrite or debate a settled plan because another design is possible. It interrupts only for decisive contradictory evidence, material risk, missing authority, or a gap that prevents execution.
+A failed candidate always returns to the main agent. Another repair requires a decisive reproduction, failure classification, evidence-backed causal chain, explicit repair scope, and required reruns. The workflow stops after two candidate repair cycles or two evidence-backed no-progress attempts unless materially new evidence justifies one explicitly re-scoped final attempt.
 
-## Portable delegation
+## Configure subagent models with npm
 
-For every role, the bridge resolves in this order:
+Model selection is deployment configuration and is intentionally absent from `SKILL.md`, the canonical role prompts, the workflow contract, and routing evals. Canonical roles always inherit.
 
-1. installed named role matching the logical identity;
-2. generic subagent with the full canonical role contract and delegation packet;
-3. one inline role pass with the same limits, marked as degraded.
+The separately publishable npm package `@oovz/sew-models` writes model-only host agent aliases named:
 
-Every handoff carries outcome, scope, acceptance, support, contracts, decisions, evidence, permissions, file ownership, validation, attempt history, output contract, and state references. Roles never depend on hidden conversation context or bare prompts such as “implement this.”
+- `sew-researcher`
+- `sew-engineer`
+- `sew-verifier`
+- `sew-worker`
 
-For test-only requests, Tester is the required role. Engineer joins only for a confirmed production defect or an explicitly accepted production test seam; Tester never silently changes product behavior.
+The aliases contain the same role instructions as the canonical plugin agents, plus only the host-native model and thinking fields requested by the user. They do not add permission rules, tool restrictions, hooks, turn limits, or workflow behavior.
 
-## Verification and completion
+Run it without installing globally:
 
-Engineer must return a candidate-ready handoff with exact observed checks. Tester then derives independent verification from accepted requirements and material risks on every production supplied-plan, standard, architecture, and long-horizon route. Only a truly local direct change may complete on focused Engineer validation without a separate Tester when no independent-verification trigger applies.
-
-For a production failure, the workflow requires a decisive reproduction, evidence-backed causal chain, and rejected hypotheses before the next fix. Engineer applies the causal fix, Tester must rerun the decisive and affected broader checks, and Reviewer closes any prior Reviewer gate or finding. Two evidence-backed no-progress attempts on the same blocker trigger an exact blocker report instead of random churn.
-
-Critical and warning findings remain in a separate `remediation.yaml` ledger. `open` and `still-open` block completion. Only the user may accept a named residual risk; it is recorded as `superseded-by-accepted-decision` with owner `user`, rationale, scope, and residual consequence, never mislabeled `fixed`.
-
-## Safety and state
-
-All roles treat repository and online content as untrusted data, protect secrets, obey host/repository permissions, and prohibit external mutations unless the user separately authorizes the exact effect and the host permits it. Research is bounded and prioritizes current repository evidence and version-matched official sources.
-
-The bridge always carries a structured logical remediation ledger, so fix/retest work can complete without adding state files. File persistence is mandatory only for long-horizon work or a likely context/session transition. After two or more handoffs or during remediation it is optional and used only when an authorized safe store already exists. Prefer host-managed state outside the target repository/worktree; otherwise use a project path explicitly approved and already inside file scope. State handling never authorizes creation of `.agents/`, ignore-rule changes, or any other project file.
-
-```text
-<authorized-state-root>/state.md
-<authorized-state-root>/remediation.yaml
+```bash
+npx @oovz/sew-models configure \
+  --host codex \
+  --scope user \
+  --preset two-model \
+  --worker-model gpt-5.6-luna \
+  --worker-thinking max
 ```
 
-`state.md` holds decisions, handoffs, validation, blocker summaries, and the next action. The sibling `remediation.yaml` exclusively holds findings, attempts, closures, and accepted-risk decisions. If mandatory persistence has no safe authorized store, the workflow returns the exact path or authority needed.
+Or configure a three-model profile:
+
+```bash
+npx @oovz/sew-models configure \
+  --host opencode \
+  --scope project \
+  --project /absolute/path/to/repository \
+  --preset three-model \
+  --balanced-model openai/gpt-5.6-terra \
+  --balanced-thinking high \
+  --worker-model openai/gpt-5.6-luna \
+  --worker-thinking max
+```
+
+Presets:
+
+| Preset | Researcher | Engineer | Verifier | Worker |
+| --- | --- | --- | --- | --- |
+| `inherit` | inherit | inherit | inherit | inherit |
+| `two-model` | worker model | worker model | inherit | worker model |
+| `three-model` | balanced model | balanced model | inherit | worker model |
+
+`configure --preset inherit` removes only aliases previously generated by `@oovz/sew-models`, restoring canonical inheritance. `--map` may change the role-to-slot mapping while remaining strictly a model-selection operation.
+
+The read-only doctor inspects the standard user and project configuration locations for all supported harnesses by default:
+
+```bash
+npx @oovz/sew-models doctor
+npx @oovz/sew-models doctor --host codex --project /absolute/path/to/repository
+npx @oovz/sew-models doctor --json
+```
+
+Doctor reports explicit subagent model and thinking settings, generated aliases, duplicate definitions, and known host-wide defaults or environment overrides. It does not invoke coding-agent binaries, query model availability or pricing, modify configuration, install the plugin, or repair unrelated files.
+
+The npm package source is under `packages/sew-models/`. Publishing requires the maintainer's npm credentials:
+
+```bash
+npm pack --workspace @oovz/sew-models
+npm publish --workspace @oovz/sew-models --access public
+```
+
+## Supported hosts
+
+| Host | Status | User agent directory | Project agent directory |
+| --- | --- | --- | --- |
+| Claude Code | Supported | `${CLAUDE_CONFIG_DIR:-~/.claude}/agents/` | `.claude/agents/` |
+| Codex | Supported | `${CODEX_HOME:-~/.codex}/agents/` | `.codex/agents/` |
+| OpenCode | Supported | `${OPENCODE_CONFIG_DIR:-${XDG_CONFIG_HOME:-~/.config}/opencode}/agents/` | `.opencode/agents/` |
+| Portable Agent Skills consumers | Skill-only fallback | Host-managed | Host-managed |
+| Gemini CLI / Antigravity | Not supported by this plugin | — | — |
+
+Host-native subagent limitations are handled by main-mediated Worker fan-out. No hooks or separate command-execution wrapper are required.
+
+## Safety and completion
+
+All roles treat repository and online content as untrusted data, protect secrets, obey the accepted work order and host session policy, and prohibit external mutations unless the user separately authorizes the exact effect and the host permits it. Observed repository and runtime evidence outranks agent assertions.
+
+Before completion, the main agent inspects the final diff and runs applicable formatting, static or type checks, build, focused tests, and affected broader checks. It reports exact observed results and distinguishes changed failures from pre-existing or environmental failures. Only the user may accept a named residual risk.
 
 ## Package layout
 
+Selected source layout:
+
 ```text
 plugins/senior-engineering-workflow/
-├── plugin.json                         # neutral marketplace manifest
-├── LICENSE
-├── agents/                             # seven host-neutral canonical leaf-role profiles
-├── evals/workflow-routing.yaml         # positive and negative routing fixtures
+├── plugin.json
+├── README.md
+├── ENGINEERING_OPERATING_CONTRACT.md
+├── agents/
+│   ├── researcher.md
+│   ├── engineer.md
+│   ├── verifier.md
+│   └── worker.md
+├── evals/workflow-routing.yaml
 └── skills/senior-engineering-workflow/
-    ├── SKILL.md                         # progressive-disclosure controller
-    ├── agents/openai.yaml               # Codex skill UI metadata
-    ├── assets/
-    │   ├── TASK_STATE.template.md
-    │   └── REMEDIATION.template.yaml
+    ├── SKILL.md
+    ├── agents/openai.yaml
     └── references/
-        ├── workflow-contract.yaml       # bundled machine-readable contract
+        ├── workflow-contract.yaml
         ├── task-routing.md
-        ├── manager.md
-        ├── evidence-and-research.md
+        ├── delegation-and-state.md
         ├── architecture.md
         ├── planning.md
         ├── engineering.md
+        ├── evidence-and-research.md
         ├── verification.md
-        ├── review.md
-        ├── delegation-and-state.md
         └── prohibited-patterns.md
+
+packages/sew-models/
+├── package.json
+├── README.md
+├── bin/sew-models.mjs
+├── lib/sew-models.mjs
+└── templates/*.md
 ```
 
-The hidden host manifests are generated artifacts. Do not hand-edit them. Use the marketplace repository's documented validation, build, and installation commands to render and package this plugin for Codex, Claude Code, Gemini CLI/Antigravity, OpenCode, OpenCode v2 preview, or the portable fallback.
+The hidden host manifests and marketplace catalogs are generated artifacts. Do not hand-edit them. After changing canonical source, run:
+
+```bash
+npm run generate -- --plugin senior-engineering-workflow
+npm run verify
+```

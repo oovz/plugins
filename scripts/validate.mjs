@@ -21,15 +21,18 @@ function parseMarkdownArtifact(content, label) {
   return parseFrontmatter(content.toString("utf8"), label);
 }
 
-function assertDeniedV2(frontmatter, action, label) {
-  assert(frontmatter.permissions.some((rule) => rule.action === action && rule.resource === "*" && rule.effect === "deny"), `${label} must deny ${action}`);
-}
 
 function validateRenderedAgent(plugin, agent, target, artifacts) {
   const flat = flatAgentId(plugin.manifest.id, agent.id);
+  const inheritsPermissions = agent.permissionPolicy === "inherit";
   if (target.id === "claude-code") {
     const parsed = parseMarkdownArtifact(artifacts.get(`agents/${agent.id}.md`), `Claude agent ${agent.id}`);
     assert(parsed.frontmatter.name === agent.id && parsed.frontmatter.model === "inherit", `Claude agent ${agent.id} must use scoped id and inherit its model`);
+    if (inheritsPermissions) {
+      assert(parsed.frontmatter.tools === undefined, `Claude permission-inheriting agent ${agent.id} must not set a tools allowlist`);
+      assert(parsed.frontmatter.disallowedTools === undefined, `Claude permission-inheriting agent ${agent.id} must not set disallowedTools`);
+      return;
+    }
     const tools = new Set(String(parsed.frontmatter.tools).split(/,\s*/).filter(Boolean));
     for (const tool of tools) assert(CLAUDE_TOOLS.has(tool), `Claude agent ${agent.id} has unknown tool ${tool}`);
     if (agent.workspace === "read-only") for (const tool of ["Write", "Edit"]) assert(!tools.has(tool), `Claude read-only agent ${agent.id} exposes ${tool}`);
@@ -45,9 +48,12 @@ function validateRenderedAgent(plugin, agent, target, artifacts) {
     if (!agent.question) assert(denied.includes("AskUserQuestion"), `Claude agent ${agent.id} must deny direct user questions`);
   } else if (target.id === "codex") {
     const value = parseToml(artifacts.get(`companion/agents/${flat}.toml`).toString("utf8"));
-    assert(value.name === flat && value.sandbox_mode === agent.workspace, `Codex agent ${agent.id} has incorrect id or sandbox`);
+    assert(value.name === flat, `Codex agent ${agent.id} has incorrect id`);
+    if (inheritsPermissions) assert(value.sandbox_mode === undefined, `Codex permission-inheriting agent ${agent.id} must not override sandbox_mode`);
+    else assert(value.sandbox_mode === agent.workspace, `Codex agent ${agent.id} has incorrect sandbox`);
     assert(value.model === undefined && value.model_reasoning_effort === undefined, `Codex agent ${agent.id} must inherit model and reasoning`);
   } else if (target.id === "gemini-cli") {
+    assert(!inheritsPermissions, `Gemini agent ${agent.id} cannot request permission inheritance`);
     const parsed = parseMarkdownArtifact(artifacts.get(`agents/${flat}.md`), `Gemini agent ${agent.id}`);
     assert(parsed.frontmatter.name === flat && parsed.frontmatter.kind === "local" && parsed.frontmatter.model === "inherit", `Gemini agent ${agent.id} has invalid identity/kind/model`);
     for (const key of ["max_turns", "timeout_mins", "temperature"]) assert(parsed.frontmatter[key] === undefined, `Gemini agent ${agent.id} must not hard-code ${key}`);
@@ -56,6 +62,7 @@ function validateRenderedAgent(plugin, agent, target, artifacts) {
     if (!agent.shell) assert(!parsed.frontmatter.tools.includes("run_shell_command"), `Gemini shell-denied agent ${agent.id} exposes shell`);
     if (agent.question) assert(parsed.frontmatter.tools.includes("ask_user"), `Gemini question-capable agent ${agent.id} must expose ask_user`);
   } else if (target.id === "antigravity") {
+    assert(!inheritsPermissions, `Antigravity agent ${agent.id} cannot request permission inheritance`);
     const parsed = parseMarkdownArtifact(artifacts.get(`agents/${flat}.md`), `Antigravity agent ${agent.id}`);
     const fm = parsed.frontmatter;
     assert(fm.name === flat && fm.mainAgent === false && fm.subagent === true && fm.model === "inherit" && fm.commandExecutionPolicy === "sandbox", `Antigravity agent ${agent.id} has invalid required frontmatter`);
@@ -68,25 +75,17 @@ function validateRenderedAgent(plugin, agent, target, artifacts) {
     const parsed = parseMarkdownArtifact(artifacts.get(`.opencode/agents/${flat}.md`), `OpenCode ${target.variant} agent ${agent.id}`);
     const fm = parsed.frontmatter;
     assert(fm.mode === "subagent" && fm.model === undefined && fm.steps === undefined, `OpenCode ${target.variant} agent ${agent.id} must be a model-inheriting subagent without step cap`);
-    if (target.variant === "stable") {
-      assert(fm.permission && fm.permissions === undefined, `OpenCode stable agent ${agent.id} must use permission`);
-      if (!agent.delegates) assert(fm.permission.task?.["*"] === "deny", `OpenCode stable leaf agent ${agent.id} must deny task`);
-      assert(fm.permission.external_directory === "deny", `OpenCode stable agent ${agent.id} must deny external_directory`);
-      if (agent.workspace === "read-only") assert(fm.permission.edit === "deny", `OpenCode stable read-only agent ${agent.id} must deny edit`);
-      if (!agent.shell) assert(fm.permission.bash === "deny", `OpenCode stable agent ${agent.id} must deny bash`);
-      if (!agent.external) for (const action of ["webfetch", "websearch"]) assert(fm.permission[action] === "deny", `OpenCode stable agent ${agent.id} must deny ${action}`);
-    } else {
-      assert(Array.isArray(fm.permissions) && fm.permission === undefined, `OpenCode V2 agent ${agent.id} must use native permissions array`);
-      for (const rule of fm.permissions) {
-        assert(Object.keys(rule).join(",") === "action,resource,effect", `OpenCode V2 agent ${agent.id} permission rule must use action/resource/effect order`);
-        assert(!["bash", "task"].includes(rule.action), `OpenCode V2 agent ${agent.id} uses a V1 action`);
-      }
-      if (!agent.delegates) assertDeniedV2(fm, "subagent", `OpenCode V2 leaf agent ${agent.id}`);
-      assertDeniedV2(fm, "external_directory", `OpenCode V2 agent ${agent.id}`);
-      if (agent.workspace === "read-only") assertDeniedV2(fm, "edit", `OpenCode V2 read-only agent ${agent.id}`);
-      if (!agent.shell) assertDeniedV2(fm, "shell", `OpenCode V2 shell-denied agent ${agent.id}`);
-      if (!agent.external) for (const action of ["webfetch", "websearch"]) assertDeniedV2(fm, action, `OpenCode V2 external-denied agent ${agent.id}`);
+    if (inheritsPermissions) {
+      assert(fm.permission === undefined && fm.permissions === undefined, `OpenCode permission-inheriting agent ${agent.id} must not set permission rules`);
+      return;
     }
+    assert(target.variant === "stable", `unsupported OpenCode variant ${target.variant}`);
+    assert(fm.permission && fm.permissions === undefined, `OpenCode stable agent ${agent.id} must use permission`);
+    if (!agent.delegates) assert(fm.permission.task?.["*"] === "deny", `OpenCode stable leaf agent ${agent.id} must deny task`);
+    assert(fm.permission.external_directory === "deny", `OpenCode stable agent ${agent.id} must deny external_directory`);
+    if (agent.workspace === "read-only") assert(fm.permission.edit === "deny", `OpenCode stable read-only agent ${agent.id} must deny edit`);
+    if (!agent.shell) assert(fm.permission.bash === "deny", `OpenCode stable agent ${agent.id} must deny bash`);
+    if (!agent.external) for (const action of ["webfetch", "websearch"]) assert(fm.permission[action] === "deny", `OpenCode stable agent ${agent.id} must deny ${action}`);
   }
 }
 
@@ -285,8 +284,214 @@ function validateEngineeringProfile(plugin, contract, suite, label) {
   for (const capability of ["supplied_plan_fast_path", "evidence_backed_remediation", "bounded_failure_loop"]) assert(capabilities.has(capability), `${label} lacks ${capability} coverage`);
 }
 
+// BEGIN senior-engineering-workflow engineering-delivery-v2 validator r3
+function validateEngineeringContractV2(plugin, contract, label) {
+  assert(
+    contract?.schema_version === "2.0.0" &&
+      contract.contract_id === "senior-engineering-workflow" &&
+      contract.contract_version === "2.0.0" &&
+      contract.profile === "engineering-delivery-v2",
+    `${label} must identify the engineering-delivery-v2 schema and contract`,
+  );
+
+  assert(
+    contract.leaf_roles && Number.isInteger(contract.leaf_role_count),
+    `${label} must declare leaf_roles and leaf_role_count`,
+  );
+
+  const expectedRoleIds = new Set(["researcher", "engineer", "verifier", "worker"]);
+  const roles = Object.values(contract.leaf_roles);
+  const manifestIds = new Set(plugin.agents.map((agent) => agent.id));
+  const contractIds = new Set(roles.map((role) => role.logical_agent_id));
+
+  assert(
+    contract.leaf_role_count === expectedRoleIds.size && roles.length === expectedRoleIds.size,
+    `${label} must declare exactly four leaf roles`,
+  );
+  assert(
+    manifestIds.size === expectedRoleIds.size &&
+      [...expectedRoleIds].every((id) => manifestIds.has(id)),
+    `${label} plugin.json agents must be researcher, engineer, verifier, and worker`,
+  );
+  assert(
+    contractIds.size === expectedRoleIds.size &&
+      [...expectedRoleIds].every((id) => contractIds.has(id)),
+    `${label} contract roles must be researcher, engineer, verifier, and worker`,
+  );
+
+  for (const role of roles) {
+    assert(
+      role.is_leaf === true && role.delegates === false,
+      `${label} role ${role.logical_agent_id} must be a non-delegating leaf`,
+    );
+    assert(
+      role.reports_to === "controller" ||
+        (role.logical_agent_id === "worker" && role.reports_to === "caller"),
+      `${label} role ${role.logical_agent_id} has an invalid report target`,
+    );
+  }
+
+  assert(
+    contract.controller?.kind === "primary_engineering_owner" &&
+      contract.controller.is_leaf_role === false,
+    `${label} must define the main agent as the non-leaf primary engineering owner`,
+  );
+  assert(
+    contract.delegation?.availability_is_not_a_trigger === true &&
+      contract.delegation.inline_execution_is_first_class === true &&
+      contract.delegation.specialist_may_invoke_agents === false &&
+      contract.delegation.required_work_order === "references/delegation-and-state.md",
+    `${label} delegation policy is incomplete or references a version-suffixed work-order file`,
+  );
+  assert(
+    contract.runtime_permissions?.canonical_policy === "inherit" &&
+      contract.runtime_permissions.host_level_restrictions_emitted_by_plugin === false &&
+      contract.runtime_permissions.behavioral_scope_remains_work_order_bound === true,
+    `${label} must inherit host permissions without weakening bounded work-order behavior`,
+  );
+  for (const agent of plugin.agents) {
+    assert(
+      agent.permissionPolicy === "inherit" && agent.model?.policy === "inherit",
+      `${label} agent ${agent.id} must inherit host permissions, model, and thinking`,
+    );
+  }
+  assert(
+    contract.iteration?.maximum_candidate_repair_cycles === 2 &&
+      contract.iteration.maximum_evidence_backed_no_progress_attempts === 2 &&
+      contract.iteration.new_evidence_required_for_repeat === true,
+    `${label} must declare the bounded repair policy`,
+  );
+  assert(
+    contract.long_running_operations?.avoid_status_only_polling === true &&
+      contract.long_running_operations.prefer_completion_aware_waits === true &&
+      contract.long_running_operations.terminal_status_required_for_completion === true,
+    `${label} must declare completion-aware waiting and terminal-status requirements`,
+  );
+}
+
+function validateEngineeringProfileV2(plugin, contract, suite, label) {
+  assert(contract, `${label} declared contract is missing from its skill tree`);
+  validateEngineeringContractV2(plugin, contract, label);
+
+  assert(
+    suite?.schema_version === "2.0.0" &&
+      suite.profile === "engineering-delivery-v2" &&
+      typeof suite.suite_id === "string" && suite.suite_id.trim(),
+    `${label} must identify the engineering-delivery-v2 eval suite`,
+  );
+  assert(
+    suite.contract_ref ===
+      "../skills/senior-engineering-workflow/references/workflow-contract.yaml",
+    `${label} must reference the canonical workflow-contract.yaml path`,
+  );
+  assert(Array.isArray(suite.cases) && suite.cases.length > 0, `${label} must contain cases`);
+
+  const roleIds = new Set(["researcher", "engineer", "verifier", "worker"]);
+  const requiredResultFields = new Set([
+    "activation",
+    "route",
+    "invoked_roles",
+    "role_resolution",
+    "behavior",
+  ]);
+  const declaredResultFields = new Set(suite.result_schema?.required_fields ?? []);
+  const declaredRoleIds = new Set(suite.result_schema?.role_values ?? []);
+
+  assert(
+    [...requiredResultFields].every((field) => declaredResultFields.has(field)),
+    `${label} result_schema.required_fields is incomplete`,
+  );
+  assert(
+    declaredRoleIds.size === roleIds.size && [...roleIds].every((id) => declaredRoleIds.has(id)),
+    `${label} result_schema.role_values must match the four v2 roles`,
+  );
+
+  const caseIds = new Set();
+  const capabilities = new Set();
+  for (const item of suite.cases) {
+    assert(item && typeof item.id === "string" && item.id.trim(), `${label} case id is required`);
+    assert(!caseIds.has(item.id), `${label} contains duplicate case ${item.id}`);
+    caseIds.add(item.id);
+    assert(
+      typeof item.capability === "string" && item.capability.trim(),
+      `${label}/${item.id} capability is required`,
+    );
+    capabilities.add(item.capability);
+    assert(
+      typeof item.prompt === "string" && item.prompt.trim(),
+      `${label}/${item.id} prompt is required`,
+    );
+    assert(
+      item.expected && typeof item.expected === "object" && !Array.isArray(item.expected),
+      `${label}/${item.id} expected result is required`,
+    );
+    assert(
+      typeof item.expected.activation === "boolean" &&
+        typeof item.expected.route === "string" && item.expected.route.trim(),
+      `${label}/${item.id} must declare activation and route`,
+    );
+
+    const invoked = item.expected.invoked_roles;
+    assert(
+      invoked && Array.isArray(invoked.required) && Array.isArray(invoked.forbidden),
+      `${label}/${item.id} invoked_roles must use required/forbidden arrays`,
+    );
+    const requiredSet = new Set(invoked.required);
+    for (const role of [...invoked.required, ...invoked.forbidden]) {
+      assert(roleIds.has(role), `${label}/${item.id} references unknown role ${role}`);
+    }
+    for (const role of invoked.forbidden) {
+      assert(!requiredSet.has(role), `${label}/${item.id} both requires and forbids role ${role}`);
+    }
+
+    const resolution = item.expected.role_resolution;
+    assert(
+      resolution && typeof resolution === "object" && !Array.isArray(resolution),
+      `${label}/${item.id} role_resolution must be an object`,
+    );
+    for (const role of Object.keys(resolution)) {
+      assert(
+        roleIds.has(role) && requiredSet.has(role),
+        `${label}/${item.id} role_resolution references a non-required role ${role}`,
+      );
+    }
+    for (const role of requiredSet) {
+      assert(
+        typeof resolution[role] === "string" && resolution[role].trim(),
+        `${label}/${item.id} lacks role_resolution for required role ${role}`,
+      );
+    }
+
+    assert(
+      Array.isArray(item.expected.behavior) &&
+        item.expected.behavior.length > 0 &&
+        item.expected.behavior.every((entry) => typeof entry === "string" && entry.trim()),
+      `${label}/${item.id} behavior must be a non-empty string array`,
+    );
+  }
+
+  for (const capability of [
+    "inline_execution",
+    "supplied_plan_preservation",
+    "context_isolation",
+    "controller_mediated_worker_fanout",
+    "bounded_implementation",
+    "risk_triggered_verification",
+    "verifier_independence",
+    "evidence_backed_remediation",
+    "hallucination_resistance",
+    "bounded_failure_loop",
+    "completion_aware_waiting",
+    "test_only_delivery",
+  ]) {
+    assert(capabilities.has(capability), `${label} lacks ${capability} coverage`);
+  }
+}
+// END senior-engineering-workflow engineering-delivery-v2 validator r3
+
 const VALIDATION_PROFILES = new Map([
   ["engineering-delivery-v1", validateEngineeringProfile],
+  ["engineering-delivery-v2", validateEngineeringProfileV2],
   ["semantic-guidance-v1", (plugin, _contract, suite, label) => validateSemanticProfile(plugin, suite, label)]
 ]);
 

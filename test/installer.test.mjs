@@ -33,8 +33,12 @@ async function run(args, options) {
   return execFileAsync(process.execPath, [INSTALLER, ...args], { cwd: ROOT, env });
 }
 
+function baseFor(plugin, operation, host, scope, extra = []) {
+  return [operation, "--plugin", plugin, "--host", host, "--scope", scope, ...extra];
+}
+
 function base(operation, host, scope, extra = []) {
-  return [operation, "--plugin", PLUGIN, "--host", host, "--scope", scope, ...extra];
+  return baseFor(PLUGIN, operation, host, scope, extra);
 }
 
 test("strict argv and native-only host guidance", async (t) => {
@@ -44,7 +48,7 @@ test("strict argv and native-only host guidance", async (t) => {
   await assert.rejects(run(["install", "--plugin", PLUGIN, "--host", "codex", "--scope", "project", "--project", ctx.project], ctx), /requires --mode/);
   await assert.rejects(run([...base("install", "codex", "project", ["--mode", "companion", "--project", ctx.project]), "--unknown"], ctx), /unknown argument/);
   await assert.rejects(run(base("install", "claude-code", "project", ["--project", ctx.project]), ctx), /claude plugin marketplace add/i);
-  await assert.rejects(run(base("install", "gemini-cli", "user"), ctx), /gemini extensions install/i);
+  await assert.rejects(run(base("install", "gemini-cli", "user"), ctx), /does not enable host gemini-cli/i);
 
   const marketplaceRoot = path.join(ctx.root, "renamed-marketplace");
   await createFixtureMarketplace(marketplaceRoot, [{ id: "guidance-plugin", version: "1.0.0" }]);
@@ -66,15 +70,15 @@ test("Codex standalone and companion use exact project paths", async (t) => {
   const ctx = await fixture(t);
   await run(base("install", "codex", "project", ["--mode", "standalone", "--project", ctx.project]), ctx);
   const skill = path.join(ctx.project, ".agents", "skills", PLUGIN, "SKILL.md");
-  const agent = path.join(ctx.project, ".codex", "agents", `${PLUGIN}-manager.toml`);
+  const agent = path.join(ctx.project, ".codex", "agents", `${PLUGIN}-researcher.toml`);
   assert.match(await readFile(skill, "utf8"), /Senior Engineering Workflow/);
-  assert.match(await readFile(agent, "utf8"), /sandbox_mode/);
+  assert.doesNotMatch(await readFile(agent, "utf8"), /sandbox_mode/);
   await run(base("uninstall", "codex", "project", ["--mode", "standalone", "--project", ctx.project]), ctx);
   await assert.rejects(readFile(skill), /ENOENT/);
   await assert.rejects(readFile(agent), /ENOENT/);
 
   await run(base("install", "codex", "project", ["--mode", "companion", "--project", ctx.project]), ctx);
-  assert.match(await readFile(agent, "utf8"), /sandbox_mode/);
+  assert.doesNotMatch(await readFile(agent, "utf8"), /sandbox_mode/);
   await assert.rejects(readFile(skill), /ENOENT/);
 });
 
@@ -114,7 +118,7 @@ test("Codex user scope splits Agent Skills from CODEX_HOME agents", async (t) =>
   const codexHome = path.join(ctx.root, "custom-codex");
   await run(base("install", "codex", "user", ["--mode", "standalone"]), { ...ctx, env: { CODEX_HOME: codexHome } });
   assert.ok(await readFile(path.join(ctx.home, ".agents", "skills", PLUGIN, "SKILL.md")));
-  assert.ok(await readFile(path.join(codexHome, "agents", `${PLUGIN}-manager.toml`)));
+  assert.ok(await readFile(path.join(codexHome, "agents", `${PLUGIN}-researcher.toml`)));
   await assert.rejects(readFile(path.join(codexHome, "skills", PLUGIN, "SKILL.md")), /ENOENT/);
 });
 
@@ -128,28 +132,50 @@ test("OpenCode user root precedence is OPENCODE_CONFIG_DIR then XDG then HOME", 
     const isolatedHome = path.join(ctx.root, `home-${name}`);
     await mkdir(isolatedHome);
     await run(base("install", "opencode", "user", ["--variant", "stable"]), { ...ctx, home: isolatedHome, env });
-    assert.ok(await readFile(path.join(expected.replace(ctx.home, isolatedHome), "agents", `${PLUGIN}-manager.md`)));
+    assert.ok(await readFile(path.join(expected.replace(ctx.home, isolatedHome), "agents", `${PLUGIN}-researcher.md`)));
   }
 });
 
-test("OpenCode V2 beta installs native permission triples", async (t) => {
+test("OpenCode rejects the removed V2 beta variant", async (t) => {
   const ctx = await fixture(t);
-  await run(base("install", "opencode", "project", ["--variant", "v2-beta", "--project", ctx.project]), ctx);
-  const agent = await readFile(path.join(ctx.project, ".opencode", "agents", `${PLUGIN}-manager.md`), "utf8");
-  assert.match(agent, /action: shell\n\s+resource: "\*"\n\s+effect: deny/);
-  assert.doesNotMatch(agent, /permission: shell|action: deny/);
+  await assert.rejects(
+    run(base("install", "opencode", "project", ["--variant", "v2-beta", "--project", ctx.project]), ctx),
+    /does not support variant v2-beta/,
+  );
+  await assert.rejects(lstat(path.join(ctx.project, ".opencode")), /ENOENT/);
 });
 
 test("Antigravity and portable installs use native project/user roots", async (t) => {
   const ctx = await fixture(t);
-  await run(base("install", "antigravity", "project", ["--project", ctx.project]), ctx);
-  assert.ok(await readFile(path.join(ctx.project, ".agents", "plugins", PLUGIN, "plugin.json")));
-  await run(base("install", "antigravity", "user"), ctx);
-  assert.ok(await readFile(path.join(ctx.home, ".gemini", "config", "plugins", PLUGIN, "plugin.json")));
-  await run(base("uninstall", "antigravity", "project", ["--project", ctx.project]), ctx);
-  await assert.rejects(lstat(path.join(ctx.project, ".agents", "plugins", PLUGIN)), /ENOENT/);
-  await run(base("uninstall", "antigravity", "user"), ctx);
-  await assert.rejects(lstat(path.join(ctx.home, ".gemini", "config", "plugins", PLUGIN)), /ENOENT/);
+  const antigravityPlugin = "tauri-v2-desktop";
+  await run(
+    baseFor(antigravityPlugin, "install", "antigravity", "project", ["--project", ctx.project]),
+    ctx,
+  );
+  assert.ok(
+    await readFile(
+      path.join(ctx.project, ".agents", "plugins", antigravityPlugin, "plugin.json"),
+    ),
+  );
+  await run(baseFor(antigravityPlugin, "install", "antigravity", "user"), ctx);
+  assert.ok(
+    await readFile(
+      path.join(ctx.home, ".gemini", "config", "plugins", antigravityPlugin, "plugin.json"),
+    ),
+  );
+  await run(
+    baseFor(antigravityPlugin, "uninstall", "antigravity", "project", ["--project", ctx.project]),
+    ctx,
+  );
+  await assert.rejects(
+    lstat(path.join(ctx.project, ".agents", "plugins", antigravityPlugin)),
+    /ENOENT/,
+  );
+  await run(baseFor(antigravityPlugin, "uninstall", "antigravity", "user"), ctx);
+  await assert.rejects(
+    lstat(path.join(ctx.home, ".gemini", "config", "plugins", antigravityPlugin)),
+    /ENOENT/,
+  );
   const portableProject = path.join(ctx.root, "portable-project");
   await mkdir(portableProject);
   await run(base("install", "portable-agent-skills", "project", ["--project", portableProject]), ctx);
@@ -161,22 +187,23 @@ test("dry-run is non-mutating and preflight prevents partial writes", async (t) 
   const args = base("install", "codex", "project", ["--mode", "companion", "--project", ctx.project]);
   const dry = await run([...args, "--dry-run"], ctx);
   assert.match(dry.stdout, /would write/);
-  await assert.rejects(readFile(path.join(ctx.project, ".codex", "agents", `${PLUGIN}-manager.toml`)), /ENOENT/);
+  await assert.rejects(readFile(path.join(ctx.project, ".codex", "agents", `${PLUGIN}-researcher.toml`)), /ENOENT/);
 
-  const conflict = path.join(ctx.project, ".codex", "agents", `${PLUGIN}-reviewer.toml`);
+  const conflict = path.join(ctx.project, ".codex", "agents", `${PLUGIN}-verifier.toml`);
   await mkdir(path.dirname(conflict), { recursive: true });
   await writeFile(conflict, "user content\n");
   await assert.rejects(run(args, ctx), /unowned/);
-  await assert.rejects(readFile(path.join(ctx.project, ".codex", "agents", `${PLUGIN}-manager.toml`)), /ENOENT/, "preflight must finish before any write");
+  await assert.rejects(readFile(path.join(ctx.project, ".codex", "agents", `${PLUGIN}-researcher.toml`)), /ENOENT/, "preflight must finish before any write");
   await run([...args, "--force"], ctx);
-  assert.match(await readFile(conflict, "utf8"), /sandbox_mode/);
+  assert.match(await readFile(conflict, "utf8"), /developer_instructions/);
+  assert.doesNotMatch(await readFile(conflict, "utf8"), /sandbox_mode/);
 });
 
 test("updates and uninstalls refuse modified owned files", async (t) => {
   const ctx = await fixture(t);
   const install = base("install", "codex", "project", ["--mode", "companion", "--project", ctx.project]);
   await run(install, ctx);
-  const agent = path.join(ctx.project, ".codex", "agents", `${PLUGIN}-manager.toml`);
+  const agent = path.join(ctx.project, ".codex", "agents", `${PLUGIN}-researcher.toml`);
   await writeFile(agent, "local modification\n");
   await assert.rejects(run(base("update", "codex", "project", ["--mode", "companion", "--project", ctx.project, "--force"]), ctx), /modified/);
   await assert.rejects(run(base("uninstall", "codex", "project", ["--mode", "companion", "--project", ctx.project]), ctx), /modified/);
@@ -190,7 +217,7 @@ test("cross-install ownership collisions fail before writes", async (t) => {
   const projectRecords = path.join(ctx.home, ".state", "oovz-plugins", "projects");
   const recordFile = path.join(projectRecords, (await readdir(projectRecords))[0], "ownership.json");
   const record = await readJson(recordFile);
-  const victim = Object.keys(record.files).find((file) => file.endsWith(`${PLUGIN}-reviewer.toml`));
+  const victim = Object.keys(record.files).find((file) => file.endsWith(`${PLUGIN}-verifier.toml`));
   record.files[victim].plugin = "another-plugin";
   await writeFile(recordFile, `${JSON.stringify(record, null, 2)}\n`);
   await assert.rejects(run(base("update", "codex", "project", ["--mode", "companion", "--project", ctx.project]), ctx), /another plugin or install mode/);
@@ -233,7 +260,7 @@ test("ownership lock blocks install, update, and uninstall before mutation", asy
   const ctx = await fixture(t);
   const install = base("install", "codex", "project", ["--mode", "companion", "--project", ctx.project]);
   await run(install, ctx);
-  const agent = path.join(ctx.project, ".codex", "agents", `${PLUGIN}-manager.toml`);
+  const agent = path.join(ctx.project, ".codex", "agents", `${PLUGIN}-researcher.toml`);
   const original = await readFile(agent, "utf8");
   const projectKey = createHash("sha256").update(path.resolve(ctx.project)).digest("hex").slice(0, 24);
   const lock = path.join(ctx.home, ".state", "oovz-plugins", "projects", projectKey, ".install.lock");
@@ -260,7 +287,7 @@ test("symlink ancestors are rejected", async (t) => {
   await mkdir(path.join(ctx.project, ".codex"));
   await symlink(outside, path.join(ctx.project, ".codex", "agents"), process.platform === "win32" ? "junction" : "dir");
   await assert.rejects(run(base("install", "codex", "project", ["--mode", "companion", "--project", ctx.project]), ctx), /symlink/);
-  await assert.rejects(readFile(path.join(outside, `${PLUGIN}-manager.toml`)), /ENOENT/);
+  await assert.rejects(readFile(path.join(outside, `${PLUGIN}-researcher.toml`)), /ENOENT/);
 });
 
 test("ownership records are checked for symlinks before they are read", async (t) => {

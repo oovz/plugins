@@ -45,7 +45,6 @@
         "gemini-cli": { "$ref": "#/$defs/host" },
         "antigravity": { "$ref": "#/$defs/host" },
         "opencode": { "$ref": "#/$defs/host" },
-        "opencode-v2": { "$ref": "#/$defs/host" },
         "portable": { "$ref": "#/$defs/host" }
       }
     },
@@ -124,13 +123,13 @@
         "model": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["policy", "recommendedTier"],
+          "required": ["policy"],
           "properties": {
-            "policy": { "const": "inherit" },
-            "recommendedTier": { "enum": ["economy", "balanced", "deep"] }
+            "policy": { "const": "inherit" }
           }
         },
-        "steps": { "type": "null" }
+        "steps": { "type": "null" },
+        "permissionPolicy": { "enum": ["explicit", "inherit"], "default": "explicit" }
       }
     },
     "command": {
@@ -144,7 +143,7 @@
           "type": "array",
           "minItems": 1,
           "uniqueItems": true,
-          "items": { "enum": ["claude-code", "gemini-cli", "opencode", "opencode-v2"] }
+          "items": { "enum": ["claude-code", "gemini-cli", "opencode"] }
         }
       }
     },
@@ -159,7 +158,7 @@
           "type": "array",
           "minItems": 1,
           "uniqueItems": true,
-          "items": { "enum": ["claude-code", "codex", "gemini-cli", "antigravity", "opencode", "opencode-v2", "portable"] }
+          "items": { "enum": ["claude-code", "codex", "gemini-cli", "antigravity", "opencode", "portable"] }
         },
         "destination": { "$ref": "#/$defs/relativePath" },
         "executable": { "type": "boolean", "default": false }

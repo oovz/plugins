@@ -1,4 +1,4 @@
 interface:
   display_name: "Senior Engineering Workflow"
-  short_description: "Route or execute engineering work without ceremony"
-  default_prompt: "Use $senior-engineering-workflow to complete this repository engineering task. If I supplied a viable production or test-only plan, use its appropriate fast path without re-planning."
+  short_description: "Own coding work; isolate bounded specialist evidence"
+  default_prompt: "Use $senior-engineering-workflow for this coding task. Keep decisions, planning, integration, and loop control in the main agent; delegate only bounded research, implementation, verification, or noisy tool work. Preserve any viable supplied plan."

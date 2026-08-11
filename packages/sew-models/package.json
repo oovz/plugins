@@ -1,0 +1,40 @@
+{
+  "name": "@oovz/sew-models",
+  "version": "0.7.2",
+  "description": "Configure Senior Engineering Workflow subagent models and thinking levels for Claude Code, Codex, and OpenCode.",
+  "type": "module",
+  "bin": {
+    "sew-models": "./bin/sew-models.mjs"
+  },
+  "files": [
+    "bin/",
+    "lib/",
+    "templates/",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "license": "MIT",
+  "author": {
+    "name": "Otto",
+    "url": "https://github.com/oovz/plugins"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/oovz/plugins.git",
+    "directory": "packages/sew-models"
+  },
+  "keywords": [
+    "coding-agent",
+    "subagent",
+    "claude-code",
+    "codex",
+    "opencode",
+    "model-routing"
+  ]
+}

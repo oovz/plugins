@@ -24,7 +24,12 @@ function pathForSkill(prefix, skillId, relative) {
   return [prefix, skillId, relative].filter(Boolean).join("/");
 }
 
+function inheritsPermissions(agent) {
+  return agent.permissionPolicy === "inherit";
+}
+
 function leafGuard(agent) {
+  if (inheritsPermissions(agent)) return agent.body.trim();
   const constraints = [];
   if (!agent.delegates) constraints.push("Do not create, invoke, or delegate to another agent.");
   if (!agent.question) constraints.push("Return unresolved questions to the parent; do not contact the user directly.");
@@ -95,9 +100,12 @@ function renderClaude(plugin) {
     ...skills(plugin)
   ];
   for (const agent of plugin.agents) {
-    const disallowedTools = [!agent.delegates && "Agent", !agent.question && "AskUserQuestion"].filter(Boolean).join(", ");
-    const frontmatter = { name: agent.id, description: agent.description, model: "inherit", tools: claudeTools(agent) };
-    if (disallowedTools) frontmatter.disallowedTools = disallowedTools;
+    const frontmatter = { name: agent.id, description: agent.description, model: "inherit" };
+    if (!inheritsPermissions(agent)) {
+      const disallowedTools = [!agent.delegates && "Agent", !agent.question && "AskUserQuestion"].filter(Boolean).join(", ");
+      frontmatter.tools = claudeTools(agent);
+      if (disallowedTools) frontmatter.disallowedTools = disallowedTools;
+    }
     artifacts.push({
       path: `agents/${agent.id}.md`,
       content: markdown(frontmatter, leafGuard(agent))
@@ -135,14 +143,15 @@ function renderCodex(plugin) {
   ];
   for (const agent of plugin.agents) {
     const flatId = flatAgentId(plugin.manifest.id, agent.id);
+    const config = {
+      name: flatId,
+      description: agent.description,
+      developer_instructions: leafGuard(agent)
+    };
+    if (!inheritsPermissions(agent)) config.sandbox_mode = agent.workspace;
     artifacts.push({
       path: `companion/agents/${flatId}.toml`,
-      content: stringifyToml({
-        name: flatId,
-        description: agent.description,
-        sandbox_mode: agent.workspace,
-        developer_instructions: leafGuard(agent)
-      })
+      content: stringifyToml(config)
     });
   }
   return [...artifacts, ...hostFiles(plugin, "codex")];
@@ -159,6 +168,8 @@ function geminiTools(agent) {
 }
 
 function renderGemini(plugin) {
+  const inherited = plugin.agents.find(inheritsPermissions);
+  if (inherited) throw new Error(`${plugin.manifest.id} cannot enable Gemini CLI for permission-inheriting agent ${inherited.id}`);
   const recursive = plugin.agents.find((agent) => agent.delegates);
   if (recursive) throw new Error(`${plugin.manifest.id} cannot enable Gemini CLI for recursively delegating agent ${recursive.id}`);
   const artifacts = [
@@ -196,6 +207,8 @@ function antigravityTools(agent) {
 }
 
 function renderAntigravity(plugin) {
+  const inherited = plugin.agents.find(inheritsPermissions);
+  if (inherited) throw new Error(`${plugin.manifest.id} cannot enable Antigravity for permission-inheriting agent ${inherited.id}`);
   const artifacts = [
     {
       path: "plugin.json",
@@ -235,29 +248,16 @@ function stablePermission(agent) {
   return permission;
 }
 
-function v2Permissions(agent) {
-  const denied = [];
-  if (agent.workspace === "read-only") denied.push("edit");
-  if (!agent.shell) denied.push("shell");
-  if (!agent.delegates) denied.push("subagent");
-  denied.push("external_directory");
-  if (!agent.external) denied.push("webfetch", "websearch");
-  if (!agent.question) denied.push("question");
-  return denied.map((action) => ({ action, resource: "*", effect: "deny" }));
-}
-
-function renderOpenCode(plugin, variant) {
+function renderOpenCode(plugin) {
   const artifacts = [...skills(plugin, ".opencode/skills")];
   for (const agent of plugin.agents) {
     const flatId = flatAgentId(plugin.manifest.id, agent.id);
     const frontmatter = { description: agent.description, mode: "subagent" };
-    if (variant === "stable") frontmatter.permission = stablePermission(agent);
-    else frontmatter.permissions = v2Permissions(agent);
+    if (!inheritsPermissions(agent)) frontmatter.permission = stablePermission(agent);
     artifacts.push({ path: `.opencode/agents/${flatId}.md`, content: markdown(frontmatter, leafGuard(agent)) });
   }
-  const commandHost = variant === "stable" ? "opencode" : "opencode-v2";
-  for (const command of plugin.commands.filter((item) => item.hosts.includes(commandHost))) artifacts.push({ path: `.opencode/commands/${flatAgentId(plugin.manifest.id, command.id)}.md`, content: command.source });
-  return [...artifacts, ...hostFiles(plugin, variant === "stable" ? "opencode" : "opencode-v2")];
+  for (const command of plugin.commands.filter((item) => item.hosts.includes("opencode"))) artifacts.push({ path: `.opencode/commands/${flatAgentId(plugin.manifest.id, command.id)}.md`, content: command.source });
+  return [...artifacts, ...hostFiles(plugin, "opencode")];
 }
 
 function renderPortable(plugin) {
@@ -269,7 +269,7 @@ export const HOSTS = Object.freeze({
   codex: { variants: [null], manifestKey: "codex", render: renderCodex },
   "gemini-cli": { variants: [null], manifestKey: "gemini-cli", render: renderGemini },
   antigravity: { variants: [null], manifestKey: "antigravity", render: renderAntigravity },
-  opencode: { variants: ["stable", "v2-beta"], manifestKey: (variant) => variant === "stable" ? "opencode" : "opencode-v2", render: renderOpenCode },
+  opencode: { variants: ["stable"], manifestKey: "opencode", render: renderOpenCode },
   "portable-agent-skills": { variants: [null], manifestKey: "portable", render: renderPortable }
 });
 
@@ -307,7 +307,7 @@ export function renderHost(plugin, hostId, variant, options = {}) {
     && plugin.manifest.hosts?.codex?.enabled === true
     && plugin.agents.length > 0;
   if (!supportsHost(plugin, host) && !allowCompanion) throw new Error(`${plugin.manifest.id} does not enable host ${hostId}${host.variant ? `/${host.variant}` : ""}: projection has no functional component`);
-  const artifacts = [{ path: "LICENSE", content: plugin.license.content }, ...host.render(plugin, host.variant === "v2-beta" ? "v2-beta" : host.variant)];
+  const artifacts = [{ path: "LICENSE", content: plugin.license.content }, ...host.render(plugin, host.variant)];
   return { host, artifacts: uniqueArtifacts(artifacts, `${hostId}/${host.variant ?? "default"}/${plugin.manifest.id}`) };
 }
 

@@ -13,7 +13,7 @@ export const USAGE = `Usage:
   node scripts/install.mjs <install|update|uninstall> --plugin <id> --host <host> --scope <project|user> [options]
 
 Options:
-  --variant <stable|v2-beta>       OpenCode only (default: stable)
+  --variant <stable>               OpenCode only (default: stable)
   --mode <standalone|companion>    Required for Codex only
   --project <path>                 Project root (default: current directory)
   --dry-run                        Preflight and print actions without writing

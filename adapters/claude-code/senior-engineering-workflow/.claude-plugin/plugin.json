@@ -2,8 +2,8 @@
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "senior-engineering-workflow",
   "displayName": "Senior Engineering Workflow",
-  "version": "0.6.0",
-  "description": "A proportional, evidence-driven engineering workflow with portable leaf-role delegation and a direct path for viable supplied plans.",
+  "version": "0.7.2",
+  "description": "A proportional engineering workflow in which the capable main agent owns decisions and bounded specialists isolate research, implementation, verification, and noisy tool work.",
   "author": {
     "name": "Otto",
     "url": "https://github.com/oovz/plugins"
@@ -13,12 +13,12 @@
   "license": "MIT",
   "keywords": [
     "engineering",
-    "architecture",
+    "coding",
     "research",
     "planning",
     "multi-agent",
-    "testing",
-    "review",
+    "verification",
+    "context-isolation",
     "workflow"
   ],
   "skills": "./skills/",

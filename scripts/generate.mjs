@@ -12,7 +12,7 @@ const USAGE = `Usage:
   node scripts/generate.mjs <generate|build|check> (--all | --plugin <id>) [--host <host>] [--variant <variant>]
 
 Hosts: ${Object.keys(HOSTS).join(", ")}
-Variants: opencode supports stable (default) and v2-beta.
+Variants: opencode supports stable (default).
 
 generate  refresh checked-in adapters and host marketplace/plugin manifests
 build     create isolated native bundles under dist/

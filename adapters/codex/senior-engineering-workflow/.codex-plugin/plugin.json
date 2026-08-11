@@ -1,7 +1,7 @@
 {
   "name": "senior-engineering-workflow",
-  "version": "0.6.0",
-  "description": "A proportional, evidence-driven engineering workflow with portable leaf-role delegation and a direct path for viable supplied plans.",
+  "version": "0.7.2",
+  "description": "A proportional engineering workflow in which the capable main agent owns decisions and bounded specialists isolate research, implementation, verification, and noisy tool work.",
   "author": {
     "name": "Otto",
     "url": "https://github.com/oovz/plugins"
@@ -11,19 +11,19 @@
   "license": "MIT",
   "keywords": [
     "engineering",
-    "architecture",
+    "coding",
     "research",
     "planning",
     "multi-agent",
-    "testing",
-    "review",
+    "verification",
+    "context-isolation",
     "workflow"
   ],
   "skills": "./skills/",
   "interface": {
     "displayName": "Senior Engineering Workflow",
-    "shortDescription": "A proportional, evidence-dr...",
-    "longDescription": "A proportional, evidence-driven engineering workflow with portable leaf-role delegation and a direct path for viable supplied plans.",
+    "shortDescription": "A proportional engineering...",
+    "longDescription": "A proportional engineering workflow in which the capable main agent owns decisions and bounded specialists isolate research, implementation, verification, and noisy tool work.",
     "developerName": "Otto",
     "category": "Productivity",
     "capabilities": [

@@ -9,7 +9,7 @@
     {
       "name": "senior-engineering-workflow",
       "source": "./adapters/claude-code/senior-engineering-workflow",
-      "description": "A proportional, evidence-driven engineering workflow with portable leaf-role delegation and a direct path for viable supplied plans.",
+      "description": "A proportional engineering workflow in which the capable main agent owns decisions and bounded specialists isolate research, implementation, verification, and noisy tool work.",
       "displayName": "Senior Engineering Workflow",
       "author": {
         "name": "Otto",
@@ -20,12 +20,12 @@
       "license": "MIT",
       "keywords": [
         "engineering",
-        "architecture",
+        "coding",
         "research",
         "planning",
         "multi-agent",
-        "testing",
-        "review",
+        "verification",
+        "context-isolation",
         "workflow"
       ],
       "category": "Productivity"

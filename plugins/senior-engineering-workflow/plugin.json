@@ -2,9 +2,9 @@
   "$schema": "../../schemas/plugin.schema.json",
   "schemaVersion": 1,
   "id": "senior-engineering-workflow",
-  "version": "0.6.0",
+  "version": "0.7.2",
   "displayName": "Senior Engineering Workflow",
-  "description": "A proportional, evidence-driven engineering workflow with portable leaf-role delegation and a direct path for viable supplied plans.",
+  "description": "A proportional engineering workflow in which the capable main agent owns decisions and bounded specialists isolate research, implementation, verification, and noisy tool work.",
   "license": "MIT",
   "author": {
     "name": "Otto",
@@ -12,17 +12,17 @@
   },
   "keywords": [
     "engineering",
-    "architecture",
+    "coding",
     "research",
     "planning",
     "multi-agent",
-    "testing",
-    "review",
+    "verification",
+    "context-isolation",
     "workflow"
   ],
   "category": "Productivity",
   "validation": {
-    "profile": "engineering-delivery-v1",
+    "profile": "engineering-delivery-v2",
     "contract": "skills/senior-engineering-workflow/references/workflow-contract.yaml",
     "evals": "evals/workflow-routing.yaml"
   },
@@ -35,109 +35,64 @@
     ],
     "agents": [
       {
-        "id": "manager",
-        "path": "agents/manager.md",
-        "description": "Settles outcome, scope, acceptance, support targets, and decision ownership without implementing.",
-        "workspace": "read-only",
-        "shell": false,
-        "external": false,
-        "delegates": false,
-        "question": false,
-        "model": {
-          "policy": "inherit",
-          "recommendedTier": "balanced"
-        },
-        "steps": null
-      },
-      {
         "id": "researcher",
         "path": "agents/researcher.md",
-        "description": "Answers bounded repository and external-documentation questions with cited, confidence-labeled evidence.",
+        "description": "Answers bounded repository, runtime, and external-documentation questions with evidence and explicit uncertainty.",
         "workspace": "read-only",
-        "shell": false,
+        "shell": true,
         "external": true,
         "delegates": false,
         "question": false,
         "model": {
-          "policy": "inherit",
-          "recommendedTier": "economy"
+          "policy": "inherit"
         },
-        "steps": null
-      },
-      {
-        "id": "architect",
-        "path": "agents/architect.md",
-        "description": "Settles material interfaces, invariants, boundaries, failure models, and architectural trade-offs.",
-        "workspace": "read-only",
-        "shell": false,
-        "external": true,
-        "delegates": false,
-        "question": false,
-        "model": {
-          "policy": "inherit",
-          "recommendedTier": "deep"
-        },
-        "steps": null
-      },
-      {
-        "id": "planner",
-        "path": "agents/planner.md",
-        "description": "Turns settled requirements and architecture into an ordered, file-specific implementation and validation plan.",
-        "workspace": "read-only",
-        "shell": false,
-        "external": false,
-        "delegates": false,
-        "question": false,
-        "model": {
-          "policy": "inherit",
-          "recommendedTier": "balanced"
-        },
-        "steps": null
+        "steps": null,
+        "permissionPolicy": "inherit"
       },
       {
         "id": "engineer",
         "path": "agents/engineer.md",
-        "description": "Implements settled slices with immediate regression coverage and candidate-ready validation.",
+        "description": "Implements one bounded production or test slice with immediate coverage and observed focused validation.",
         "workspace": "workspace-write",
         "shell": true,
         "external": false,
         "delegates": false,
         "question": false,
         "model": {
-          "policy": "inherit",
-          "recommendedTier": "balanced"
+          "policy": "inherit"
         },
-        "steps": null
+        "steps": null,
+        "permissionPolicy": "inherit"
       },
       {
-        "id": "tester",
-        "path": "agents/tester.md",
-        "description": "Independently verifies accepted behavior, material risks, and defect closures through repository-native checks.",
-        "workspace": "workspace-write",
-        "shell": true,
-        "external": false,
-        "delegates": false,
-        "question": false,
-        "model": {
-          "policy": "inherit",
-          "recommendedTier": "balanced"
-        },
-        "steps": null
-      },
-      {
-        "id": "reviewer",
-        "path": "agents/reviewer.md",
-        "description": "Performs independent, read-only adversarial review and closes prior findings against evidence.",
+        "id": "verifier",
+        "path": "agents/verifier.md",
+        "description": "Independently verifies, reviews, or closes an accepted candidate without modifying production or test files.",
         "workspace": "read-only",
-        "shell": false,
+        "shell": true,
         "external": false,
         "delegates": false,
         "question": false,
         "model": {
-          "policy": "inherit",
-          "recommendedTier": "deep"
+          "policy": "inherit"
         },
-        "steps": null
+        "steps": null,
+        "permissionPolicy": "inherit"
+      },
+      {
+        "id": "worker",
+        "path": "agents/worker.md",
+        "description": "Runs one bounded, tool-heavy repository, shell, or MCP operation and returns compact evidence instead of raw output.",
+        "workspace": "workspace-write",
+        "shell": true,
+        "external": true,
+        "delegates": false,
+        "question": false,
+        "model": {
+          "policy": "inherit"
+        },
+        "steps": null,
+        "permissionPolicy": "inherit"
       }
     ],
     "commands": []
@@ -153,18 +108,8 @@
         "Write"
       ]
     },
-    "gemini-cli": {
-      "enabled": true
-    },
-    "antigravity": {
-      "enabled": true
-    },
     "opencode": {
       "enabled": true
-    },
-    "opencode-v2": {
-      "enabled": true,
-      "status": "preview"
     },
     "portable": {
       "enabled": true

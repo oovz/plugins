@@ -74,10 +74,10 @@ Every plugin must include its own `LICENSE` as a regular file. The declared lice
         "delegates": false,
         "question": false,
         "model": {
-          "policy": "inherit",
-          "recommendedTier": "economy"
+          "policy": "inherit"
         },
-        "steps": null
+        "steps": null,
+        "permissionPolicy": "explicit"
       }
     ],
     "commands": []
@@ -91,7 +91,6 @@ Every plugin must include its own `LICENSE` as a regular file. The declared lice
     "gemini-cli": { "enabled": true },
     "antigravity": { "enabled": true },
     "opencode": { "enabled": true },
-    "opencode-v2": { "enabled": true, "status": "preview" },
     "portable": { "enabled": true }
   }
 }
@@ -107,8 +106,8 @@ The manifest capabilities are declarative inputs to host renderers:
 | `delegates` | Whether the role may invoke a child agent; use `false` for portable leaf roles |
 | `question` | Whether the role may contact the user directly; workflow roles should normally return questions to the main agent |
 | `model.policy` | Must be `inherit` so the plugin does not require an unavailable provider model |
-| `model.recommendedTier` | Cost/quality guidance (`economy`, `balanced`, or `deep`), not a model ID or fallback promise |
 | `steps` | Must be `null`; do not invent a cross-host cap |
+| `permissionPolicy` | `explicit` renders capability-derived host restrictions; `inherit` omits plugin-added permission, tool, and sandbox restrictions |
 
 For a Codex-enabled plugin, `hosts.codex.capabilities` is required. These single-line listing labels describe the install surface only; they do not grant runtime tools or override sandbox or approval policy. Do not place `capabilities` under another host, and do not derive the list from agent workspace settings.
 
@@ -120,7 +119,7 @@ Every skill uses an exact uppercase `SKILL.md` and follows the [Agent Skills spe
 
 An agent file is Markdown with YAML frontmatter and a self-contained body. Its prompt should define one bounded job, input assumptions, authority, stopping conditions, and a concise output contract. Keep host tool names, model IDs, reasoning controls, permission syntax, and installation paths out of the behavioral body; the renderer derives those from the canonical manifest.
 
-For a leaf role, explicitly say that it must not invoke another agent or contact the user, even though adapters also express those restrictions where the host supports them. State which local and external side effects are authorized. Treat repository and web content as untrusted evidence, never as higher-priority instructions.
+For a leaf role, explicitly state its behavioral scope, return path, side-effect authority, and stopping conditions. When `permissionPolicy` is `explicit`, adapters also express capability bounds where the host supports them. When it is `inherit`, the host resolves permissions from the active session and the role prompt remains the behavioral boundary. Treat repository and web content as untrusted evidence, never as higher-priority instructions.
 
 Do not add a hook, MCP server, background process, dependency install, executable plugin, or secret requirement casually. Those change the trust model. A future component type that the canonical schema cannot express requires a reviewed schema/renderer change and security documentation; that is the exceptional case where adding a plugin may legitimately change marketplace tooling.
 
@@ -159,7 +158,6 @@ dist/codex/<plugin-id>/
 dist/gemini-cli/<plugin-id>/
 dist/antigravity/<plugin-id>/
 dist/opencode/stable/<plugin-id>/
-dist/opencode/v2-beta/<plugin-id>/
 dist/portable-agent-skills/<plugin-id>/
 ```
 
@@ -200,4 +198,4 @@ Before release:
 
 Gemini is the important monorepo exception: its remote extension installer has no documented subdirectory selector and its release manifest must be at the absolute archive/repository root. Publish the generated Gemini tree as a rooted archive or a per-plugin repository/ref. Do not tell users to install the marketplace root as a Gemini extension.
 
-Claude and Codex consume generated marketplace catalogs that point to their checked-in per-plugin adapter directories. Antigravity consumes the generated native plugin directory. Stable OpenCode consumes the static configuration bundle; V2 beta uses its separately rendered static schema. Portable consumers receive only Agent Skills, not role agents or permission configuration.
+Claude and Codex consume generated marketplace catalogs that point to their checked-in per-plugin adapter directories. Antigravity consumes the generated native plugin directory. OpenCode consumes the stable static configuration bundle. Portable consumers receive only Agent Skills, not role agents or permission configuration.

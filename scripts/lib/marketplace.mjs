@@ -259,11 +259,11 @@ export function validatePluginManifest(manifest, directoryName) {
     assert(typeof agent.description === "string" && agent.description.trim(), `agent ${agent.id} description is required`);
     assert(["read-only", "workspace-write"].includes(agent.workspace), `agent ${agent.id} has invalid workspace capability`);
     for (const capability of ["shell", "external", "delegates", "question"]) assert(typeof agent[capability] === "boolean", `agent ${agent.id}.${capability} must be boolean`);
+    assert(["explicit", "inherit"].includes(agent.permissionPolicy ?? "explicit"), `agent ${agent.id} has invalid permissionPolicy`);
     assert(agent.model?.policy === "inherit", `agent ${agent.id} must inherit its parent model`);
-    assert(["economy", "balanced", "deep"].includes(agent.model?.recommendedTier), `agent ${agent.id} has invalid recommendedTier`);
     assert(agent.steps === null, `agent ${agent.id} must not hard-code a step limit`);
   }
-  const hostIds = new Set(["claude-code", "codex", "gemini-cli", "antigravity", "opencode", "opencode-v2", "portable"]);
+  const hostIds = new Set(["claude-code", "codex", "gemini-cli", "antigravity", "opencode", "portable"]);
   assert(manifest.hosts && typeof manifest.hosts === "object" && !Array.isArray(manifest.hosts), "hosts is required and must be an object");
   for (const hostId of Object.keys(manifest.hosts ?? {})) assert(hostIds.has(hostId), `unsupported manifest host ${hostId}`);
   assert(Object.values(manifest.hosts).some((host) => host?.enabled === true), "at least one host must be explicitly enabled");
@@ -280,7 +280,7 @@ export function validatePluginManifest(manifest, directoryName) {
     const categories = new Set(["Productivity", "Creativity", "Developer Tools", "Business & Operations", "Data & Analytics", "Communication", "Education & Research", "Security", "Finance", "Healthcare", "Travel", "Entertainment", "Other"]);
     assert(categories.has(manifest.category ?? "Other"), `unsupported Codex category: ${manifest.category}`);
   }
-  const commandHosts = new Set(["claude-code", "gemini-cli", "opencode", "opencode-v2"]);
+  const commandHosts = new Set(["claude-code", "gemini-cli", "opencode"]);
   for (const command of manifest.components.commands) {
     assert(Array.isArray(command.hosts) && command.hosts.length > 0, `command ${command.id} must declare supported hosts`);
     for (const host of command.hosts) {
@@ -301,7 +301,7 @@ export function validatePluginManifest(manifest, directoryName) {
       assert(hostIds.has(host), `hostFiles.${hostFile.id} has unsupported host ${host}`);
       assert(manifest.hosts[host]?.enabled === true, `hostFiles.${hostFile.id} targets disabled host ${host}`);
     }
-    if (hostFile.hosts.some((host) => host === "opencode" || host === "opencode-v2")) assert(hostFile.destination.startsWith(".opencode/"), `hostFiles.${hostFile.id} must use an .opencode/ destination for OpenCode`);
+    if (hostFile.hosts.some((host) => host === "opencode")) assert(hostFile.destination.startsWith(".opencode/"), `hostFiles.${hostFile.id} must use an .opencode/ destination for OpenCode`);
     if (hostFile.hosts.includes("portable")) assert(hostFile.destination.startsWith(".agents/"), `hostFiles.${hostFile.id} must use an .agents/ destination for portable Agent Skills`);
     assert(hostFile.executable === undefined || typeof hostFile.executable === "boolean", `hostFiles.${hostFile.id}.executable must be boolean`);
   }

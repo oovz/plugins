@@ -1,4 +1,0 @@
-interface:
-  display_name: "Senior Engineering Workflow"
-  short_description: "Route or execute engineering work without ceremony"
-  default_prompt: "Use $senior-engineering-workflow to complete this repository engineering task. If I supplied a viable production or test-only plan, use its appropriate fast path without re-planning."

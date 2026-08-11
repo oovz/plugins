@@ -12,7 +12,6 @@ This matrix describes the host contracts reviewed on 2026-08-02. It distinguishe
 | Antigravity 2.0 | Native workspace/global customizations | Native plugin directory | `dist/antigravity/<plugin-id>/` | Antigravity is not Gemini CLI and does not consume `gemini-extension.json`. |
 | Antigravity CLI | Native staged plugins | Native plugin via `agy` | `dist/antigravity/<plugin-id>/` | `agy plugin install` stages a bundle under its own profile; no update subcommand is documented. |
 | OpenCode stable | Stable static agents/skills and executable JS/TS hooks | Static configuration bundle | `dist/opencode/stable/<plugin-id>/` | The stable JS plugin API is executable code, not a package container for Markdown agents and skills. |
-| OpenCode V2 | Beta configuration and plugin APIs | V2 static configuration bundle | `dist/opencode/v2-beta/<plugin-id>/` | The API and permission schema may change; V2 files are not interchangeable with stable files. |
 | Portable Agent Skills | Open specification | Skill-only bundle | `dist/portable-agent-skills/<plugin-id>/` | The specification standardizes a skill directory, not subagents, permissions, or installation. |
 
 The repository root is a marketplace source. It is never a Gemini extension, Antigravity plugin, Claude plugin, Codex plugin, or OpenCode module. Install a generated per-plugin bundle or use a host marketplace whose checked-in catalog resolves the matching generated adapter directory.
@@ -47,12 +46,12 @@ Standalone custom agents, when deliberately installed outside a plugin, live at 
 
 Claude agent Markdown requires `name` and `description`. Supported optional fields include `tools`, `disallowedTools`, `model`, `permissionMode`, `maxTurns`, `skills`, `mcpServers`, `hooks`, `memory`, `effort`, `background`, `isolation`, `color`, and `initialPrompt`. The Markdown body is the agent system prompt.
 
-The generated profiles:
+The generated profiles always use `model: inherit` and omit `effort` and `maxTurns`. Agent permissions follow the canonical manifest's `permissionPolicy`:
 
-- use `model: inherit` and omit `effort` and `maxTurns`;
-- deny the `Agent` tool so every workflow role remains a leaf;
-- deny editing tools on read-only roles and grant only role-appropriate tools elsewhere;
-- do not depend on `hooks`, `mcpServers`, or `permissionMode`, because Claude ignores those three fields when loading an agent from a plugin.
+- `explicit` renders role-appropriate `tools` or `disallowedTools`;
+- `inherit` omits both fields so Claude resolves tools and MCP access from the active session.
+
+The marketplace does not depend on plugin-agent `hooks`, `mcpServers`, or `permissionMode`. Behavioral role prompts remain authoritative even when host permissions are inherited.
 
 Claude currently permits nested subagents to three layers below the main conversation by default, configurable with `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH`. It also documents defaults of 200 spawned subagents per session and 20 concurrently running subagents in versions that support those controls. The workflow deliberately does not consume that nesting allowance: the main agent owns routing and every role profile is a leaf.
 
@@ -94,11 +93,11 @@ Project agents live at `.codex/agents/<plugin-id>-<role>.toml`; personal agents 
 
 ### Agent contract
 
-Each custom-agent TOML file requires `name`, `description`, and `developer_instructions`. It may use ordinary supported Codex configuration keys such as `model`, `model_reasoning_effort`, `sandbox_mode`, `mcp_servers`, and `skills.config`. The generated profiles omit model and effort so Codex resolves each independently from an explicit spawn value, then `[agents]` defaults, then the parent. They use `sandbox_mode = "read-only"` or `"workspace-write"` to express candidate ownership. Codex documents this standalone custom-agent format as evolving, so it remains a generated companion contract rather than canonical source.
+Each custom-agent TOML file requires `name`, `description`, and `developer_instructions`. It may use ordinary supported Codex configuration keys such as `model`, `model_reasoning_effort`, `sandbox_mode`, `mcp_servers`, and `skills.config`. Generated profiles omit model and effort so Codex resolves each independently from an explicit spawn value, then `[agents]` defaults, then the parent. When `permissionPolicy` is `explicit`, the adapter emits `sandbox_mode`; when it is `inherit`, the adapter omits `sandbox_mode` and leaves permission and sandbox resolution to the active session. Codex documents this standalone custom-agent format as evolving, so it remains a generated companion contract rather than canonical source.
 
 Codex exposes `[agents]` settings for enabling multi-agent work, default subagent model and reasoning effort, and maximum concurrent threads. The current public documentation does not state a stable numeric nesting-depth contract, so this marketplace does not invent one and keeps every role leaf.
 
-Subagents inherit the current sandbox and permission mode. Codex reapplies live parent runtime overrides, including interactive permission changes and `--yolo`, when spawning a child even if a custom-agent file contains a narrower default. Treat `sandbox_mode` in a profile as a requested bound, not a guarantee against a broader parent or administrator setting.
+Subagents inherit current parent runtime settings unless a role, spawn request, configured subagent default, or managed host policy overrides them. A rendered `sandbox_mode` is therefore a requested role setting rather than an unconditional child sandbox; a profile with `permissionPolicy: inherit` emits no such override.
 
 Official references: [Codex plugins](https://developers.openai.com/codex/plugins), [plugin packaging and marketplaces](https://developers.openai.com/plugins/build/plugins), [plugin CLI commands](https://developers.openai.com/codex/cli/reference), [custom agents and inheritance](https://developers.openai.com/codex/subagents), [local skill discovery](https://developers.openai.com/codex/build-skills), and [approvals and sandboxing](https://developers.openai.com/codex/agent-approvals-security).
 
@@ -211,34 +210,21 @@ user:    ~/.config/opencode/agents/<plugin-id>-<role>.md
 
 An agent filename becomes its ID. Each generated agent uses `mode: subagent`, omits `model` so it inherits the invoking primary agent's model, and omits `steps` so the plugin does not impose an arbitrary cap.
 
-Stable agent permissions use the singular `permission` mapping and `allow`, `ask`, or `deny`; the older `tools` field is deprecated. The `permission.task` mapping controls which child agents the model can call. Generated role profiles deny `task: "*"` so they are leaves. Stable OpenCode defaults `subagent_depth` to `1`, which prevents a child from launching another child unless the user changes that setting; the workflow does not depend on either value. A user can still invoke a visible subagent directly with `@`.
+Stable agent permissions use the singular `permission` mapping and `allow`, `ask`, or `deny`; the older `tools` field is deprecated. The `permission.task` mapping controls child-agent calls. Profiles with `permissionPolicy: explicit` render capability-derived permissions. Profiles with `permissionPolicy: inherit` omit the permission mapping and use OpenCode's normal global, project, and agent configuration resolution. Behavioral leaf-role constraints remain in the prompt, and the workflow does not depend on nested delegation.
 
 Official references: [agents and task permissions](https://opencode.ai/docs/agents/), [skills and discovery paths](https://opencode.ai/docs/skills/), [stable executable plugins](https://opencode.ai/docs/plugins/), and [permissions](https://opencode.ai/docs/permissions/).
 
-## OpenCode V2 beta
-
-OpenCode V2's broader JavaScript plugin API is explicitly beta. It can transform agents, skills, references, commands, tools, and other configuration. This workflow needs no executable hook or runtime transform, so the marketplace deliberately ships a separate V2 static agent-and-skill bundle instead of adding in-process code solely to register static content.
-
-When a future marketplace plugin genuinely needs executable behavior, V2 loads modules from `.opencode/plugins/`, `~/.config/opencode/plugins/`, or ordered entries in the plural `plugins` field in `opencode.json(c)`. Such a module default-exports `Plugin.define({ id, setup })`, and `opencode2 api get /api/plugin` lists loaded plugin IDs. Those facts do not turn a static skill-and-agent workflow into a JavaScript plugin.
-
-V2 Markdown agents still live at `.opencode/agents/<name>.md` or `~/.config/opencode/agents/<name>.md`, but their schema differs from stable. Use `description`, `mode`, `model`, `system` or the Markdown body, `permissions`, `steps`, `hidden`, `color`, `disabled`, and `request`. Do not emit stable legacy fields such as `permission`, `tools`, `temperature`, `top_p`, `prompt`, `disable`, or `maxSteps`.
-
-V2 permissions are an ordered array of `{ action, resource, effect }` rules; the last matching rule wins. Important action names are `edit`, `shell`, and `subagent`. The parent agent's `subagent` permission controls launching, but the child currently uses its own configured permissions rather than a restricted copy of its parent's permissions. Generated roles explicitly deny child delegation and set their own capability bounds. A child inherits the parent model when `model` is omitted. No stable numeric nesting limit is documented.
-
-Do not treat the V2 static bundle as a silent replacement for the stable adapter. Select it explicitly with `--variant v2-beta`, pin a compatible OpenCode build, and rerun validation after every V2 API upgrade.
-
-Official references: [V2 plugin API](https://opencode.ai/v2/docs/build/plugins), [V2 agents](https://opencode.ai/v2/docs/agents), and [V2 permissions](https://opencode.ai/v2/docs/permissions).
 
 ## Portable Agent Skills
 
 The portable output follows the [Agent Skills specification](https://agentskills.io/specification). Its generated tree is `dist/portable-agent-skills/<plugin-id>/.agents/skills/<skill-id>/SKILL.md`, so copy or unpack the bundle into a project without flattening it. Each skill has an exact uppercase `SKILL.md`, required `name` and `description` frontmatter, and optional `license`, `compatibility`, string-valued `metadata`, `scripts/`, `references/`, and `assets/`.
 
-The skill name must be 1–64 lowercase letters, digits, and single hyphen separators, must match its directory, and may not start or end with a hyphen. `allowed-tools` is experimental and support varies, so this marketplace expresses enforceable tool bounds in each host adapter rather than relying on that portable hint.
+The skill name must be 1–64 lowercase letters, digits, and single hyphen separators, must match its directory, and may not start or end with a hyphen. `allowed-tools` is experimental and support varies, so the portable bundle does not use it as a cross-host permission guarantee.
 
 A portable bundle carries no subagent schema, marketplace manifest, permission model, install scope, update mechanism, or model fallback behavior. Another harness can consume the skill when it implements the specification, but role agents require a dedicated, validated adapter.
 
 ## Permission and model guarantees
 
-Across every target, generated permission, sandbox, and tool declarations are bounded host settings. Parent-session choices, direct user invocation, approval modes, managed policy, organization settings, host bugs, and executable tools can broaden or alter effective behavior. Review [the marketplace security model](security.md) before installing third-party bundles.
+Every canonical role defaults to parent/session model inheritance. A plugin may choose `permissionPolicy: explicit` to render capability-derived host settings or `permissionPolicy: inherit` to omit plugin-added permission, tool, and sandbox restrictions. In either case, parent-session choices, direct user invocation, managed policy, organization settings, host precedence, and host bugs can alter effective behavior. Review [the marketplace security model](security.md) before installing third-party bundles.
 
-Every role defaults to parent/session model inheritance. The canonical `economy`, `balanced`, and `deep` tiers are recommendations for a user or release integrator; they are not provider model IDs. A host may let the user map a bounded role to a cheaper model, but this repository does not promise that an unavailable named model will automatically fall back to another model.
+Provider model IDs and thinking levels are deployment configuration, not canonical workflow semantics. Senior Engineering Workflow documents its optional model-only npm configurator in the plugin README; its canonical skill and role prompts remain model-neutral.
