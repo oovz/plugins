@@ -70,6 +70,7 @@ function prefixArtifacts(prefix, artifacts) {
 
 function claudeMarketplace(catalog) {
   return json({
+    $schema: "https://json.schemastore.org/claude-code-marketplace.json",
     name: catalog.marketplace.id,
     owner: catalog.marketplace.owner,
     description: catalog.marketplace.description,
@@ -78,6 +79,7 @@ function claudeMarketplace(catalog) {
       source: `./adapters/claude-code/${plugin.manifest.id}`,
       description: plugin.manifest.description,
       displayName: plugin.manifest.displayName,
+      version: plugin.manifest.version,
       author: plugin.manifest.author,
       homepage: catalog.marketplace.repository,
       repository: catalog.marketplace.repository,
@@ -101,10 +103,35 @@ function codexMarketplace(catalog) {
   });
 }
 
+function ohMyPiMarketplace(catalog) {
+  return json({
+    $schema: "https://json.schemastore.org/claude-code-marketplace.json",
+    name: catalog.marketplace.id,
+    owner: catalog.marketplace.owner,
+    metadata: {
+      description: catalog.marketplace.description,
+      pluginRoot: "."
+    },
+    plugins: catalog.plugins.filter((plugin) => supportsHost(plugin, resolveHost("oh-my-pi"))).map((plugin) => ({
+      name: plugin.manifest.id,
+      source: `./adapters/oh-my-pi/${plugin.manifest.id}`,
+      description: plugin.manifest.description,
+      version: plugin.manifest.version,
+      author: plugin.manifest.author,
+      homepage: catalog.marketplace.repository,
+      repository: catalog.marketplace.repository,
+      license: plugin.manifest.license,
+      keywords: plugin.manifest.keywords ?? [],
+      category: plugin.manifest.category ?? "Other"
+    }))
+  });
+}
+
 async function expectedSourceFiles(catalog, plugins) {
   const files = new Map();
   files.set(path.join(catalog.root, ".claude-plugin/marketplace.json"), claudeMarketplace(catalog));
   files.set(path.join(catalog.root, ".agents/plugins/marketplace.json"), codexMarketplace(catalog));
+  files.set(path.join(catalog.root, ".omp-plugin/marketplace.json"), ohMyPiMarketplace(catalog));
   return files;
 }
 

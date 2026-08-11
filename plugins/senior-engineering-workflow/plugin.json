@@ -2,7 +2,7 @@
   "$schema": "../../schemas/plugin.schema.json",
   "schemaVersion": 1,
   "id": "senior-engineering-workflow",
-  "version": "0.7.2",
+  "version": "0.8.3",
   "displayName": "Senior Engineering Workflow",
   "description": "A proportional engineering workflow in which the capable main agent owns decisions and bounded specialists isolate research, implementation, verification, and noisy tool work.",
   "license": "MIT",
@@ -108,10 +108,16 @@
         "Write"
       ]
     },
-    "opencode": {
+    "gemini-cli": {
       "enabled": true
     },
-    "portable": {
+    "antigravity": {
+      "enabled": true
+    },
+    "oh-my-pi": {
+      "enabled": true
+    },
+    "opencode": {
       "enabled": true
     }
   }

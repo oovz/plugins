@@ -90,6 +90,7 @@ Every plugin must include its own `LICENSE` as a regular file. The declared lice
     },
     "gemini-cli": { "enabled": true },
     "antigravity": { "enabled": true },
+    "oh-my-pi": { "enabled": true },
     "opencode": { "enabled": true },
     "portable": { "enabled": true }
   }
@@ -113,7 +114,7 @@ For a Codex-enabled plugin, `hosts.codex.capabilities` is required. These single
 
 Use semantic versions per plugin. The root package version belongs to marketplace tooling and does not need to change when only `example-plugin` is released.
 
-## 3. Write portable canonical components
+## 3. Write host-neutral canonical components
 
 Every skill uses an exact uppercase `SKILL.md` and follows the [Agent Skills specification](https://agentskills.io/specification). Keep discovery metadata concise and put lengthy, conditionally needed material under `references/`, `scripts/`, or `assets/` for progressive disclosure.
 
@@ -157,6 +158,7 @@ dist/claude-code/<plugin-id>/
 dist/codex/<plugin-id>/
 dist/gemini-cli/<plugin-id>/
 dist/antigravity/<plugin-id>/
+dist/oh-my-pi/<plugin-id>/
 dist/opencode/stable/<plugin-id>/
 dist/portable-agent-skills/<plugin-id>/
 ```
@@ -198,4 +200,4 @@ Before release:
 
 Gemini is the important monorepo exception: its remote extension installer has no documented subdirectory selector and its release manifest must be at the absolute archive/repository root. Publish the generated Gemini tree as a rooted archive or a per-plugin repository/ref. Do not tell users to install the marketplace root as a Gemini extension.
 
-Claude and Codex consume generated marketplace catalogs that point to their checked-in per-plugin adapter directories. Antigravity consumes the generated native plugin directory. OpenCode consumes the stable static configuration bundle. Portable consumers receive only Agent Skills, not role agents or permission configuration.
+Claude, Codex, and Oh My Pi consume generated marketplace catalogs that point to their checked-in per-plugin adapter directories. Gemini CLI and Antigravity consume generated native package directories. OpenCode consumes the stable static configuration bundle. Portable consumers receive only Agent Skills, not role agents or permission configuration.

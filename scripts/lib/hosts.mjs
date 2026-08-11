@@ -168,8 +168,6 @@ function geminiTools(agent) {
 }
 
 function renderGemini(plugin) {
-  const inherited = plugin.agents.find(inheritsPermissions);
-  if (inherited) throw new Error(`${plugin.manifest.id} cannot enable Gemini CLI for permission-inheriting agent ${inherited.id}`);
   const recursive = plugin.agents.find((agent) => agent.delegates);
   if (recursive) throw new Error(`${plugin.manifest.id} cannot enable Gemini CLI for recursively delegating agent ${recursive.id}`);
   const artifacts = [
@@ -181,9 +179,11 @@ function renderGemini(plugin) {
   ];
   for (const agent of plugin.agents) {
     const flatId = flatAgentId(plugin.manifest.id, agent.id);
+    const frontmatter = { name: flatId, description: agent.description, kind: "local", model: "inherit" };
+    if (!inheritsPermissions(agent)) frontmatter.tools = geminiTools(agent);
     artifacts.push({
       path: `agents/${flatId}.md`,
-      content: markdown({ name: flatId, description: agent.description, kind: "local", tools: geminiTools(agent), model: "inherit" }, leafGuard(agent))
+      content: markdown(frontmatter, leafGuard(agent))
     });
   }
   for (const command of plugin.commands.filter((item) => item.hosts.includes("gemini-cli"))) {
@@ -207,31 +207,57 @@ function antigravityTools(agent) {
 }
 
 function renderAntigravity(plugin) {
-  const inherited = plugin.agents.find(inheritsPermissions);
-  if (inherited) throw new Error(`${plugin.manifest.id} cannot enable Antigravity for permission-inheriting agent ${inherited.id}`);
   const artifacts = [
     {
       path: "plugin.json",
-      content: json({ $schema: "https://antigravity.google/schemas/v1/plugin.json", name: plugin.manifest.id, description: plugin.manifest.description })
+      content: json({ name: plugin.manifest.id, description: plugin.manifest.description })
     },
     ...skills(plugin)
   ];
   for (const agent of plugin.agents) {
+    // Antigravity custom-agent frontmatter defaults `tools` to an empty list.
+    // A permission-inheriting logical role therefore uses this skill's generic
+    // subagent fallback instead of a static agent that would lose parent tools.
+    if (inheritsPermissions(agent)) continue;
     const flatId = flatAgentId(plugin.manifest.id, agent.id);
+    const frontmatter = {
+      name: flatId,
+      description: agent.description,
+      mainAgent: false,
+      subagent: true,
+      model: "inherit",
+      tools: antigravityTools(agent),
+      commandExecutionPolicy: "sandbox"
+    };
     artifacts.push({
       path: `agents/${flatId}.md`,
-      content: markdown({
-        name: flatId,
-        description: agent.description,
-        tools: antigravityTools(agent),
-        mainAgent: false,
-        subagent: true,
-        model: "inherit",
-        commandExecutionPolicy: "sandbox"
-      }, leafGuard(agent))
+      content: markdown(frontmatter, leafGuard(agent))
     });
   }
   return [...artifacts, ...hostFiles(plugin, "antigravity")];
+}
+
+function renderOhMyPi(plugin) {
+  const artifacts = [...skills(plugin)];
+  for (const agent of plugin.agents) {
+    const flatId = flatAgentId(plugin.manifest.id, agent.id);
+    const frontmatter = { name: flatId, description: agent.description };
+    if (!inheritsPermissions(agent)) {
+      const toolNames = ["read", "grep", "glob"];
+      if (agent.shell) toolNames.push("bash");
+      if (agent.workspace === "workspace-write") toolNames.push("edit", "write");
+      // Oh My Pi fetches URLs through `read`; it has no `web_fetch` tool.
+      if (agent.external) toolNames.push("web_search");
+      if (agent.delegates) toolNames.push("task");
+      if (agent.question) toolNames.push("ask");
+      frontmatter.tools = toolNames;
+    }
+    artifacts.push({ path: `agents/${flatId}.md`, content: markdown(frontmatter, leafGuard(agent)) });
+  }
+  for (const command of plugin.commands.filter((item) => item.hosts.includes("oh-my-pi"))) {
+    artifacts.push({ path: `commands/${flatAgentId(plugin.manifest.id, command.id)}.md`, content: command.source });
+  }
+  return [...artifacts, ...hostFiles(plugin, "oh-my-pi")];
 }
 
 function stablePermission(agent) {
@@ -269,6 +295,7 @@ export const HOSTS = Object.freeze({
   codex: { variants: [null], manifestKey: "codex", render: renderCodex },
   "gemini-cli": { variants: [null], manifestKey: "gemini-cli", render: renderGemini },
   antigravity: { variants: [null], manifestKey: "antigravity", render: renderAntigravity },
+  "oh-my-pi": { variants: [null], manifestKey: "oh-my-pi", render: renderOhMyPi },
   opencode: { variants: ["stable"], manifestKey: "opencode", render: renderOpenCode },
   "portable-agent-skills": { variants: [null], manifestKey: "portable", render: renderPortable }
 });

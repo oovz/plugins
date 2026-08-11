@@ -48,7 +48,8 @@ test("strict argv and native-only host guidance", async (t) => {
   await assert.rejects(run(["install", "--plugin", PLUGIN, "--host", "codex", "--scope", "project", "--project", ctx.project], ctx), /requires --mode/);
   await assert.rejects(run([...base("install", "codex", "project", ["--mode", "companion", "--project", ctx.project]), "--unknown"], ctx), /unknown argument/);
   await assert.rejects(run(base("install", "claude-code", "project", ["--project", ctx.project]), ctx), /claude plugin marketplace add/i);
-  await assert.rejects(run(base("install", "gemini-cli", "user"), ctx), /does not enable host gemini-cli/i);
+  await assert.rejects(run(base("install", "gemini-cli", "user"), ctx), /npx @oovz\/sew install/i);
+  await assert.rejects(run(base("install", "oh-my-pi", "project", ["--project", ctx.project]), ctx), /omp plugin marketplace add/i);
 
   const marketplaceRoot = path.join(ctx.root, "renamed-marketplace");
   await createFixtureMarketplace(marketplaceRoot, [{ id: "guidance-plugin", version: "1.0.0" }]);
@@ -178,8 +179,8 @@ test("Antigravity and portable installs use native project/user roots", async (t
   );
   const portableProject = path.join(ctx.root, "portable-project");
   await mkdir(portableProject);
-  await run(base("install", "portable-agent-skills", "project", ["--project", portableProject]), ctx);
-  assert.ok(await readFile(path.join(portableProject, ".agents", "skills", PLUGIN, "SKILL.md")));
+  await run(baseFor("tauri-v2-desktop", "install", "portable-agent-skills", "project", ["--project", portableProject]), ctx);
+  assert.ok(await readFile(path.join(portableProject, ".agents", "skills", "tauri-v2-desktop", "SKILL.md")));
 });
 
 test("dry-run is non-mutating and preflight prevents partial writes", async (t) => {

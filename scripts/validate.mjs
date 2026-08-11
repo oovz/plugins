@@ -12,6 +12,44 @@ import { assertCatalogMatchesSchemas } from "./lib/schema.mjs";
 const GEMINI_TOOLS = new Set(["read_file", "read_many_files", "grep_search", "glob", "list_directory", "replace", "write_file", "run_shell_command", "google_web_search", "web_fetch", "ask_user"]);
 const ANTIGRAVITY_TOOLS = new Set(["view_file", "list_dir", "find_by_name", "grep_search", "write_to_file", "replace_file_content", "multi_replace_file_content", "run_command", "search_web", "read_url_content", "invoke_subagent", "ask_question"]);
 const CLAUDE_TOOLS = new Set(["Read", "Grep", "Glob", "Write", "Edit", "Bash", "WebSearch", "WebFetch", "Agent", "AskUserQuestion"]);
+const OH_MY_PI_TOOLS = new Set([
+  "ask",
+  "ast_edit",
+  "ast_grep",
+  "bash",
+  "browser",
+  "checkpoint",
+  "computer",
+  "debug",
+  "edit",
+  "eval",
+  "generate_image",
+  "github",
+  "glob",
+  "grep",
+  "hub",
+  "inspect_image",
+  "learn",
+  "lsp",
+  "manage_skill",
+  "memory_edit",
+  "read",
+  "recall",
+  "reflect",
+  "retain",
+  "rewind",
+  "security_scan",
+  "task",
+  "todo",
+  "tts",
+  "web_search",
+  "write",
+]);
+
+export function assertKnownOhMyPiTools(tools, label = "Oh My Pi agent") {
+  assert(Array.isArray(tools), `${label} must declare tools as an array`);
+  for (const tool of tools) assert(OH_MY_PI_TOOLS.has(tool), `${label} has unknown tool ${tool}`);
+}
 
 function artifactMap(artifacts) {
   return new Map(artifacts.map((artifact) => [artifact.path, artifact.content]));
@@ -53,16 +91,23 @@ function validateRenderedAgent(plugin, agent, target, artifacts) {
     else assert(value.sandbox_mode === agent.workspace, `Codex agent ${agent.id} has incorrect sandbox`);
     assert(value.model === undefined && value.model_reasoning_effort === undefined, `Codex agent ${agent.id} must inherit model and reasoning`);
   } else if (target.id === "gemini-cli") {
-    assert(!inheritsPermissions, `Gemini agent ${agent.id} cannot request permission inheritance`);
     const parsed = parseMarkdownArtifact(artifacts.get(`agents/${flat}.md`), `Gemini agent ${agent.id}`);
     assert(parsed.frontmatter.name === flat && parsed.frontmatter.kind === "local" && parsed.frontmatter.model === "inherit", `Gemini agent ${agent.id} has invalid identity/kind/model`);
     for (const key of ["max_turns", "timeout_mins", "temperature"]) assert(parsed.frontmatter[key] === undefined, `Gemini agent ${agent.id} must not hard-code ${key}`);
+    if (inheritsPermissions) {
+      assert(parsed.frontmatter.tools === undefined, `Gemini permission-inheriting agent ${agent.id} must omit tools so the parent tool set is inherited`);
+      return;
+    }
+    assert(Array.isArray(parsed.frontmatter.tools), `Gemini explicit agent ${agent.id} must declare tools`);
     for (const tool of parsed.frontmatter.tools) assert(GEMINI_TOOLS.has(tool), `Gemini agent ${agent.id} has unknown tool ${tool}`);
     if (agent.workspace === "read-only") for (const tool of ["replace", "write_file"]) assert(!parsed.frontmatter.tools.includes(tool), `Gemini read-only agent ${agent.id} exposes ${tool}`);
     if (!agent.shell) assert(!parsed.frontmatter.tools.includes("run_shell_command"), `Gemini shell-denied agent ${agent.id} exposes shell`);
     if (agent.question) assert(parsed.frontmatter.tools.includes("ask_user"), `Gemini question-capable agent ${agent.id} must expose ask_user`);
   } else if (target.id === "antigravity") {
-    assert(!inheritsPermissions, `Antigravity agent ${agent.id} cannot request permission inheritance`);
+    if (inheritsPermissions) {
+      assert(!artifacts.has(`agents/${flat}.md`), `Antigravity permission-inheriting agent ${agent.id} must use the skill's generic inherited subagent route instead of a tool-empty static definition`);
+      return;
+    }
     const parsed = parseMarkdownArtifact(artifacts.get(`agents/${flat}.md`), `Antigravity agent ${agent.id}`);
     const fm = parsed.frontmatter;
     assert(fm.name === flat && fm.mainAgent === false && fm.subagent === true && fm.model === "inherit" && fm.commandExecutionPolicy === "sandbox", `Antigravity agent ${agent.id} has invalid required frontmatter`);
@@ -71,6 +116,27 @@ function validateRenderedAgent(plugin, agent, target, artifacts) {
     if (!agent.shell) assert(!fm.tools.includes("run_command"), `Antigravity shell-denied agent ${agent.id} exposes shell`);
     if (agent.delegates) assert(fm.tools.includes("invoke_subagent"), `Antigravity delegating agent ${agent.id} must expose invoke_subagent`);
     if (agent.question) assert(fm.tools.includes("ask_question"), `Antigravity question-capable agent ${agent.id} must expose ask_question`);
+  } else if (target.id === "oh-my-pi") {
+    const parsed = parseMarkdownArtifact(artifacts.get(`agents/${flat}.md`), `Oh My Pi agent ${agent.id}`);
+    const fm = parsed.frontmatter;
+    assert(fm.name === flat && fm.description === agent.description, `Oh My Pi agent ${agent.id} has invalid identity or description`);
+    assert(fm.model === undefined && fm["thinking-level"] === undefined && fm.thinking === undefined, `Oh My Pi agent ${agent.id} must inherit model and thinking`);
+    if (inheritsPermissions) {
+      assert(fm.tools === undefined && fm.spawns === undefined, `Oh My Pi permission-inheriting agent ${agent.id} must not narrow tools or spawn policy`);
+      return;
+    }
+    assertKnownOhMyPiTools(fm.tools, `Oh My Pi agent ${agent.id}`);
+    for (const tool of ["read", "grep", "glob"]) assert(fm.tools.includes(tool), `Oh My Pi explicit agent ${agent.id} must expose ${tool}`);
+    if (agent.workspace === "read-only") for (const tool of ["edit", "write", "ast_edit"]) assert(!fm.tools.includes(tool), `Oh My Pi read-only agent ${agent.id} exposes ${tool}`);
+    if (agent.workspace === "workspace-write") for (const tool of ["edit", "write"]) assert(fm.tools.includes(tool), `Oh My Pi writable agent ${agent.id} must expose ${tool}`);
+    if (agent.shell) assert(fm.tools.includes("bash"), `Oh My Pi shell-capable agent ${agent.id} must expose bash`);
+    else assert(!fm.tools.includes("bash"), `Oh My Pi shell-denied agent ${agent.id} exposes bash`);
+    if (agent.external) assert(fm.tools.includes("web_search"), `Oh My Pi external-capable agent ${agent.id} must expose web_search`);
+    else assert(!fm.tools.includes("web_search"), `Oh My Pi external-denied agent ${agent.id} exposes web_search`);
+    if (agent.delegates) assert(fm.tools.includes("task"), `Oh My Pi delegating agent ${agent.id} must expose task`);
+    else assert(!fm.tools.includes("task"), `Oh My Pi leaf agent ${agent.id} exposes task`);
+    if (agent.question) assert(fm.tools.includes("ask"), `Oh My Pi question-capable agent ${agent.id} must expose ask`);
+    else assert(!fm.tools.includes("ask"), `Oh My Pi agent ${agent.id} exposes ask without question capability`);
   } else if (target.id === "opencode") {
     const parsed = parseMarkdownArtifact(artifacts.get(`.opencode/agents/${flat}.md`), `OpenCode ${target.variant} agent ${agent.id}`);
     const fm = parsed.frontmatter;

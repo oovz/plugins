@@ -4,35 +4,105 @@
   "title": "canonical plugin manifest",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schemaVersion", "id", "version", "displayName", "description", "license", "author", "components", "hosts"],
+  "required": [
+    "schemaVersion",
+    "id",
+    "version",
+    "displayName",
+    "description",
+    "license",
+    "author",
+    "components",
+    "hosts"
+  ],
   "properties": {
-    "$schema": { "type": "string" },
-    "schemaVersion": { "const": 1 },
-    "id": { "$ref": "#/$defs/id" },
-    "version": { "type": "string", "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:-(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)(?:\\.(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$" },
-    "displayName": { "type": "string", "minLength": 1 },
-    "description": { "type": "string", "minLength": 1 },
-    "license": { "type": "string", "minLength": 1 },
+    "$schema": {
+      "type": "string"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "id": {
+      "$ref": "#/$defs/id"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:-(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)(?:\\.(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$"
+    },
+    "displayName": {
+      "type": "string",
+      "minLength": 1
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1
+    },
+    "license": {
+      "type": "string",
+      "minLength": 1
+    },
     "author": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["name"],
+      "required": [
+        "name"
+      ],
       "properties": {
-        "name": { "type": "string", "minLength": 1 },
-        "url": { "type": "string", "format": "uri" }
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "url": {
+          "type": "string",
+          "format": "uri"
+        }
       }
     },
-    "keywords": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
-    "category": { "type": "string", "minLength": 1 },
+    "keywords": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "category": {
+      "type": "string",
+      "minLength": 1
+    },
     "components": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["skills", "agents", "commands"],
+      "required": [
+        "skills",
+        "agents",
+        "commands"
+      ],
       "properties": {
-        "skills": { "type": "array", "items": { "$ref": "#/$defs/fileComponent" } },
-        "agents": { "type": "array", "items": { "$ref": "#/$defs/agent" } },
-        "commands": { "type": "array", "items": { "$ref": "#/$defs/command" } },
-        "hostFiles": { "type": "array", "items": { "$ref": "#/$defs/hostFile" } }
+        "skills": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/fileComponent"
+          }
+        },
+        "agents": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/agent"
+          }
+        },
+        "commands": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/command"
+          }
+        },
+        "hostFiles": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/hostFile"
+          }
+        }
       }
     },
     "hosts": {
@@ -40,22 +110,47 @@
       "minProperties": 1,
       "additionalProperties": false,
       "properties": {
-        "claude-code": { "$ref": "#/$defs/host" },
-        "codex": { "$ref": "#/$defs/codexHost" },
-        "gemini-cli": { "$ref": "#/$defs/host" },
-        "antigravity": { "$ref": "#/$defs/host" },
-        "opencode": { "$ref": "#/$defs/host" },
-        "portable": { "$ref": "#/$defs/host" }
+        "claude-code": {
+          "$ref": "#/$defs/host"
+        },
+        "codex": {
+          "$ref": "#/$defs/codexHost"
+        },
+        "gemini-cli": {
+          "$ref": "#/$defs/host"
+        },
+        "antigravity": {
+          "$ref": "#/$defs/host"
+        },
+        "opencode": {
+          "$ref": "#/$defs/host"
+        },
+        "portable": {
+          "$ref": "#/$defs/host"
+        },
+        "oh-my-pi": {
+          "$ref": "#/$defs/host"
+        }
       }
     },
     "validation": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["profile", "evals"],
+      "required": [
+        "profile",
+        "evals"
+      ],
       "properties": {
-        "profile": { "type": "string", "minLength": 1 },
-        "contract": { "$ref": "#/$defs/relativePath" },
-        "evals": { "$ref": "#/$defs/relativePath" }
+        "profile": {
+          "type": "string",
+          "minLength": 1
+        },
+        "contract": {
+          "$ref": "#/$defs/relativePath"
+        },
+        "evals": {
+          "$ref": "#/$defs/relativePath"
+        }
       }
     }
   },
@@ -63,19 +158,39 @@
     "host": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["enabled"],
+      "required": [
+        "enabled"
+      ],
       "properties": {
-        "enabled": { "type": "boolean" },
-        "status": { "enum": ["stable", "preview", "experimental"] }
+        "enabled": {
+          "type": "boolean"
+        },
+        "status": {
+          "enum": [
+            "stable",
+            "preview",
+            "experimental"
+          ]
+        }
       }
     },
     "codexHost": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["enabled"],
+      "required": [
+        "enabled"
+      ],
       "properties": {
-        "enabled": { "type": "boolean" },
-        "status": { "enum": ["stable", "preview", "experimental"] },
+        "enabled": {
+          "type": "boolean"
+        },
+        "status": {
+          "enum": [
+            "stable",
+            "preview",
+            "experimental"
+          ]
+        },
         "capabilities": {
           "type": "array",
           "minItems": 1,
@@ -91,77 +206,182 @@
       },
       "allOf": [
         {
-          "if": { "properties": { "enabled": { "const": true } } },
-          "then": { "required": ["capabilities"] }
+          "if": {
+            "properties": {
+              "enabled": {
+                "const": true
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "capabilities"
+            ]
+          }
         }
       ]
     },
-    "id": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
-    "relativePath": { "type": "string", "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\).+$" },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+    },
+    "relativePath": {
+      "type": "string",
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\).+$"
+    },
     "fileComponent": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "path"],
+      "required": [
+        "id",
+        "path"
+      ],
       "properties": {
-        "id": { "$ref": "#/$defs/id" },
-        "path": { "$ref": "#/$defs/relativePath" }
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "path": {
+          "$ref": "#/$defs/relativePath"
+        }
       }
     },
     "agent": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "path", "description", "workspace", "shell", "external", "delegates", "question", "model", "steps"],
+      "required": [
+        "id",
+        "path",
+        "description",
+        "workspace",
+        "shell",
+        "external",
+        "delegates",
+        "question",
+        "model",
+        "steps"
+      ],
       "properties": {
-        "id": { "$ref": "#/$defs/id" },
-        "path": { "$ref": "#/$defs/relativePath" },
-        "description": { "type": "string", "minLength": 1 },
-        "workspace": { "enum": ["read-only", "workspace-write"] },
-        "shell": { "type": "boolean" },
-        "external": { "type": "boolean" },
-        "delegates": { "type": "boolean" },
-        "question": { "type": "boolean" },
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "path": {
+          "$ref": "#/$defs/relativePath"
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1
+        },
+        "workspace": {
+          "enum": [
+            "read-only",
+            "workspace-write"
+          ]
+        },
+        "shell": {
+          "type": "boolean"
+        },
+        "external": {
+          "type": "boolean"
+        },
+        "delegates": {
+          "type": "boolean"
+        },
+        "question": {
+          "type": "boolean"
+        },
         "model": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["policy"],
+          "required": [
+            "policy"
+          ],
           "properties": {
-            "policy": { "const": "inherit" }
+            "policy": {
+              "const": "inherit"
+            }
           }
         },
-        "steps": { "type": "null" },
-        "permissionPolicy": { "enum": ["explicit", "inherit"], "default": "explicit" }
+        "steps": {
+          "type": "null"
+        },
+        "permissionPolicy": {
+          "enum": [
+            "explicit",
+            "inherit"
+          ],
+          "default": "explicit"
+        }
       }
     },
     "command": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "path", "hosts"],
+      "required": [
+        "id",
+        "path",
+        "hosts"
+      ],
       "properties": {
-        "id": { "$ref": "#/$defs/id" },
-        "path": { "$ref": "#/$defs/relativePath" },
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "path": {
+          "$ref": "#/$defs/relativePath"
+        },
         "hosts": {
           "type": "array",
           "minItems": 1,
           "uniqueItems": true,
-          "items": { "enum": ["claude-code", "gemini-cli", "opencode"] }
+          "items": {
+            "enum": [
+              "claude-code",
+              "gemini-cli",
+              "opencode",
+              "oh-my-pi"
+            ]
+          }
         }
       }
     },
     "hostFile": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "path", "hosts", "destination"],
+      "required": [
+        "id",
+        "path",
+        "hosts",
+        "destination"
+      ],
       "properties": {
-        "id": { "$ref": "#/$defs/id" },
-        "path": { "$ref": "#/$defs/relativePath" },
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "path": {
+          "$ref": "#/$defs/relativePath"
+        },
         "hosts": {
           "type": "array",
           "minItems": 1,
           "uniqueItems": true,
-          "items": { "enum": ["claude-code", "codex", "gemini-cli", "antigravity", "opencode", "portable"] }
+          "items": {
+            "enum": [
+              "claude-code",
+              "codex",
+              "gemini-cli",
+              "antigravity",
+              "opencode",
+              "portable",
+              "oh-my-pi"
+            ]
+          }
         },
-        "destination": { "$ref": "#/$defs/relativePath" },
-        "executable": { "type": "boolean", "default": false }
+        "destination": {
+          "$ref": "#/$defs/relativePath"
+        },
+        "executable": {
+          "type": "boolean",
+          "default": false
+        }
       }
     }
   }

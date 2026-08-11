@@ -48,6 +48,7 @@ export async function createFixturePlugin(root, id, version, options = {}) {
     codex: { enabled: true },
     "gemini-cli": { enabled: true },
     antigravity: { enabled: true },
+    "oh-my-pi": { enabled: true },
     opencode: { enabled: true },
     portable: { enabled: true }
   };

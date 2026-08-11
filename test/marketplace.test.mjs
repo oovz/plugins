@@ -6,9 +6,9 @@ import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { runGenerator } from "../scripts/generate.mjs";
-import { discoverMarketplace, inspectPlugin } from "../scripts/lib/marketplace.mjs";
+import { discoverMarketplace, inspectPlugin, parseFrontmatter } from "../scripts/lib/marketplace.mjs";
 import { codexPluginManifest } from "../scripts/lib/hosts.mjs";
-import { validateRepository } from "../scripts/validate.mjs";
+import { assertKnownOhMyPiTools, validateRepository } from "../scripts/validate.mjs";
 import { createFixtureMarketplace, execFileAsync, readJson } from "./helpers.mjs";
 
 const silent = { write() {} };
@@ -50,8 +50,8 @@ test("Tauri v2 desktop is a skill-only all-host plugin", async () => {
   assert.deepEqual(plugin.manifest.components.commands, []);
   assert.equal(plugin.skills.length, 1);
   assert.equal(plugin.skills[0].id, "tauri-v2-desktop");
-  assert.equal(plugin.manifest.version, "1.0.2");
-  for (const host of ["claude-code", "codex", "gemini-cli", "antigravity", "opencode", "portable"]) {
+  assert.equal(plugin.manifest.version, "1.1.0");
+  for (const host of ["claude-code", "codex", "gemini-cli", "antigravity", "oh-my-pi", "opencode", "portable"]) {
     assert.equal(plugin.manifest.hosts[host].enabled, true, `${host} should be enabled`);
   }
   const claudeManifest = await readJson(path.join(ROOT, "adapters", "claude-code", "tauri-v2-desktop", ".claude-plugin", "plugin.json"));
@@ -64,6 +64,28 @@ test("Tauri v2 desktop is a skill-only all-host plugin", async () => {
   assert.deepEqual(codexManifest.interface.capabilities, ["Read", "Write"]);
   assert.match(plugin.skills[0].frontmatter.description, /Windows, macOS, and Linux/);
   assert.doesNotMatch(`${plugin.manifest.description}\n${plugin.skills[0].body}`, /cce-tauri|nodnarbnitram|claude-code-extensions/i);
+});
+
+test("Senior Engineering Workflow targets exactly the six subagent-capable harnesses", async () => {
+  const result = await validateRepository();
+  const plugin = result.plugins.find((item) => item.manifest.id === "senior-engineering-workflow");
+  assert.ok(plugin);
+  const supported = ["antigravity", "claude-code", "codex", "gemini-cli", "oh-my-pi", "opencode"];
+  assert.deepEqual(Object.entries(plugin.manifest.hosts).filter(([, value]) => value.enabled).map(([key]) => key).sort(), supported);
+  assert.equal(plugin.manifest.hosts.portable, undefined);
+
+  for (const role of ["researcher", "engineer", "verifier", "worker"]) {
+    assert.ok(await readFile(path.join(ROOT, "adapters", "claude-code", plugin.manifest.id, "agents", `${role}.md`)));
+    assert.ok(await readFile(path.join(ROOT, "adapters", "codex", plugin.manifest.id, "companion", "agents", `${plugin.manifest.id}-${role}.toml`)));
+    assert.ok(await readFile(path.join(ROOT, "adapters", "gemini-cli", plugin.manifest.id, "agents", `${plugin.manifest.id}-${role}.md`)));
+    assert.ok(await readFile(path.join(ROOT, "adapters", "oh-my-pi", plugin.manifest.id, "agents", `${plugin.manifest.id}-${role}.md`)));
+    assert.ok(await readFile(path.join(ROOT, "adapters", "opencode", "stable", plugin.manifest.id, ".opencode", "agents", `${plugin.manifest.id}-${role}.md`)));
+    await assert.rejects(readFile(path.join(ROOT, "adapters", "antigravity", plugin.manifest.id, "agents", `${plugin.manifest.id}-${role}.md`)), /ENOENT/);
+  }
+  assert.ok(await readFile(path.join(ROOT, "adapters", "antigravity", plugin.manifest.id, "skills", plugin.manifest.id, "SKILL.md")));
+  const ompCatalog = await readJson(path.join(ROOT, ".omp-plugin", "marketplace.json"));
+  assert.ok(ompCatalog.plugins.some((entry) => entry.name === plugin.manifest.id));
+  await assert.rejects(readFile(path.join(ROOT, "adapters", "portable-agent-skills", plugin.manifest.id, ".agents", "skills", plugin.manifest.id, "SKILL.md")), /ENOENT/);
 });
 
 test("active marketplace README versions match canonical manifests", async () => {
@@ -246,7 +268,7 @@ test("Codex capability metadata is explicit, scoped, and single-line", async (t)
 test("validator CLI executes its platform-safe main entry point", async () => {
   const result = await execFileAsync(process.execPath, [path.join(ROOT, "scripts", "validate.mjs")], { cwd: ROOT });
   const marketplace = await readJson(path.join(ROOT, "marketplace.json"));
-  assert.match(result.stdout, new RegExp(`validated ${marketplace.plugins.length} plugins across 6 host targets`));
+  assert.match(result.stdout, new RegExp(`validated ${marketplace.plugins.length} plugins across 7 host targets`));
 });
 
 test("two explicitly cataloged plugins build independently and deterministically", async (t) => {
@@ -287,9 +309,15 @@ test("two explicitly cataloged plugins build independently and deterministically
   const codexCatalog = await readJson(path.join(root, ".agents", "plugins", "marketplace.json"));
   assert.equal(codexCatalog.plugins[0].source.path, "./adapters/codex/alpha-plugin");
 
+  await mkdir(path.join(root, "release-build", "sew", "package"), { recursive: true });
+  await mkdir(path.join(root, "release-build", "sew", "artifacts"), { recursive: true });
+  await writeFile(path.join(root, "release-build", "sew", "package", "staged-package"), "preserve package\n");
+  await writeFile(path.join(root, "release-build", "sew", "artifacts", "release-artifact"), "preserve release\n");
   const before = await treeDigest(path.join(root, "dist"));
   await runGenerator(["build"], { root, stdout: silent });
   assert.equal(await treeDigest(path.join(root, "dist")), before);
+  assert.equal(await readFile(path.join(root, "release-build", "sew", "package", "staged-package"), "utf8"), "preserve package\n");
+  assert.equal(await readFile(path.join(root, "release-build", "sew", "artifacts", "release-artifact"), "utf8"), "preserve release\n");
 
   const marker = path.join(root, "dist", "codex", "beta-plugin", "user-marker");
   await writeFile(marker, "preserve\n");
@@ -665,6 +693,9 @@ test("permission-inheriting agents add no host-level restrictions", async (t) =>
       hosts: {
         "claude-code": { enabled: true },
         codex: { enabled: true },
+        "gemini-cli": { enabled: true },
+        antigravity: { enabled: true },
+        "oh-my-pi": { enabled: true },
         opencode: { enabled: true },
         portable: { enabled: true },
       },
@@ -688,10 +719,52 @@ test("permission-inheriting agents add no host-level restrictions", async (t) =>
     .find((item) => item.path.endsWith("inherit-plugin-worker.md")).content.toString("utf8");
   assert.doesNotMatch(stable, /^permission:/mu);
 
+  const gemini = renderHost(plugin, "gemini-cli").artifacts
+    .find((item) => item.path.endsWith("inherit-plugin-worker.md")).content.toString("utf8");
+  assert.doesNotMatch(gemini, /^tools:/mu);
+
+  const antigravity = renderHost(plugin, "antigravity").artifacts;
+  assert.equal(antigravity.some((item) => item.path.endsWith("inherit-plugin-worker.md")), false);
+
+  const omp = renderHost(plugin, "oh-my-pi").artifacts
+    .find((item) => item.path.endsWith("inherit-plugin-worker.md")).content.toString("utf8");
+  assert.doesNotMatch(omp, /^(tools|spawns|model|thinking-level):/mu);
+
   assert.throws(
     () => renderHost(plugin, "opencode", "v2-beta"),
     /does not support variant v2-beta/,
   );
+});
+
+test("Oh My Pi explicit agents use documented tool names", async (t) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "oovz-omp-tools-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  await createFixtureMarketplace(root, [{
+    id: "omp-tools-plugin",
+    version: "1.0.0",
+    options: {
+      workspace: "workspace-write",
+      shell: true,
+      external: true,
+      delegates: true,
+      question: true,
+      hosts: {
+        "oh-my-pi": { enabled: true },
+      },
+    },
+  }]);
+  await addSchemas(root);
+  const result = await validateRepository(root);
+  const plugin = await inspectPlugin(result.catalog.plugins[0]);
+  const { renderHost } = await import("../scripts/lib/hosts.mjs");
+  const rendered = renderHost(plugin, "oh-my-pi").artifacts
+    .find((item) => item.path.endsWith("omp-tools-plugin-worker.md"));
+  const { frontmatter } = parseFrontmatter(rendered.content.toString("utf8"), "Oh My Pi explicit tool fixture");
+
+  assert.deepEqual(frontmatter.tools, ["read", "grep", "glob", "bash", "edit", "write", "web_search", "task", "ask"]);
+  assert.equal(frontmatter.tools.includes("web_fetch"), false);
+  assert.doesNotThrow(() => assertKnownOhMyPiTools(frontmatter.tools, "fixture agent"));
+  assert.throws(() => assertKnownOhMyPiTools([...frontmatter.tools, "web_fetch"], "fixture agent"), /unknown tool web_fetch/);
 });
 
 test("commands receive collision-safe flat IDs outside scoped Claude bundles", async (t) => {

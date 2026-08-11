@@ -1,8 +1,13 @@
 # Tauri v2 Desktop
 
-Version 1.0.2 is a host-neutral Agent Skill for building, reviewing, securing, testing, upgrading, and distributing Tauri v2 desktop applications on Windows, macOS, and Linux.
+Version 1.1.0 is a host-neutral Agent Skill for building, reviewing, securing, testing, upgrading, and distributing Tauri v2 desktop applications on Windows, macOS, and Linux.
 
 ## Release notes
+
+### 1.1.0
+
+- Adds an Oh My Pi marketplace projection alongside Claude Code, Codex, Gemini CLI, Antigravity, OpenCode, and the portable Agent Skills export.
+- Keeps the plugin skill-only; it does not require subagent support.
 
 ### 1.0.2
 

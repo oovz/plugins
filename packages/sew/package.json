@@ -1,0 +1,44 @@
+{
+  "name": "@oovz/sew",
+  "version": "0.8.3",
+  "description": "Source workspace for the CI-built @oovz/sew release package.",
+  "type": "module",
+  "bin": {
+    "sew": "./bin/sew.mjs"
+  },
+  "files": [
+    "bin/",
+    "lib/",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "license": "MIT",
+  "author": {
+    "name": "Otto",
+    "url": "https://github.com/oovz/plugins"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/oovz/plugins.git",
+    "directory": "packages/sew"
+  },
+  "keywords": [
+    "coding-agent",
+    "subagent",
+    "claude-code",
+    "codex",
+    "opencode",
+    "gemini-cli",
+    "antigravity",
+    "oh-my-pi",
+    "model-routing"
+  ],
+  "private": true,
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  }
+}

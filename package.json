@@ -14,8 +14,11 @@
     "test": "node scripts/test.mjs",
     "validate": "node scripts/validate.mjs",
     "verify": "npm run validate && npm run check:generated && npm test && npm run build -- --all",
-    "test:sew-models": "node --test test/senior-engineering-workflow-models.test.mjs",
-    "pack:sew-models": "npm pack --workspace @oovz/sew-models --dry-run"
+    "test:sew": "node --test test/sew-cli.test.mjs",
+    "pack:sew": "npm run bundle:sew && node scripts/pack-sew.mjs",
+    "bundle:sew": "node scripts/generate.mjs build --plugin senior-engineering-workflow && node scripts/build-sew-package.mjs && node scripts/finalize-sew-package.mjs",
+    "pretest": "npm run bundle:sew",
+    "pretest:sew": "npm run bundle:sew"
   },
   "devDependencies": {
     "ajv": "^8.17.1",

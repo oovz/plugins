@@ -263,7 +263,7 @@ export function validatePluginManifest(manifest, directoryName) {
     assert(agent.model?.policy === "inherit", `agent ${agent.id} must inherit its parent model`);
     assert(agent.steps === null, `agent ${agent.id} must not hard-code a step limit`);
   }
-  const hostIds = new Set(["claude-code", "codex", "gemini-cli", "antigravity", "opencode", "portable"]);
+  const hostIds = new Set(["claude-code", "codex", "gemini-cli", "antigravity", "oh-my-pi", "opencode", "portable"]);
   assert(manifest.hosts && typeof manifest.hosts === "object" && !Array.isArray(manifest.hosts), "hosts is required and must be an object");
   for (const hostId of Object.keys(manifest.hosts ?? {})) assert(hostIds.has(hostId), `unsupported manifest host ${hostId}`);
   assert(Object.values(manifest.hosts).some((host) => host?.enabled === true), "at least one host must be explicitly enabled");
@@ -280,7 +280,7 @@ export function validatePluginManifest(manifest, directoryName) {
     const categories = new Set(["Productivity", "Creativity", "Developer Tools", "Business & Operations", "Data & Analytics", "Communication", "Education & Research", "Security", "Finance", "Healthcare", "Travel", "Entertainment", "Other"]);
     assert(categories.has(manifest.category ?? "Other"), `unsupported Codex category: ${manifest.category}`);
   }
-  const commandHosts = new Set(["claude-code", "gemini-cli", "opencode"]);
+  const commandHosts = new Set(["claude-code", "gemini-cli", "oh-my-pi", "opencode"]);
   for (const command of manifest.components.commands) {
     assert(Array.isArray(command.hosts) && command.hosts.length > 0, `command ${command.id} must declare supported hosts`);
     for (const host of command.hosts) {

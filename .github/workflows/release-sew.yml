@@ -1,0 +1,103 @@
+name: Release @oovz/sew
+
+on:
+  push:
+    tags:
+      - "sew-v*"
+
+concurrency:
+  group: release-sew-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    if: github.repository == 'oovz/plugins'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - name: Check out tagged source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Verify repository
+        run: npm run verify
+
+      - name: Build and pack release package
+        run: npm run pack:sew
+
+      - name: Verify tag and release bundle
+        run: node scripts/check-sew-release.mjs "$GITHUB_REF_NAME"
+
+      - name: Upload immutable release bundle
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: sew-release-${{ github.ref_name }}
+          path: |
+            release-build/sew/artifacts/*.tgz
+            release-build/sew/artifacts/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 7
+
+  release:
+    if: github.repository == 'oovz/plugins'
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - name: Set up Node.js for npm trusted publishing
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+
+      - name: Use a trusted-publishing-capable npm CLI
+        run: npm install --global npm@11.5.1
+
+      - name: Download release bundle built by the build job
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: sew-release-${{ github.ref_name }}
+          path: release-build/sew/artifacts
+
+      - name: Verify downloaded release checksum
+        working-directory: release-build/sew/artifacts
+        run: sha256sum --check SHA256SUMS.txt
+
+      - name: Publish the CI-built tarball to npm
+        shell: bash
+        run: |
+          mapfile -t tarballs < <(find release-build/sew/artifacts -maxdepth 1 -type f -name '*.tgz' -print)
+          test "${#tarballs[@]}" -eq 1
+          npm publish "${tarballs[0]}" --access public --provenance
+
+      - name: Create GitHub Release from the same bundle
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          mapfile -t tarballs < <(find release-build/sew/artifacts -maxdepth 1 -type f -name '*.tgz' -print)
+          test "${#tarballs[@]}" -eq 1
+          version="${GITHUB_REF_NAME#sew-v}"
+          gh release create "$GITHUB_REF_NAME" \
+            "${tarballs[0]}" \
+            release-build/sew/artifacts/SHA256SUMS.txt \
+            --verify-tag \
+            --generate-notes \
+            --title "@oovz/sew $version"

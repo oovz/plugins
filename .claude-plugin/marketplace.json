@@ -1,4 +1,5 @@
 {
+  "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
   "name": "otto-plugins",
   "owner": {
     "name": "Otto",
@@ -11,6 +12,7 @@
       "source": "./adapters/claude-code/senior-engineering-workflow",
       "description": "A proportional engineering workflow in which the capable main agent owns decisions and bounded specialists isolate research, implementation, verification, and noisy tool work.",
       "displayName": "Senior Engineering Workflow",
+      "version": "0.8.3",
       "author": {
         "name": "Otto",
         "url": "https://github.com/oovz/plugins"
@@ -35,6 +37,7 @@
       "source": "./adapters/claude-code/tauri-v2-desktop",
       "description": "Secure, evidence-driven guidance for building, testing, upgrading, and distributing Tauri v2 desktop applications on Windows, macOS, and Linux.",
       "displayName": "Tauri v2 Desktop",
+      "version": "1.1.0",
       "author": {
         "name": "Otto",
         "url": "https://github.com/oovz/plugins"

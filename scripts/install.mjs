@@ -21,7 +21,7 @@ Options:
   --help                           Show this help
 
 Direct install hosts: codex, opencode, antigravity, portable-agent-skills.
-Claude Code and Gemini CLI extension bundles must be installed with their native CLIs.`;
+Claude Code, Gemini CLI, and Oh My Pi packages must be installed with their native CLIs.`;
 
 function parseArgs(argv) {
   if (argv.includes("--help") || argv.includes("-h")) return { help: true };
@@ -153,7 +153,11 @@ export function resolveInstallPlan(plugin, args, env = process.env, cwd = proces
     throw new Error(`Claude Code manages its plugin cache. Run "claude plugin marketplace add ${plugin.marketplace.repository}" then "claude plugin install ${plugin.manifest.id}@${plugin.marketplace.id}".`);
   }
   if (args.host === "gemini-cli") {
-    throw new Error(`Gemini CLI manages extension installs. Build first, then run "gemini extensions install dist/gemini-cli/${plugin.manifest.id}".`);
+    throw new Error(`Gemini CLI installation is provided by the public CLI. Run "npx @oovz/sew install --host gemini-cli --scope ${args.scope}${args.scope === "project" ? ` --project ${args.project ?? process.cwd()}` : ""}". Build dist/gemini-cli/${plugin.manifest.id} only for adapter development.`);
+  }
+  if (args.host === "oh-my-pi") {
+    const scope = args.scope === "project" ? " --scope project" : "";
+    throw new Error(`Oh My Pi manages marketplace installs. Run "omp plugin marketplace add ${plugin.marketplace.repository}" then "omp plugin install${scope} ${plugin.manifest.id}@${plugin.marketplace.id}".`);
   }
 
   if (args.host === "codex") {
