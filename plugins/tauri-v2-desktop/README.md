@@ -53,9 +53,7 @@ plugins/tauri-v2-desktop/
         └── testing-and-visual-validation.md
 ```
 
-The deterministic validation suite is `evals/security-guidance.yaml`.
-
-The marketplace generates host-specific packages from this canonical source. Do not edit generated adapters or `dist/` output by hand.
+Adapters under `adapters/` are generated and checked in; edit the source and regenerate, never the adapters.
 
 ## Use
 

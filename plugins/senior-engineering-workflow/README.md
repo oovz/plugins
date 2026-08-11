@@ -39,7 +39,7 @@ npx @oovz/sew install --host opencode --scope project --project /absolute/path/t
 npx @oovz/sew doctor
 ```
 
-Claude Code and Oh My Pi install through their native marketplaces. The published CLI ships version-matched payloads for the rest. Release CI builds those from canonical plugin source; no host payload is committed under `packages/sew/`.
+Claude Code and Oh My Pi install through their native marketplaces. The published CLI ships version-matched payloads for the rest.
 
 Native Claude Code installation:
 
@@ -115,4 +115,4 @@ plugins/senior-engineering-workflow/
     └── references/
 ```
 
-The host-neutral manifest and role prompts are canonical. Generated adapters under `adapters/` are checked in; edit the source and regenerate, never the adapters. CI stages npm payloads and role templates under `release-build/sew/package/` from fresh projections. `packages/sew/` holds source only; `dist/` holds disposable bundles.
+The manifest and role prompts here are canonical. Adapters under `adapters/` are generated and checked in; edit the source and regenerate, never the adapters.
