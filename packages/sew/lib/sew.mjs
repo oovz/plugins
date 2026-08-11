@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { existsSync } from "node:fs";
+import { existsSync, readdirSync, statSync } from "node:fs";
 import { lstat, mkdir, readFile, readdir, rename, rm, rmdir, unlink, writeFile } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
 import os from "node:os";
@@ -580,13 +580,99 @@ function findWin32Executable(name, env = process.env) {
   return null;
 }
 
+function parseBinaryVersion(text) {
+  const match = /(\d+\.\d+\.\d+)(?:-([0-9A-Za-z.-]+))?/u.exec(String(text ?? ""));
+  if (!match) return null;
+  return { numbers: match[1].split(".").map(Number), prerelease: match[2] ? match[2].split(".") : null };
+}
+
+function compareVersions(a, b) {
+  if (!a || !b) return a ? 1 : b ? -1 : 0;
+  for (let i = 0; i < 3; i++) {
+    if (a.numbers[i] !== b.numbers[i]) return a.numbers[i] > b.numbers[i] ? 1 : -1;
+  }
+  if (a.prerelease === null && b.prerelease === null) return 0;
+  if (a.prerelease === null) return 1;
+  if (b.prerelease === null) return -1;
+  const length = Math.max(a.prerelease.length, b.prerelease.length);
+  for (let i = 0; i < length; i++) {
+    const x = a.prerelease[i];
+    const y = b.prerelease[i];
+    if (x === undefined) return -1;
+    if (y === undefined) return 1;
+    const xNumeric = /^\d+$/u.test(x);
+    const yNumeric = /^\d+$/u.test(y);
+    if (xNumeric && yNumeric) {
+      const nx = Number(x);
+      const ny = Number(y);
+      if (nx !== ny) return nx > ny ? 1 : -1;
+    } else if (xNumeric !== yNumeric) {
+      return xNumeric ? -1 : 1;
+    } else if (x !== y) {
+      return x > y ? 1 : -1;
+    }
+  }
+  return 0;
+}
+
+function probeBinaryVersion(candidate, env = process.env, runner = spawnSync) {
+  const shim = process.platform === "win32" && /\.(?:cmd|bat)$/iu.test(candidate);
+  const result = shim
+    ? runner(`"${candidate}" --version`, [], { encoding: "utf8", stdio: "pipe", env, shell: true })
+    : runner(candidate, ["--version"], { encoding: "utf8", stdio: "pipe", env, shell: false });
+  if (result.error) return null;
+  const text = `${String(result.stdout ?? "")}\n${String(result.stderr ?? "")}`;
+  return parseBinaryVersion(text) ? text : null;
+}
+
+function findWin32AppBinary(name, env = process.env, probe = probeBinaryVersion) {
+  const local = env.LOCALAPPDATA;
+  if (!local) return null;
+  const roots = name === "codex"
+    ? [path.join(local, "OpenAI", "Codex", "bin")]
+    : name === "claude"
+      ? [path.join(local, "AnthropicClaude")]
+      : [];
+  if (roots.length === 0) return null;
+  const candidates = [];
+  for (const root of roots) {
+    candidates.push(path.join(root, `${name}.exe`), path.join(root, `${name}.cmd`), path.join(root, `${name}.bat`));
+    let entries;
+    try { entries = readdirSync(root, { withFileTypes: true }); } catch (error) { if (error?.code !== "ENOENT") throw error; continue; }
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      candidates.push(path.join(root, entry.name, `${name}.exe`), path.join(root, entry.name, `${name}.cmd`), path.join(root, entry.name, `${name}.bat`));
+    }
+  }
+  const existing = candidates.filter((candidate) => existsSync(candidate));
+  if (existing.length <= 1) return existing[0] ?? null;
+  let best = null;
+  let bestVersion = null;
+  let newest = null;
+  let newestMtime = -1;
+  for (const candidate of existing) {
+    const text = probe(candidate, env);
+    const version = text ? parseBinaryVersion(text) : null;
+    if (version) {
+      if (!bestVersion || compareVersions(version, bestVersion) > 0) { best = candidate; bestVersion = version; }
+    } else {
+      try {
+        const mtime = statSync(candidate).mtimeMs;
+        if (mtime > newestMtime) { newest = candidate; newestMtime = mtime; }
+      } catch { /* keep the candidate out of the fallback ranking */ }
+    }
+  }
+  return best ?? newest;
+}
+
 function spawnHost(executable, args, options) {
   const runner = options.spawnSync ?? spawnSync;
   const env = options.env ?? process.env;
-  const spawn = { cwd: options.cwd, encoding: "utf8", stdio: options.stdio ?? "pipe", env, shell: false };
+  const cwd = options.cwd && existsSync(options.cwd) ? options.cwd : process.cwd();
+  const spawn = { cwd, encoding: "utf8", stdio: options.stdio ?? "pipe", env, shell: false };
   const result = runner(executable, args, spawn);
   if (result.error?.code !== "ENOENT" || process.platform !== "win32") return result;
-  const resolved = findWin32Executable(executable, env);
+  const resolved = findWin32Executable(executable, env) ?? findWin32AppBinary(executable, env);
   if (!resolved) return result;
   const commandLine = `"${resolved}" ${args.map((arg) => (/\s/u.test(arg) ? `"${arg}"` : arg)).join(" ")}`;
   return runner(commandLine, [], { ...spawn, shell: true });
@@ -1107,6 +1193,10 @@ export const internals = Object.freeze({
   staticPlan,
   nativeCommands,
   findWin32Executable,
+  findWin32AppBinary,
+  probeBinaryVersion,
+  parseBinaryVersion,
+  compareVersions,
   spawnHost,
   codexPluginIdentifier,
   parseCodexPluginStatus,

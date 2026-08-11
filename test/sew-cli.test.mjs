@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync as realSpawnSync } from "node:child_process";
+import { utimesSync } from "node:fs";
 import { lstat, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -79,7 +80,7 @@ function codexRunner({ installed = true, enabled = true, malformed = false, stat
       if (malformed) return { status, stdout: "not-json", stderr: "" };
       return {
         status,
-        stdout: JSON.stringify({ installed: installed ? [{ pluginId: "senior-engineering-workflow@otto-plugins", installed, enabled, version: "0.9.1" }] : [] }),
+        stdout: JSON.stringify({ installed: installed ? [{ pluginId: "senior-engineering-workflow@otto-plugins", installed, enabled, version: "0.9.3" }] : [] }),
         stderr: status === 0 ? "" : "inspection failed",
       };
     }
@@ -278,6 +279,100 @@ test("win32 PATH/PATHEXT search resolves npm-style shims and returns null when a
   assert.equal(internals.findWin32Executable("fakecodex", env), path.join(bin, "fakecodex.cmd"));
   assert.equal(internals.findWin32Executable("missing-tool", env), null);
   assert.equal(internals.findWin32Executable("fakecodex", {}), null);
+});
+
+test("win32 app-bundle search selects the highest --version output, not the newest file", async () => {
+  const local = await temp("sew-win32-app-");
+  const codexBin = path.join(local, "OpenAI", "Codex", "bin");
+  await mkdir(codexBin, { recursive: true });
+  const topLevel = path.join(codexBin, "codex.exe");
+  const versionedDir = path.join(codexBin, "8e8bf206e63ac436");
+  await mkdir(versionedDir, { recursive: true });
+  const versioned = path.join(versionedDir, "codex.exe");
+  await writeFile(topLevel, "stale\n");
+  await writeFile(versioned, "current\n");
+  const future = new Date(Date.now() + 60_000);
+  await utimesSync(topLevel, future, future);
+  const env = { LOCALAPPDATA: local };
+  const versions = new Map([[topLevel, "codex-cli 0.130.0-alpha.5"], [versioned, "codex-cli 0.147.0-alpha.6.6"]]);
+  const probe = (candidate) => versions.get(candidate) ?? null;
+  assert.equal(internals.findWin32AppBinary("codex", env, probe), versioned, "higher version must win despite an older mtime");
+  versions.set(versioned, "codex-cli 0.999.0");
+  assert.equal(internals.findWin32AppBinary("codex", env, probe), versioned);
+  versions.set(topLevel, "codex-cli 1.0.0");
+  assert.equal(internals.findWin32AppBinary("codex", env, probe), topLevel, "version beats bundle layout");
+  assert.equal(internals.findWin32AppBinary("claude", env, probe), null);
+  assert.equal(internals.findWin32AppBinary("omp", env, probe), null);
+  assert.equal(internals.findWin32AppBinary("codex", {}, probe), null);
+
+  const claude = path.join(local, "AnthropicClaude", "claude.exe");
+  await mkdir(path.dirname(claude), { recursive: true });
+  await writeFile(claude, "claude\n");
+  let probes = 0;
+  const countingProbe = (candidate, envValue) => { probes += 1; return probe(candidate, envValue); };
+  assert.equal(internals.findWin32AppBinary("claude", env, countingProbe), claude, "a single candidate is used without probing");
+  assert.equal(probes, 0, "a single candidate must not be probed");
+});
+
+test("win32 app-bundle search falls back to mtime only when no candidate reports a version", async () => {
+  const local = await temp("sew-win32-app-");
+  const bin = path.join(local, "OpenAI", "Codex", "bin");
+  await mkdir(bin, { recursive: true });
+  const older = path.join(bin, "codex.exe");
+  const versionedDir = path.join(bin, "8e8bf206e63ac436");
+  await mkdir(versionedDir, { recursive: true });
+  const newer = path.join(versionedDir, "codex.exe");
+  await writeFile(older, "older\n");
+  await writeFile(newer, "newer\n");
+  const future = new Date(Date.now() + 60_000);
+  await utimesSync(newer, future, future);
+  const env = { LOCALAPPDATA: local };
+  assert.equal(internals.findWin32AppBinary("codex", env, () => null), newer, "unparseable probes fall back to newest mtime");
+});
+
+test("binary version parsing and comparison follow prerelease precedence", () => {
+  const parse = internals.parseBinaryVersion;
+  assert.deepEqual(parse("codex-cli 0.147.0-alpha.6.6\n"), { numbers: [0, 147, 0], prerelease: ["alpha", "6", "6"] });
+  assert.deepEqual(parse("claude 1.2.3"), { numbers: [1, 2, 3], prerelease: null });
+  assert.equal(parse("not a version"), null);
+  const compare = internals.compareVersions;
+  assert.ok(compare(parse("0.147.0-alpha.6.6"), parse("0.130.0-alpha.5")) > 0, "0.147 beats 0.130");
+  assert.ok(compare(parse("1.0.0"), parse("0.999.0")) > 0, "1.0 beats 0.999");
+  assert.ok(compare(parse("0.147.0"), parse("0.147.0-alpha.6.6")) > 0, "release beats prerelease");
+  assert.ok(compare(parse("0.147.0-alpha.6.6"), parse("0.147.0-alpha.10")) < 0, "numeric prerelease components compare numerically");
+  assert.ok(compare(parse("0.147.0-alpha.6"), parse("0.147.0-alpha.6.1")) < 0, "longer prerelease wins when a prefix matches");
+  assert.equal(compare(parse("1.2.3"), parse("1.2.3")), 0);
+});
+
+test("Windows retries Desktop-bundled binaries discovered outside PATH", { skip: process.platform !== "win32" && "requires Windows .cmd shims" }, async () => {
+  const project = await temp("sew-codex-desktop-");
+  const local = await temp("sew-codex-desktop-app-");
+  const bin = path.join(local, "OpenAI", "Codex", "bin");
+  await mkdir(bin, { recursive: true });
+  await writeFile(path.join(bin, "codex.cmd"), [
+    "@echo off",
+    "if /i \"%1\"==\"plugin\" if /i \"%2\"==\"list\" (",
+    "  echo {\"installed\":[]}",
+    "  exit /b 0",
+    ")",
+    "exit /b 0",
+    "",
+  ].join("\r\n"));
+  const env = { HOME: path.join(project, "home"), XDG_STATE_HOME: path.join(project, "state"), LOCALAPPDATA: local, PATH: process.env.PATH };
+  const calls = [];
+  const spawnSync = (executable, args, options) => {
+    calls.push({ executable, args: [...args], shell: options.shell });
+    if (options.shell !== true) return { error: { code: "ENOENT", message: `spawnSync ${executable} ENOENT` } };
+    return realSpawnSync(executable, args, options);
+  };
+  const install = await capture(["install", "--host", "codex", "--scope", "project", "--project", project, "--json"], { env, spawnSync });
+  assert.equal(install.code, 0, install.stderr);
+  assert.ok(calls.some((item) => item.shell === true && item.executable.includes(path.join(bin, "codex.cmd"))), "install must run the Desktop-bundled codex shim");
+  const result = JSON.parse(install.stdout);
+  assert.equal(result.plugin.status, "installed");
+  for (const role of ROLES) {
+    assert.equal(await exists(path.join(project, ".codex", "agents", `senior-engineering-workflow-${role}.toml`)), true);
+  }
 });
 
 test("Windows retries .cmd shims through the shell after an ENOENT spawn", { skip: process.platform !== "win32" && "requires Windows .cmd shims" }, async () => {
