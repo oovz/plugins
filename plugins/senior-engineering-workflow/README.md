@@ -1,6 +1,6 @@
 # Senior Engineering Workflow
 
-Version 0.8.3 is a proportional engineering workflow for coding repositories. The user-selected main agent owns the accepted contract, architecture, planning, orchestration, integration, iteration control, and completion. Four bounded specialist capabilities isolate research, implementation, verification, and noisy tool work only when delegation adds value.
+Version 0.9.0 is a proportional engineering workflow for coding repositories. The user-selected main agent owns the accepted contract, architecture, planning, orchestration, integration, iteration control, and completion. Four bounded specialist capabilities isolate research, implementation, verification, and noisy tool work only when delegation adds value.
 
 ## Core architecture
 
@@ -39,7 +39,9 @@ npx @oovz/sew install --host opencode --scope project --project /absolute/path/t
 npx @oovz/sew doctor
 ```
 
-Claude Code and Oh My Pi install through their native marketplaces. The published CLI ships version-matched payloads for the rest.
+For Codex, `sew install` checks the plugin inventory. It preserves an existing enabled marketplace skill and installs only the four companion agents; if the plugin is missing or disabled, it installs the plugin before the agents. `--force` reinstalls both layers, while `sew uninstall --host codex` removes only CLI-managed companion agents.
+
+Claude Code and Oh My Pi install through their native marketplaces. The published CLI ships version-matched payloads for Codex companion agents and the static portions of OpenCode, Gemini CLI, and Antigravity.
 
 Native Claude Code installation:
 

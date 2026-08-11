@@ -14,7 +14,7 @@ My plugins for agentic coding harnesses.
 
 | Plugin | Version | What it does |
 |---|---:|---|
-| [Senior Engineering Workflow](plugins/senior-engineering-workflow/) | 0.8.3 | Keeps coding decisions in the capable main agent while bounded Researcher, Engineer, Verifier, and Worker roles isolate implementation and noisy evidence when useful. |
+| [Senior Engineering Workflow](plugins/senior-engineering-workflow/) | 0.9.0 | Keeps coding decisions in the capable main agent while bounded Researcher, Engineer, Verifier, and Worker roles isolate implementation and noisy evidence when useful. |
 | [Tauri v2 Desktop](plugins/tauri-v2-desktop/) | 1.1.0 | Secure, evidence-driven guidance for building, testing, upgrading, and distributing Tauri v2 desktop applications on Windows, macOS, and Linux. |
 
 ## Compatibility
@@ -58,18 +58,29 @@ claude plugin install tauri-v2-desktop@otto-plugins --scope user
 <details>
 <summary>Codex</summary>
 
-Skill plugins come from the marketplace:
+Using `@oovz/sew` (recommended):
 
-```text
-codex plugin marketplace add oovz/plugins
-codex plugin add senior-engineering-workflow@otto-plugins
-codex plugin add tauri-v2-desktop@otto-plugins
-```
-
-The four Senior Engineering Workflow companion agents are installed by the CLI:
+`@oovz/sew` checks the Codex plugin inventory and manages the four companion agents:
 
 ```text
 npx @oovz/sew install --host codex --scope user
+```
+
+If `senior-engineering-workflow@otto-plugins` is already installed and enabled, the CLI preserves the marketplace-owned skill and installs only the companion agents. If it is missing or disabled, the CLI registers `oovz/plugins`, installs the plugin, and then installs the agents.
+
+Use `--force` to skip the inventory check, reinstall the marketplace plugin, and replace conflicting companion-agent files:
+
+```text
+npx @oovz/sew install --host codex --scope user --force
+```
+
+`sew uninstall --host codex` removes only files managed by `@oovz/sew`; it leaves the marketplace plugin installed.
+
+Using Codex CLI or Desktop:
+
+```text
+codex plugin marketplace add oovz/plugins
+codex plugin add tauri-v2-desktop@otto-plugins
 ```
 </details>
 

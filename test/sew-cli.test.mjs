@@ -70,6 +70,23 @@ function assertNoPolicyFields(host, content) {
   for (const key of ["tools", "permission", "permissions", "permissionMode", "hooks", "mcpServers", "steps", "maxTurns"]) assert.equal(fm[key], undefined, `${host} alias must omit ${key}`);
 }
 
+function codexRunner({ installed = true, enabled = true, malformed = false, status = 0 } = {}) {
+  const calls = [];
+  const spawnSync = (executable, args, options) => {
+    calls.push({ executable, args: [...args], cwd: options.cwd });
+    if (args.join(" ") === "plugin list --json") {
+      if (malformed) return { status, stdout: "not-json", stderr: "" };
+      return {
+        status,
+        stdout: JSON.stringify({ installed: installed ? [{ pluginId: "senior-engineering-workflow@otto-plugins", installed, enabled, version: "0.9.0" }] : [] }),
+        stderr: status === 0 ? "" : "inspection failed",
+      };
+    }
+    return { status: 0, stdout: "", stderr: "" };
+  };
+  return { calls, spawnSync };
+}
+
 test("@oovz/sew is the only SEW CLI implementation", async () => {
   const manifest = JSON.parse(await readFile(path.join(ROOT, "packages/sew/package.json"), "utf8"));
   assert.equal(manifest.name, "@oovz/sew");
@@ -145,7 +162,7 @@ test("models configure writes and removes four managed aliases", async () => {
 });
 
 test("static install, update, and uninstall use CI-bundled payloads", async () => {
-  for (const host of ["codex", "opencode", "gemini-cli", "antigravity"]) {
+  for (const host of ["opencode", "gemini-cli", "antigravity"]) {
     const project = await temp(`sew-install-${host}-`);
     const env = { HOME: path.join(project, "home"), XDG_STATE_HOME: path.join(project, "state") };
     const install = await capture(["install", "--host", host, "--scope", "project", "--project", project, "--json"], { env });
@@ -162,6 +179,84 @@ test("static install, update, and uninstall use CI-bundled payloads", async () =
     assert.equal(uninstall.code, 0, uninstall.stderr);
     assert.match(uninstall.stdout, /uninstalled/u);
   }
+});
+
+test("Codex preserves a marketplace-owned skill and installs only companion agents", async () => {
+  const project = await temp("sew-codex-marketplace-");
+  const env = { HOME: path.join(project, "home"), XDG_STATE_HOME: path.join(project, "state") };
+  const skill = path.join(project, ".agents", "skills", "senior-engineering-workflow", "SKILL.md");
+  await mkdir(path.dirname(skill), { recursive: true });
+  await writeFile(skill, "marketplace-owned\n");
+  const runner = codexRunner({ installed: true, enabled: true });
+
+  const install = await capture(["install", "--host", "codex", "--scope", "project", "--project", project, "--json"], { env, spawnSync: runner.spawnSync });
+  assert.equal(install.code, 0, install.stderr);
+  const result = JSON.parse(install.stdout);
+  assert.equal(result.method, "hybrid");
+  assert.equal(result.plugin.status, "already-installed");
+  assert.deepEqual(runner.calls.map((item) => item.args.join(" ")), ["plugin list --json"]);
+  assert.equal(await readFile(skill, "utf8"), "marketplace-owned\n");
+
+  for (const role of ROLES) {
+    assert.equal(await exists(path.join(project, ".codex", "agents", `senior-engineering-workflow-${role}.toml`)), true);
+  }
+  const state = JSON.parse(await readFile(result.statePath, "utf8"));
+  assert.deepEqual(Object.keys(state.roots), ["agents"]);
+  assert.ok(state.files.every((entry) => entry.root === "agents"));
+
+  const uninstall = await capture(["uninstall", "--host", "codex", "--scope", "project", "--project", project], { env, spawnSync: () => { throw new Error("uninstall must not inspect or remove the Codex plugin"); } });
+  assert.equal(uninstall.code, 0, uninstall.stderr);
+  assert.equal(await readFile(skill, "utf8"), "marketplace-owned\n");
+  for (const role of ROLES) {
+    assert.equal(await exists(path.join(project, ".codex", "agents", `senior-engineering-workflow-${role}.toml`)), false);
+  }
+});
+
+test("Codex installs the marketplace skill when absent and force reinstalls it", async () => {
+  const missingProject = await temp("sew-codex-missing-");
+  const missingEnv = { HOME: path.join(missingProject, "home"), XDG_STATE_HOME: path.join(missingProject, "state") };
+  const missing = codexRunner({ installed: false });
+  const install = await capture(["install", "--host", "codex", "--scope", "project", "--project", missingProject, "--json"], { env: missingEnv, spawnSync: missing.spawnSync });
+  assert.equal(install.code, 0, install.stderr);
+  assert.deepEqual(missing.calls.map((item) => item.args.join(" ")), [
+    "plugin list --json",
+    "plugin marketplace add oovz/plugins",
+    "plugin add senior-engineering-workflow@otto-plugins",
+  ]);
+
+  const forceProject = await temp("sew-codex-force-");
+  const forceEnv = { HOME: path.join(forceProject, "home"), XDG_STATE_HOME: path.join(forceProject, "state") };
+  const conflictingAgent = path.join(forceProject, ".codex", "agents", "senior-engineering-workflow-worker.toml");
+  await mkdir(path.dirname(conflictingAgent), { recursive: true });
+  await writeFile(conflictingAgent, "unmanaged\n");
+  const forced = codexRunner({ installed: true });
+  const force = await capture(["install", "--host", "codex", "--scope", "project", "--project", forceProject, "--force", "--json"], { env: forceEnv, spawnSync: forced.spawnSync });
+  assert.equal(force.code, 0, force.stderr);
+  assert.deepEqual(forced.calls.map((item) => item.args.join(" ")), [
+    "plugin marketplace add oovz/plugins",
+    "plugin add senior-engineering-workflow@otto-plugins",
+  ]);
+  assert.notEqual(await readFile(conflictingAgent, "utf8"), "unmanaged\n");
+});
+
+test("Codex inspection fails closed and dry-run never invokes the host", async () => {
+  const project = await temp("sew-codex-inspect-");
+  const env = { HOME: path.join(project, "home"), XDG_STATE_HOME: path.join(project, "state") };
+  const malformed = codexRunner({ malformed: true });
+  const failed = await capture(["install", "--host", "codex", "--scope", "project", "--project", project], { env, spawnSync: malformed.spawnSync });
+  assert.equal(failed.code, 1);
+  assert.match(failed.stderr, /Could not parse codex plugin list --json/u);
+  assert.equal(await exists(path.join(project, ".codex", "agents")), false);
+
+  const dryRun = await capture(["install", "--host", "codex", "--scope", "project", "--project", project, "--dry-run", "--json"], {
+    env,
+    spawnSync: () => { throw new Error("dry-run must not invoke Codex"); },
+  });
+  assert.equal(dryRun.code, 0, dryRun.stderr);
+  const result = JSON.parse(dryRun.stdout);
+  assert.equal(result.plugin.status, "conditional");
+  assert.equal(result.actions[0].status, "would-inspect");
+  assert.ok(result.actions.some((item) => item.status === "if-missing-or-disabled"));
 });
 
 test("native Claude Code and Oh My Pi commands are exact and dry-run safe", async () => {

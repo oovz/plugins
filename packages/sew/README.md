@@ -45,12 +45,23 @@ Installation methods:
 |---|---|
 | Claude Code | Native Claude plugin marketplace commands |
 | Oh My Pi | Native OMP marketplace commands |
-| Codex | CI-built skill and companion-agent payload bundled in the published npm tarball |
+| Codex | Marketplace skill detected or installed by the CLI; four CI-built companion agents managed by `@oovz/sew` |
 | OpenCode | CI-built `.opencode` skill and agent payload bundled in the published npm tarball |
 | Gemini CLI | CI-built user/project skill and custom-agent payload bundled in the published npm tarball |
 | Antigravity | CI-built plugin payload bundled in the published npm tarball; user scope targets Antigravity CLI and project scope targets `.agents/plugins` |
 
 The package records ownership only for static installations from its CI-built release payloads. It refuses unmanaged destination files and refuses to overwrite or remove modified managed files unless `--force` is explicitly supplied.
+
+### Codex hybrid installation
+
+For Codex, the marketplace owns the skill and `@oovz/sew` owns only the four companion-agent TOML files. During `install` and `update`, the CLI checks `codex plugin list --json`:
+
+- when `senior-engineering-workflow@otto-plugins` is installed and enabled, only the companion agents are written;
+- when the plugin is missing or disabled, the CLI registers `oovz/plugins`, installs the plugin, and then writes the companion agents;
+- `--force` skips the inventory check, reinstalls the marketplace plugin, and replaces conflicting companion-agent files; and
+- `uninstall` removes only the companion agents and leaves the marketplace plugin intact.
+
+The complete Codex projection remains in the CI-built payload for release verification, but the static installer copies and claims ownership only for `companion/agents/*`. `--dry-run` does not invoke Codex; it reports the inventory check and conditional plugin-install commands it would perform.
 
 ## Model configuration
 
