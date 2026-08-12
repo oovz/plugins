@@ -1,8 +1,13 @@
 # Tauri v2 Desktop
 
-Version 1.1.0 is a host-neutral Agent Skill for building, reviewing, securing, testing, upgrading, and distributing Tauri v2 desktop applications on Windows, macOS, and Linux.
+Version 1.2.0 is a host-neutral Agent Skill for building, reviewing, securing, testing, upgrading, and distributing Tauri v2 desktop applications on Windows, macOS, and Linux.
 
 ## Release notes
+
+### 1.2.0
+
+- Adds a Cursor 2.5+ native plugin projection and direct Agent Skill installation support.
+- Keeps the plugin skill-only; Cursor subagents are not required for this guidance plugin.
 
 ### 1.1.0
 

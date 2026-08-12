@@ -1,6 +1,6 @@
 # Senior Engineering Workflow
 
-Version 0.10.0 is a proportional engineering workflow for coding repositories. The user-selected main agent owns the accepted contract, architecture, planning, orchestration, integration, iteration control, and completion. Four bounded specialist capabilities isolate research, implementation, verification, and noisy tool work only when delegation adds value.
+Version 0.11.0 is a proportional engineering workflow for coding repositories. The user-selected main agent owns the accepted contract, architecture, planning, orchestration, integration, iteration control, and completion. Four bounded specialist capabilities isolate research, implementation, verification, and noisy tool work only when delegation adds value.
 
 ## Core architecture
 
@@ -23,6 +23,7 @@ Canonical subagents add no thinking, tool, permission, sandbox, hook, or turn-li
 | Claude Code | Four plugin-scoped custom subagents |
 | Codex | Four companion TOML agent roles |
 | OpenCode | Four Markdown subagents |
+| Cursor 2.5+ | Four custom subagents; the adapter omits model, readonly, and tool restrictions |
 | Gemini CLI | Four extension custom subagents; omitted `tools` inherits the parent tool set |
 | Antigravity | The plugin ships the skill; the main agent uses Antigravity's inherited `self`/generic or dynamically defined subagents for bounded roles |
 | Oh My Pi (`omp`) | Four plugin task agents |
@@ -36,6 +37,7 @@ No repository clone is required. Per-harness steps are in the [root README](../R
 ```text
 npx @oovz/sew install --host codex --scope user
 npx @oovz/sew install --host opencode --scope project --project /absolute/path/to/project
+npx @oovz/sew install --host cursor --scope user
 npx @oovz/sew doctor
 ```
 
@@ -43,7 +45,7 @@ OpenCode receives one Agent Skill and four `mode: subagent` Markdown agents, not
 
 For Codex, `sew install` checks the plugin inventory. It preserves an existing enabled marketplace skill and installs only the four companion agents; if the plugin is missing or disabled, it installs the plugin before the agents. `--force` reinstalls both layers, while `sew uninstall --host codex` removes only CLI-managed companion agents.
 
-Claude Code and Oh My Pi install through their native marketplaces. The published CLI ships version-matched payloads for Codex companion agents and the static portions of OpenCode, Gemini CLI, and Antigravity.
+Claude Code and Oh My Pi install through their native marketplaces. The published CLI ships version-matched payloads for Codex companion agents and the static portions of OpenCode, Cursor, Gemini CLI, and Antigravity.
 
 Native Claude Code installation:
 
@@ -63,7 +65,7 @@ Native Oh My Pi installation:
 
 ## Optional model routing
 
-The default is full inheritance. On Codex, OpenCode, and Gemini CLI, `@oovz/sew models configure` edits the installed role agents in place, inserting or replacing only the `model` and host-native thinking fields while the prompt, description, and permissions stay byte-identical to the CI payload. Model configuration is supported only for Codex, OpenCode, and Gemini CLI. Claude Code, Oh My Pi, and Antigravity continue to use their native inheritance behavior.
+The default is full inheritance. On Codex, OpenCode, and Gemini CLI, `@oovz/sew models configure` edits the installed role agents in place, inserting or replacing only the `model` and host-native thinking fields while the prompt, description, and permissions stay byte-identical to the CI payload. Model configuration is supported only for Codex, OpenCode, and Gemini CLI. Claude Code, Cursor, Oh My Pi, and Antigravity continue to use their native inheritance behavior.
 
 | Preset | Researcher | Engineer | Verifier | Worker |
 |---|---|---|---|---|
@@ -88,7 +90,7 @@ Restore canonical inheritance:
 npx @oovz/sew models configure --host codex --scope user --preset inherit
 ```
 
-In-place model editing works on Codex, OpenCode, and Gemini CLI. Gemini CLI has no per-custom-agent thinking field. Claude Code, Oh My Pi, and Antigravity use their native inheritance behavior; `models configure` rejects those hosts rather than reporting a no-op success.
+In-place model editing works on Codex, OpenCode, and Gemini CLI. Gemini CLI has no per-custom-agent thinking field. Claude Code, Cursor, Oh My Pi, and Antigravity use their native inheritance behavior; `models configure` rejects those hosts rather than reporting a no-op success.
 
 ## Workflow guarantees
 

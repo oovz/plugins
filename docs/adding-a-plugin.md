@@ -155,7 +155,10 @@ Generated paths are predictable:
 
 ```text
 dist/claude-code/<plugin-id>/
+Cursor may be enabled for plugins whose agents use `permissionPolicy: inherit`. The Cursor adapter omits `model`, `readonly`, and `tools`; it refuses explicit-permission agents rather than inventing a cross-host permission mapping.
+
 dist/codex/<plugin-id>/
+dist/cursor/<plugin-id>/
 dist/gemini-cli/<plugin-id>/
 dist/antigravity/<plugin-id>/
 dist/oh-my-pi/<plugin-id>/
@@ -200,4 +203,4 @@ Before release:
 
 Gemini is the one monorepo exception: its remote extension installer has no documented subdirectory selector and its release manifest must be at the absolute archive/repository root. Publish the generated Gemini tree as a rooted archive or a per-plugin repository/ref. Do not tell users to install the marketplace root as a Gemini extension.
 
-Claude, Codex, and Oh My Pi consume generated marketplace catalogs that point to their checked-in per-plugin adapter directories. Gemini CLI and Antigravity consume generated native package directories. OpenCode consumes the stable static configuration bundle. Portable consumers receive only Agent Skills, not role agents or permission configuration.
+Claude, Codex, Cursor, and Oh My Pi consume generated marketplace catalogs that point to their checked-in per-plugin adapter directories. Cursor also supports direct `.cursor/skills` and `.cursor/agents` installation for the public CLI. Gemini CLI and Antigravity consume generated native package directories. OpenCode consumes the stable static configuration bundle. Portable consumers receive only Agent Skills, not role agents or permission configuration.
