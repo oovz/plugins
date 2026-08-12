@@ -116,6 +116,12 @@ function validateRenderedAgent(plugin, agent, target, artifacts) {
     if (!agent.shell) assert(!fm.tools.includes("run_command"), `Antigravity shell-denied agent ${agent.id} exposes shell`);
     if (agent.delegates) assert(fm.tools.includes("invoke_subagent"), `Antigravity delegating agent ${agent.id} must expose invoke_subagent`);
     if (agent.question) assert(fm.tools.includes("ask_question"), `Antigravity question-capable agent ${agent.id} must expose ask_question`);
+  } else if (target.id === "cursor") {
+    const parsed = parseMarkdownArtifact(artifacts.get(`agents/${flat}.md`), `Cursor agent ${agent.id}`);
+    const fm = parsed.frontmatter;
+    assert(inheritsPermissions, `Cursor currently supports permission-inheriting agents only: ${agent.id}`);
+    assert(fm.name === flat && fm.description === agent.description, `Cursor agent ${agent.id} has invalid identity or description`);
+    assert(fm.model === undefined && fm.readonly === undefined && fm.tools === undefined, `Cursor agent ${agent.id} must not pin a model or add readonly/tool restrictions`);
   } else if (target.id === "oh-my-pi") {
     const parsed = parseMarkdownArtifact(artifacts.get(`agents/${flat}.md`), `Oh My Pi agent ${agent.id}`);
     const fm = parsed.frontmatter;
@@ -625,6 +631,14 @@ async function validatePlugin(plugin) {
     if (target.id === "gemini-cli") {
       const manifest = JSON.parse(artifacts.get("gemini-extension.json"));
       assert(manifest.name === plugin.manifest.id && manifest.version === plugin.manifest.version, `Gemini manifest for ${plugin.manifest.id} is invalid`);
+    }
+    if (target.id === "cursor") {
+      const manifest = JSON.parse(artifacts.get(".cursor-plugin/plugin.json"));
+      assert(manifest.name === plugin.manifest.id && manifest.version === plugin.manifest.version, `Cursor manifest for ${plugin.manifest.id} is invalid`);
+      assert(manifest.skills === (plugin.skills.length > 0 ? "./skills/" : undefined), `Cursor manifest for ${plugin.manifest.id} has invalid skills path`);
+      assert(manifest.agents === (plugin.agents.length > 0 ? "./agents/" : undefined), `Cursor manifest for ${plugin.manifest.id} has invalid agents path`);
+      assert(manifest.commands === (plugin.commands.some((command) => command.hosts.includes("cursor")) ? "./commands/" : undefined), `Cursor manifest for ${plugin.manifest.id} has invalid commands path`);
+      assert(manifest.minClientVersions?.cursor === "2.5.0", `Cursor manifest for ${plugin.manifest.id} must require Cursor 2.5.0 or later`);
     }
   }
 

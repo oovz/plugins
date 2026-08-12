@@ -7,7 +7,7 @@ The canonical plugin adds no host-level thinking, tool, permission, sandbox, hoo
 ## Requirements
 
 - Node.js 20 or later
-- One of: Claude Code, Codex, OpenCode, Gemini CLI, Antigravity, or Oh My Pi (`omp`)
+- One of: Claude Code, Codex, OpenCode, Cursor 2.5+, Gemini CLI, Antigravity, or Oh My Pi (`omp`)
 
 ## Run without installing globally
 
@@ -47,6 +47,7 @@ Installation methods:
 | Oh My Pi | Native OMP marketplace commands |
 | Codex | Marketplace skill detected or installed by the CLI; four CI-built companion agents managed by `@oovz/sew` |
 | OpenCode | CI-built Agent Skill and four Markdown subagents bundled in the published npm tarball |
+| Cursor | CI-built Agent Skill and four custom subagents bundled in the published npm tarball; a native Cursor plugin adapter is generated as well |
 | Gemini CLI | CI-built user/project skill and custom-agent payload bundled in the published npm tarball |
 | Antigravity | CI-built plugin payload bundled in the published npm tarball; user scope targets Antigravity CLI and project scope targets `.agents/plugins` |
 
@@ -55,6 +56,12 @@ The package records ownership only for static installations from its CI-built re
 OpenCode receives one Agent Skill and four Markdown subagents. This is not an OpenCode JavaScript/TypeScript plugin, so it does not appear in the plugin list or the primary-agent switcher. The roles are `mode: subagent` and appear in `opencode agent list`.
 
 After `install` or `update`, `@oovz/sew` runs `opencode agent list` when the OpenCode CLI is available on `PATH`. It reports `verified` only when all four roles are discovered. A fresh OpenCode process that cannot discover the files produces a nonzero result with the missing role names. When the CLI is unavailable, file installation succeeds with a `not-checked` discovery result and an explicit verification command. Restart any OpenCode session that was already running before installation.
+
+### Cursor installation
+
+`sew install --host cursor` copies the skill and four custom subagents directly to `~/.cursor/skills` and `~/.cursor/agents`, or to `<project>/.cursor/` for project scope. This direct layout is available to the local Cursor editor and Cursor CLI. CI also generates a native `.cursor-plugin` adapter and root marketplace catalog for Cursor 2.5 and later. Use either the direct CLI installation or a native plugin installation, not both, to avoid duplicate role definitions.
+
+Cursor agents omit `model`, `readonly`, and `tools`. The adapter therefore does not pin a model or add plugin-level restrictions. Cursor model routing is not exposed through `sew models configure`; the current validated contract is parent-model inheritance. Cloud-agent delegation is outside this target.
 
 ### Codex hybrid installation
 
@@ -75,7 +82,7 @@ The complete Codex projection remains in the CI-built payload for release verifi
 
 On Codex, OpenCode, and Gemini CLI, `models configure` edits the installed role agents in place: it inserts or replaces only the model and host-native thinking fields with a targeted drop-in replacement and leaves the prompt, description, and permissions byte-identical to the CI payload. The configuration is recorded in the install state, so `update` and `install --force` restore the payload and re-apply it.
 
-Model configuration is supported only for Codex, OpenCode, and Gemini CLI. Claude Code, Oh My Pi, and Antigravity keep their native inheritance behavior; `models configure` rejects those hosts.
+Model configuration is supported only for Codex, OpenCode, and Gemini CLI. Claude Code, Cursor, Oh My Pi, and Antigravity keep their native inheritance behavior; `models configure` rejects those hosts.
 
 Optional model routing uses three slots:
 
@@ -128,13 +135,60 @@ npx @oovz/sew models configure --host codex --scope user --preset inherit
 
 On editable hosts the edited files remain byte-identical to the CI payload apart from the model block, so `doctor` reports them as current and `update` re-applies the stored configuration. The CLI authorizes edits only when the current file hash matches its recorded state; a generated marker is not treated as ownership. The four role edits and the state update are committed as one rollback-capable transaction.
 
-## 0.10 clean-install boundary
+## Migrate a 0.9.x static installation to 0.10.0 or later
 
-Version 0.10 uses installation-state schema 2 and deliberately does not migrate schema-1 state from 0.9.x. Before replacing a 0.9.x CLI installation, remove its static installation with the matching 0.9.x release, then install 0.10. This keeps obsolete state and ownership paths out of the new implementation. Native marketplace installations owned by Claude Code or Oh My Pi are unaffected.
+Version 0.10 introduced installation-state schema 2 and deliberately does not read or migrate schema-1 state. Manually delete the files owned by the old static installation, delete its state file, and reinstall. Claude Code and Oh My Pi marketplace installations are host-owned and do not use this cleanup.
+
+First close the affected coding harness. Back up any role or skill file that you edited manually. Delete only the paths for the host and scope you previously installed:
+
+| Host | User-scope payload | Project-scope payload |
+|---|---|---|
+| Codex | `${CODEX_HOME:-~/.codex}/agents/senior-engineering-workflow-*.toml` | `<project>/.codex/agents/senior-engineering-workflow-*.toml` |
+| OpenCode | `${OPENCODE_CONFIG_DIR:-${XDG_CONFIG_HOME:-~/.config}/opencode}/agents/senior-engineering-workflow-*.md` and `skills/senior-engineering-workflow/` | `<project>/.opencode/agents/senior-engineering-workflow-*.md` and `skills/senior-engineering-workflow/` |
+| Gemini CLI | `${GEMINI_CLI_HOME:-~/.gemini}/agents/senior-engineering-workflow-*.md` and `skills/senior-engineering-workflow/` | `<project>/.gemini/agents/senior-engineering-workflow-*.md` and `skills/senior-engineering-workflow/` |
+| Antigravity | `~/.gemini/antigravity-cli/plugins/senior-engineering-workflow/` | `<project>/.agents/plugins/senior-engineering-workflow/` |
+
+Do not delete the Codex marketplace-owned skill. Remove only the four companion TOML files listed above.
+
+Then delete the matching installation-state file:
+
+| Scope | State file |
+|---|---|
+| Windows user | `%LOCALAPPDATA%\oovz\sew\<host>.json` |
+| macOS/Linux user | `${XDG_STATE_HOME:-~/.local/state}/oovz/sew/<host>.json` |
+| Project | `<project>/.oovz/sew/<host>.json` |
+
+Reinstall after cleanup:
+
+```bash
+npx @oovz/sew@latest install --host <host> --scope user
+# or
+npx @oovz/sew@latest install --host <host> --scope project --project /absolute/path/to/project
+```
+
+For the common Windows OpenCode user-scope case, the manual cleanup is:
+
+```powershell
+$OpenCode = if ($env:OPENCODE_CONFIG_DIR) {
+  $env:OPENCODE_CONFIG_DIR
+} elseif ($env:XDG_CONFIG_HOME) {
+  Join-Path $env:XDG_CONFIG_HOME "opencode"
+} else {
+  Join-Path $HOME ".config\opencode"
+}
+
+"researcher", "engineer", "verifier", "worker" | ForEach-Object {
+  Remove-Item (Join-Path $OpenCode "agents\senior-engineering-workflow-$_.md") -Force -ErrorAction SilentlyContinue
+}
+Remove-Item (Join-Path $OpenCode "skills\senior-engineering-workflow") -Recurse -Force -ErrorAction SilentlyContinue
+Remove-Item (Join-Path $env:LOCALAPPDATA "oovz\sew\opencode.json") -Force -ErrorAction SilentlyContinue
+
+npx @oovz/sew@latest install --host opencode --scope user
+```
 
 ## Doctor
 
-Doctor is read-only and inspects all six hosts by default:
+Doctor is read-only and inspects all seven hosts by default:
 
 ```bash
 npx @oovz/sew doctor

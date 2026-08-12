@@ -1,0 +1,4 @@
+interface:
+  display_name: "Senior Engineering Workflow"
+  short_description: "Own coding work; isolate bounded specialist evidence"
+  default_prompt: "Use $senior-engineering-workflow for this coding task. Keep decisions, planning, integration, and loop control in the main agent; delegate only bounded research, implementation, verification, or noisy tool work. Preserve any viable supplied plan."

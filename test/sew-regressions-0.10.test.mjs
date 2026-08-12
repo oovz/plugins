@@ -53,7 +53,7 @@ function frontmatter(content) {
 }
 
 test("model configuration rejects hosts without editable installed agents", async () => {
-  for (const host of ["claude-code", "oh-my-pi", "antigravity"]) {
+  for (const host of ["claude-code", "cursor", "oh-my-pi", "antigravity"]) {
     const project = await temp(`sew-unsupported-${host}-`);
     for (const preset of ["inherit", "two-model"]) {
       const result = await capture([

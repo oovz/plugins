@@ -263,7 +263,7 @@ export function validatePluginManifest(manifest, directoryName) {
     assert(agent.model?.policy === "inherit", `agent ${agent.id} must inherit its parent model`);
     assert(agent.steps === null, `agent ${agent.id} must not hard-code a step limit`);
   }
-  const hostIds = new Set(["claude-code", "codex", "gemini-cli", "antigravity", "oh-my-pi", "opencode", "portable"]);
+  const hostIds = new Set(["claude-code", "codex", "cursor", "gemini-cli", "antigravity", "oh-my-pi", "opencode", "portable"]);
   assert(manifest.hosts && typeof manifest.hosts === "object" && !Array.isArray(manifest.hosts), "hosts is required and must be an object");
   for (const hostId of Object.keys(manifest.hosts ?? {})) assert(hostIds.has(hostId), `unsupported manifest host ${hostId}`);
   assert(Object.values(manifest.hosts).some((host) => host?.enabled === true), "at least one host must be explicitly enabled");

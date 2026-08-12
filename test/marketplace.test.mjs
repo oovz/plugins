@@ -50,8 +50,8 @@ test("Tauri v2 desktop is a skill-only all-host plugin", async () => {
   assert.deepEqual(plugin.manifest.components.commands, []);
   assert.equal(plugin.skills.length, 1);
   assert.equal(plugin.skills[0].id, "tauri-v2-desktop");
-  assert.equal(plugin.manifest.version, "1.1.0");
-  for (const host of ["claude-code", "codex", "gemini-cli", "antigravity", "oh-my-pi", "opencode", "portable"]) {
+  assert.equal(plugin.manifest.version, "1.2.0");
+  for (const host of ["claude-code", "codex", "cursor", "gemini-cli", "antigravity", "oh-my-pi", "opencode", "portable"]) {
     assert.equal(plugin.manifest.hosts[host].enabled, true, `${host} should be enabled`);
   }
   const claudeManifest = await readJson(path.join(ROOT, "adapters", "claude-code", "tauri-v2-desktop", ".claude-plugin", "plugin.json"));
@@ -66,17 +66,18 @@ test("Tauri v2 desktop is a skill-only all-host plugin", async () => {
   assert.doesNotMatch(`${plugin.manifest.description}\n${plugin.skills[0].body}`, /cce-tauri|nodnarbnitram|claude-code-extensions/i);
 });
 
-test("Senior Engineering Workflow targets exactly the six subagent-capable harnesses", async () => {
+test("Senior Engineering Workflow targets exactly the seven subagent-capable harnesses", async () => {
   const result = await validateRepository();
   const plugin = result.plugins.find((item) => item.manifest.id === "senior-engineering-workflow");
   assert.ok(plugin);
-  const supported = ["antigravity", "claude-code", "codex", "gemini-cli", "oh-my-pi", "opencode"];
+  const supported = ["antigravity", "claude-code", "codex", "cursor", "gemini-cli", "oh-my-pi", "opencode"];
   assert.deepEqual(Object.entries(plugin.manifest.hosts).filter(([, value]) => value.enabled).map(([key]) => key).sort(), supported);
   assert.equal(plugin.manifest.hosts.portable, undefined);
 
   for (const role of ["researcher", "engineer", "verifier", "worker"]) {
     assert.ok(await readFile(path.join(ROOT, "adapters", "claude-code", plugin.manifest.id, "agents", `${role}.md`)));
     assert.ok(await readFile(path.join(ROOT, "adapters", "codex", plugin.manifest.id, "companion", "agents", `${plugin.manifest.id}-${role}.toml`)));
+    assert.ok(await readFile(path.join(ROOT, "adapters", "cursor", plugin.manifest.id, "agents", `${plugin.manifest.id}-${role}.md`)));
     assert.ok(await readFile(path.join(ROOT, "adapters", "gemini-cli", plugin.manifest.id, "agents", `${plugin.manifest.id}-${role}.md`)));
     assert.ok(await readFile(path.join(ROOT, "adapters", "oh-my-pi", plugin.manifest.id, "agents", `${plugin.manifest.id}-${role}.md`)));
     assert.ok(await readFile(path.join(ROOT, "adapters", "opencode", "stable", plugin.manifest.id, ".opencode", "agents", `${plugin.manifest.id}-${role}.md`)));
@@ -85,6 +86,8 @@ test("Senior Engineering Workflow targets exactly the six subagent-capable harne
   assert.ok(await readFile(path.join(ROOT, "adapters", "antigravity", plugin.manifest.id, "skills", plugin.manifest.id, "SKILL.md")));
   const ompCatalog = await readJson(path.join(ROOT, ".omp-plugin", "marketplace.json"));
   assert.ok(ompCatalog.plugins.some((entry) => entry.name === plugin.manifest.id));
+  const cursorCatalog = await readJson(path.join(ROOT, ".cursor-plugin", "marketplace.json"));
+  assert.ok(cursorCatalog.plugins.some((entry) => entry.name === plugin.manifest.id));
   await assert.rejects(readFile(path.join(ROOT, "adapters", "portable-agent-skills", plugin.manifest.id, ".agents", "skills", plugin.manifest.id, "SKILL.md")), /ENOENT/);
 });
 
@@ -268,7 +271,7 @@ test("Codex capability metadata is explicit, scoped, and single-line", async (t)
 test("validator CLI executes its platform-safe main entry point", async () => {
   const result = await execFileAsync(process.execPath, [path.join(ROOT, "scripts", "validate.mjs")], { cwd: ROOT });
   const marketplace = await readJson(path.join(ROOT, "marketplace.json"));
-  assert.match(result.stdout, new RegExp(`validated ${marketplace.plugins.length} plugins across 7 host targets`));
+  assert.match(result.stdout, new RegExp(`validated ${marketplace.plugins.length} plugins across 8 host targets`));
 });
 
 test("two explicitly cataloged plugins build independently and deterministically", async (t) => {

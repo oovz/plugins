@@ -127,16 +127,35 @@ function ohMyPiMarketplace(catalog) {
   });
 }
 
+function cursorMarketplace(catalog) {
+  return json({
+    name: catalog.marketplace.id,
+    owner: { name: catalog.marketplace.owner.name },
+    metadata: {
+      description: catalog.marketplace.description,
+      version: "1.0.0",
+      pluginRoot: "."
+    },
+    plugins: catalog.plugins.filter((plugin) => supportsHost(plugin, resolveHost("cursor"))).map((plugin) => ({
+      name: plugin.manifest.id,
+      source: `./adapters/cursor/${plugin.manifest.id}`,
+      description: plugin.manifest.description,
+      minClientVersions: { cursor: "2.5.0" }
+    }))
+  });
+}
+
 async function expectedSourceFiles(catalog, plugins) {
   const files = new Map();
   files.set(path.join(catalog.root, ".claude-plugin/marketplace.json"), claudeMarketplace(catalog));
   files.set(path.join(catalog.root, ".agents/plugins/marketplace.json"), codexMarketplace(catalog));
   files.set(path.join(catalog.root, ".omp-plugin/marketplace.json"), ohMyPiMarketplace(catalog));
+  files.set(path.join(catalog.root, ".cursor-plugin/marketplace.json"), cursorMarketplace(catalog));
   return files;
 }
 
 function possibleSourceManifestFiles(catalog, plugins) {
-  return plugins.flatMap((plugin) => [path.join(plugin.directory, ".claude-plugin/plugin.json"), path.join(plugin.directory, ".codex-plugin/plugin.json")]);
+  return plugins.flatMap((plugin) => [path.join(plugin.directory, ".claude-plugin/plugin.json"), path.join(plugin.directory, ".codex-plugin/plugin.json"), path.join(plugin.directory, ".cursor-plugin/plugin.json")]);
 }
 
 export async function runGenerator(argv, options = {}) {

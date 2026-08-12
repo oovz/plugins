@@ -102,12 +102,13 @@ test("CLI surface is strict and has no legacy aliases", async () => {
   assert.match(option.stderr, /Unknown option/u);
 });
 
-test("host roots follow the six documented conventions", () => {
+test("host roots follow the seven documented conventions", () => {
   const home = path.resolve("/home/tester");
   const env = { HOME: home };
   assert.equal(internals.userConfigRoot("claude-code", { env, platform: "linux", home }), path.join(home, ".claude"));
   assert.equal(internals.userConfigRoot("codex", { env, platform: "linux", home }), path.join(home, ".codex"));
   assert.equal(internals.userConfigRoot("opencode", { env, platform: "linux", home }), path.join(home, ".config/opencode"));
+  assert.equal(internals.userConfigRoot("cursor", { env, platform: "linux", home }), path.join(home, ".cursor"));
   assert.equal(internals.userConfigRoot("gemini-cli", { env, platform: "linux", home }), path.join(home, ".gemini"));
   assert.equal(internals.staticInstallRoots("antigravity", "user", "/project", env).plugin, path.join(home, ".gemini/antigravity-cli/plugins/senior-engineering-workflow"));
   assert.equal(internals.userConfigRoot("oh-my-pi", { env, platform: "linux", home }), path.join(home, ".omp/agent"));
@@ -190,7 +191,7 @@ test("update restores the CI payload and re-applies the stored model configurati
 });
 
 test("static install, update, and uninstall use CI-bundled payloads", async () => {
-  for (const host of ["opencode", "gemini-cli", "antigravity"]) {
+  for (const host of ["opencode", "cursor", "gemini-cli", "antigravity"]) {
     const project = await temp(`sew-install-${host}-`);
     const env = { HOME: path.join(project, "home"), XDG_STATE_HOME: path.join(project, "state") };
     const install = await capture(["install", "--host", host, "--scope", "project", "--project", project, "--json"], { env });
@@ -330,7 +331,7 @@ test("static installer rejects symlinked destination ancestors", async (t) => {
   assert.match(result.stderr, /symlink or junction/u);
 });
 
-test("doctor is read-only across all six hosts", async () => {
+test("doctor is read-only across all seven hosts", async () => {
   const project = await temp();
   await mkdir(path.join(project, ".codex", "agents"), { recursive: true });
   await writeFile(path.join(project, ".codex", "agents", "custom.toml"), 'name = "custom"\nmodel = "x"\n');
@@ -354,7 +355,7 @@ test("CI-bundled package payloads cover the canonical plugin", async () => {
   assert.equal(manifest.schemaVersion, 2);
   assert.equal(manifest.plugin, "senior-engineering-workflow");
   assert.deepEqual(manifest.hosts, internals.HOSTS);
-  assert.deepEqual(manifest.staticHosts, ["codex", "opencode", "gemini-cli", "antigravity"]);
+  assert.deepEqual(manifest.staticHosts, ["codex", "opencode", "cursor", "gemini-cli", "antigravity"]);
   for (const host of manifest.staticHosts) assert.equal(await exists(path.join(BUILT_SEW_ROOT, "payloads", host)), true);
   for (const host of ["claude-code", "oh-my-pi"]) assert.equal(await exists(path.join(BUILT_SEW_ROOT, "payloads", host)), false);
   assert.equal(await exists(path.join(BUILT_SEW_ROOT, "templates")), false, "role templates are no longer bundled");
@@ -365,6 +366,7 @@ test("CI bundle copies the freshly built static host projections", async () => {
   const sources = {
     codex: path.join(ROOT, "dist", "codex", "senior-engineering-workflow"),
     opencode: path.join(ROOT, "dist", "opencode", "stable", "senior-engineering-workflow"),
+    cursor: path.join(ROOT, "dist", "cursor", "senior-engineering-workflow"),
     "gemini-cli": path.join(ROOT, "dist", "gemini-cli", "senior-engineering-workflow"),
     antigravity: path.join(ROOT, "dist", "antigravity", "senior-engineering-workflow"),
   };

@@ -130,6 +130,9 @@
         },
         "oh-my-pi": {
           "$ref": "#/$defs/host"
+        },
+        "cursor": {
+          "$ref": "#/$defs/host"
         }
       }
     },
@@ -335,6 +338,7 @@
           "items": {
             "enum": [
               "claude-code",
+              "cursor",
               "gemini-cli",
               "opencode",
               "oh-my-pi"
@@ -367,6 +371,7 @@
             "enum": [
               "claude-code",
               "codex",
+              "cursor",
               "gemini-cli",
               "antigravity",
               "opencode",

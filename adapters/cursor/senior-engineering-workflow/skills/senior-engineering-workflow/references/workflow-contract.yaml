@@ -1,0 +1,299 @@
+schema_version: "2.0.0"
+contract_id: senior-engineering-workflow
+contract_version: "2.0.0"
+profile: engineering-delivery-v2
+description: >-
+  Host-neutral contract for a capable main engineering owner and four bounded
+  specialist roles whose host permissions are inherited from the user session.
+normative_language:
+  must: required for conformance
+  should: default unless task evidence justifies another route
+  may: optional capability
+
+controller:
+  id: main-engineering-owner
+  kind: primary_engineering_owner
+  is_leaf_role: false
+  responsibilities:
+    - maintain the accepted contract and user conversation
+    - own product, architecture, planning, and execution-graph decisions
+    - choose inline execution or bounded delegation proportionally
+    - authorize every cross-role transition and repeated attempt
+    - integrate evidence and candidate changes
+    - enforce work-order authority, attempt budgets, risk routing, and completion gates
+    - report the final outcome
+  prohibited_responsibilities:
+    - silently change accepted behavior, scope, support, or risk
+    - treat role availability alone as a reason to delegate
+    - start an automatic specialist-to-specialist repair loop
+    - claim an edit, command result, source, test result, or root cause without evidence
+
+leaf_role_count: 4
+leaf_roles:
+  researcher:
+    logical_agent_id: researcher
+    permission_policy: inherit
+    is_leaf: true
+    delegates: false
+    reports_to: controller
+    purpose: gather bounded repository, runtime, dependency, and authoritative external evidence
+    may_write_production_files: false
+    may_request_worker: true
+    required_outputs:
+      - observations
+      - source_attribution
+      - inferences
+      - unresolved_unknowns
+      - worker_requests_when_needed
+  engineer:
+    logical_agent_id: engineer
+    permission_policy: inherit
+    is_leaf: true
+    delegates: false
+    reports_to: controller
+    purpose: implement one accepted production-code or test-only slice with immediate focused validation
+    may_write_production_files: true
+    may_request_worker: true
+    required_outputs:
+      - changed_files
+      - tests_added_or_changed
+      - observed_validation
+      - known_limitations
+      - worker_requests_when_needed
+  verifier:
+    logical_agent_id: verifier
+    permission_policy: inherit
+    is_leaf: true
+    delegates: false
+    reports_to: controller
+    purpose: independently perform acceptance, review, design-challenge, or finding-closure work
+    may_write_production_files: false
+    may_write_test_files: false
+    may_request_worker: true
+    modes:
+      - acceptance
+      - review
+      - closure
+      - design-challenge
+    required_outputs:
+      - requirement_and_risk_coverage
+      - findings_with_evidence
+      - observed_validation
+      - unresolved_unknowns
+      - completion_recommendation
+  worker:
+    logical_agent_id: worker
+    permission_policy: inherit
+    is_leaf: true
+    delegates: false
+    reports_to: caller
+    purpose: run one exact or tightly bounded tool-heavy operation and return compact evidence
+    may_write_production_files: false
+    may_write_generated_outputs_only_when_explicitly_authorized: true
+    may_request_worker: false
+    required_outputs:
+      - exact_operation
+      - actual_exit_or_call_status
+      - decisive_excerpts
+      - observations
+      - inferences
+      - unknowns
+      - stop_condition_status
+
+routes:
+  inquiry:
+    production_changes_allowed: false
+    main_inline_default: true
+    conditional_roles:
+      researcher: bounded evidence work is sizeable, noisy, external, or independently useful
+      worker: one tool-heavy operation would pollute the main context
+  review:
+    production_changes_allowed: false
+    main_inline_default: true
+    conditional_roles:
+      verifier: an independent adversarial context materially improves confidence
+      researcher: a bounded factual question can change a finding
+      worker: a reproduction, search, or check produces large output
+  test_only:
+    production_changes_allowed: false
+    main_inline_default: true
+    conditional_roles:
+      engineer: a bounded test or fixture change benefits from isolated ownership
+      verifier: independent test-integrity or acceptance evidence is warranted
+      worker: running checks would produce noisy output
+  direct_change:
+    production_changes_allowed: true
+    eligibility:
+      - behavior and entry point are clear
+      - change is local and low risk
+      - no material public, persistence, security, concurrency, migration, or support boundary changes
+      - focused validation is obvious
+    main_inline_default: true
+    conditional_roles:
+      engineer: context isolation or bounded ownership materially helps
+      verifier: user request or risk warrants independent evidence
+      worker: command or tool output is large
+  supplied_plan_fast_path:
+    production_changes_allowed: true
+    gate: viable_user_supplied_or_explicitly_accepted_plan
+    main_inline_default: true
+    conditional_roles:
+      engineer: one bounded implementation slice benefits from delegation
+      verifier: risk or user request warrants independence
+      worker: noisy checks or evidence collection should be isolated
+    invariants:
+      - preserve settled decisions and ordered work
+      - do not regenerate or relitigate the plan without contradictory evidence
+  standard_delivery:
+    production_changes_allowed: true
+    main_inline_default: true
+    conditional_roles:
+      researcher: a bounded unknown can change implementation
+      engineer: a settled slice benefits from context isolation
+      verifier: independent acceptance or review materially improves confidence
+      worker: tool-heavy evidence should remain outside main context
+  architecture_delivery:
+    production_changes_allowed: true
+    architecture_owner: controller
+    triggers:
+      - public or cross-module contract change
+      - authentication, authorization, privacy, secrets, or trust-boundary change
+      - persistence, migration, consistency, concurrency, ordering, or recovery change
+      - deployment topology, rollback, billing, or data-integrity consequence
+    conditional_roles:
+      researcher: bounded evidence informs the main agent design decision
+      engineer: an accepted slice has settled boundaries and ownership
+      verifier: independent design challenge, acceptance, or review is required
+      worker: noisy checks or evidence should be isolated
+  long_horizon_delivery:
+    production_changes_allowed: true
+    architecture_owner: controller
+    requirements:
+      - decompose into independently verifiable milestones
+      - maintain durable state when a session or compaction boundary is likely
+      - integrate and validate one milestone before starting dependent work
+    conditional_roles:
+      researcher: a milestone has bounded evidence questions
+      engineer: a milestone slice has settled ownership
+      verifier: a milestone or final integration warrants independent evidence
+      worker: tool-heavy operations should be isolated
+
+supplied_plan_fast_path:
+  evaluation_order: before replacement scoping, architecture, or plan generation
+  decision_rule: all_required_criteria_and_no_invalidator
+  required_criteria:
+    - intended observable outcome is explicit
+    - affected scope is bounded
+    - material contracts and decisions are accepted
+    - implementation work is ordered and actionable
+    - success and relevant failure behavior are observable
+    - focused validation is identified
+  invalidators:
+    - a step contradicts observed repository or runtime evidence
+    - a material safety, correctness, support, or authority gap prevents execution
+    - an architecture or user-owned decision remains unresolved
+  response_to_invalidator: resolve only the smallest blocking decision or preflight
+
+delegation:
+  availability_is_not_a_trigger: true
+  inline_execution_is_first_class: true
+  required_work_order: references/delegation-and-state.md
+  expected_deliverable_is_not_a_predetermined_conclusion: true
+  specialist_to_specialist_transition: controller_only
+  specialist_may_invoke_agents: false
+  worker_fanout:
+    portable_mode: controller_mediated
+    native_nesting_required: false
+    decision_owner: controller
+  minimum_specialist_packet:
+    - task_id
+    - work_item_id
+    - invocation_id
+    - contract_revision
+    - bounded_objective
+    - acceptance_or_evidence_requirements
+    - scope_and_authority
+    - evidence_references_and_unknowns
+    - stop_conditions
+    - remaining_attempt_budget
+    - compact_return_schema
+
+runtime_permissions:
+  canonical_policy: inherit
+  host_level_restrictions_emitted_by_plugin: false
+  behavioral_scope_remains_work_order_bound: true
+
+iteration:
+  all_transitions_return_to_controller: true
+  new_evidence_required_for_repeat: true
+  maximum_candidate_repair_cycles: 2
+  maximum_evidence_backed_no_progress_attempts: 2
+  maximum_same_hypothesis_attempts_without_new_evidence: 1
+  progress_requires_one_of:
+    - narrowed_causal_chain
+    - newly_rejected_material_hypothesis
+    - changed_decisive_reproduction
+    - previously_failing_requirement_passes
+    - explicit_changed_contract_decision
+
+long_running_operations:
+  avoid_status_only_polling: true
+  prefer_completion_aware_waits: true
+  wait_mechanism_must_match_operation:
+    shell_session: shell_session_wait_or_poll
+    code_cell: code_cell_wait
+    agent: agent_wait
+  terminal_status_required_for_completion: true
+  interactive_input_must_remain_responsive: true
+  long_waits_are_for_known_non_interactive_work: true
+  host_specific_values_are_operational_choices_not_universal_requirements: true
+
+failure_loop:
+  classifications:
+    - production_defect
+    - test_defect
+    - environment_issue
+    - contract_or_architecture_ambiguity
+  repair_gate_requires:
+    - affected_requirement_or_invariant
+    - decisive_reproduction
+    - failure_classification
+    - observed_causal_evidence
+    - rejected_hypotheses_with_evidence
+    - authorized_repair_scope
+    - required_reruns
+    - remaining_repair_budget
+  automatic_peer_role_transition: forbidden
+  on_limit:
+    - stop further mutation
+    - preserve attempt evidence
+    - report the exact blocker and remaining unknown
+    - request only the smallest new evidence, authority, or decision needed
+
+completion:
+  observed_evidence_required: true
+  unrun_checks_may_not_be_reported_as_passed: true
+  open_critical_or_warning_findings_block: true
+  residual_risk_acceptance_owner: user
+  required_observables:
+    - accepted outcome and criteria disposition
+    - final diff inspection
+    - exact validation commands or tool calls and observed results
+    - changed versus pre-existing or environmental failures
+    - open findings, limitations, and residual risk
+
+conformance:
+  required_observables:
+    - selected route and supplied-plan gate decision
+    - inline or delegated resolution for each capability
+    - bounded work order for each invoked specialist
+    - observations, inferences, and unknowns kept distinct
+    - worker operations preserve actual status
+    - attempt and circuit-breaker state when applicable
+    - completion or blocker disposition
+  forbidden_claims:
+    - all named agents are always available
+    - a subagent may change the accepted contract
+    - an unrun check passed
+    - completion of a wrapper proves a nested process exited
+    - a finding is resolved without decisive evidence or explicit user risk acceptance

@@ -20,7 +20,7 @@ Options:
   --force                          Replace conflicting unowned files; never modified owned files
   --help                           Show this help
 
-Direct install hosts: codex, opencode, antigravity, portable-agent-skills.
+Direct install hosts: codex, opencode, cursor, antigravity, portable-agent-skills.
 Claude Code, Gemini CLI, and Oh My Pi packages must be installed with their native CLIs.`;
 
 function parseArgs(argv) {
@@ -105,6 +105,8 @@ function resolveOwnershipContext(args, env = process.env, cwd = process.cwd()) {
     if (args.mode === "standalone") trustedRoots.add(args.scope === "project" ? path.join(project, ".agents", "skills") : path.join(home, ".agents", "skills"));
   } else if (args.host === "opencode") {
     trustedRoots.add(args.scope === "project" ? path.join(project, ".opencode") : path.resolve(env.OPENCODE_CONFIG_DIR || (env.XDG_CONFIG_HOME ? path.join(env.XDG_CONFIG_HOME, "opencode") : path.join(home, ".config", "opencode"))));
+  } else if (args.host === "cursor") {
+    trustedRoots.add(args.scope === "project" ? path.join(project, ".cursor") : path.join(home, ".cursor"));
   } else if (args.host === "antigravity") {
     const pluginRoot = args.scope === "project" ? path.join(project, ".agents", "plugins", args.plugin) : path.join(home, ".gemini", "config", "plugins", args.plugin);
     trustedRoots.add(pluginRoot);
@@ -186,6 +188,9 @@ export function resolveInstallPlan(plugin, args, env = process.env, cwd = proces
       ? project
       : path.resolve(env.OPENCODE_CONFIG_DIR || (env.XDG_CONFIG_HOME ? path.join(env.XDG_CONFIG_HOME, "opencode") : path.join(home, ".config", "opencode")));
     files.push(...mapArtifacts(rendered.artifacts, (relative) => relative.startsWith(".opencode/"), (relative) => args.scope === "project" ? path.join(project, relative) : path.join(configRoot, relative.slice(".opencode/".length))));
+  } else if (args.host === "cursor") {
+    const configRoot = args.scope === "project" ? path.join(project, ".cursor") : path.join(home, ".cursor");
+    files.push(...mapArtifacts(rendered.artifacts, (relative) => relative.startsWith("skills/") || relative.startsWith("agents/"), (relative) => path.join(configRoot, relative)));
   } else if (args.host === "antigravity") {
     const bundleRoot = args.scope === "project" ? path.join(project, ".agents", "plugins", plugin.manifest.id) : path.join(home, ".gemini", "config", "plugins", plugin.manifest.id);
     files.push(...rendered.artifacts.map((artifact) => ({ ...artifact, destination: path.join(bundleRoot, artifact.path) })));

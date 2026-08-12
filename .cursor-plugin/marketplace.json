@@ -1,0 +1,29 @@
+{
+  "name": "otto-plugins",
+  "owner": {
+    "name": "Otto"
+  },
+  "metadata": {
+    "description": "My plugin store for portable agentic coding workflows.",
+    "version": "1.0.0",
+    "pluginRoot": "."
+  },
+  "plugins": [
+    {
+      "name": "senior-engineering-workflow",
+      "source": "./adapters/cursor/senior-engineering-workflow",
+      "description": "A proportional engineering workflow in which the capable main agent owns decisions and bounded specialists isolate research, implementation, verification, and noisy tool work.",
+      "minClientVersions": {
+        "cursor": "2.5.0"
+      }
+    },
+    {
+      "name": "tauri-v2-desktop",
+      "source": "./adapters/cursor/tauri-v2-desktop",
+      "description": "Secure, evidence-driven guidance for building, testing, upgrading, and distributing Tauri v2 desktop applications on Windows, macOS, and Linux.",
+      "minClientVersions": {
+        "cursor": "2.5.0"
+      }
+    }
+  ]
+}

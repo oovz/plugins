@@ -14,7 +14,7 @@
       "name": "senior-engineering-workflow",
       "source": "./adapters/oh-my-pi/senior-engineering-workflow",
       "description": "A proportional engineering workflow in which the capable main agent owns decisions and bounded specialists isolate research, implementation, verification, and noisy tool work.",
-      "version": "0.10.0",
+      "version": "0.11.0",
       "author": {
         "name": "Otto",
         "url": "https://github.com/oovz/plugins"
@@ -38,7 +38,7 @@
       "name": "tauri-v2-desktop",
       "source": "./adapters/oh-my-pi/tauri-v2-desktop",
       "description": "Secure, evidence-driven guidance for building, testing, upgrading, and distributing Tauri v2 desktop applications on Windows, macOS, and Linux.",
-      "version": "1.1.0",
+      "version": "1.2.0",
       "author": {
         "name": "Otto",
         "url": "https://github.com/oovz/plugins"

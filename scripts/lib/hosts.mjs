@@ -286,6 +286,49 @@ function renderOpenCode(plugin) {
   return [...artifacts, ...hostFiles(plugin, "opencode")];
 }
 
+export function cursorPluginManifest(plugin, repository = plugin.marketplace?.repository ?? plugin.manifest.author.url) {
+  const manifest = {
+    name: plugin.manifest.id,
+    displayName: plugin.manifest.displayName,
+    version: plugin.manifest.version,
+    description: plugin.manifest.description,
+    author: { name: plugin.manifest.author.name },
+    homepage: repository,
+    repository,
+    license: plugin.manifest.license,
+    keywords: plugin.manifest.keywords ?? [],
+    category: plugin.manifest.category ?? "Other",
+    minClientVersions: { cursor: "2.5.0" }
+  };
+  if (plugin.skills.length > 0) manifest.skills = "./skills/";
+  if (plugin.agents.length > 0) manifest.agents = "./agents/";
+  if (plugin.commands.some((command) => command.hosts.includes("cursor"))) manifest.commands = "./commands/";
+  return manifest;
+}
+
+function renderCursor(plugin) {
+  const explicit = plugin.agents.find((agent) => !inheritsPermissions(agent));
+  if (explicit) throw new Error(`${plugin.manifest.id} cannot enable Cursor for explicit-permission agent ${explicit.id}; the Cursor adapter currently supports permission-inheriting roles only`);
+  const artifacts = [
+    {
+      path: ".cursor-plugin/plugin.json",
+      content: json(cursorPluginManifest(plugin))
+    },
+    ...skills(plugin)
+  ];
+  for (const agent of plugin.agents) {
+    const flatId = flatAgentId(plugin.manifest.id, agent.id);
+    artifacts.push({
+      path: `agents/${flatId}.md`,
+      content: markdown({ name: flatId, description: agent.description }, leafGuard(agent))
+    });
+  }
+  for (const command of plugin.commands.filter((item) => item.hosts.includes("cursor"))) {
+    artifacts.push({ path: `commands/${flatAgentId(plugin.manifest.id, command.id)}.md`, content: command.source });
+  }
+  return [...artifacts, ...hostFiles(plugin, "cursor")];
+}
+
 function renderPortable(plugin) {
   return [...skills(plugin, ".agents/skills"), ...hostFiles(plugin, "portable")];
 }
@@ -296,6 +339,7 @@ export const HOSTS = Object.freeze({
   "gemini-cli": { variants: [null], manifestKey: "gemini-cli", render: renderGemini },
   antigravity: { variants: [null], manifestKey: "antigravity", render: renderAntigravity },
   "oh-my-pi": { variants: [null], manifestKey: "oh-my-pi", render: renderOhMyPi },
+  cursor: { variants: [null], manifestKey: "cursor", render: renderCursor },
   opencode: { variants: ["stable"], manifestKey: "opencode", render: renderOpenCode },
   "portable-agent-skills": { variants: [null], manifestKey: "portable", render: renderPortable }
 });

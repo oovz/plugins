@@ -2,7 +2,7 @@
   "$schema": "../../schemas/plugin.schema.json",
   "schemaVersion": 1,
   "id": "tauri-v2-desktop",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "displayName": "Tauri v2 Desktop",
   "description": "Secure, evidence-driven guidance for building, testing, upgrading, and distributing Tauri v2 desktop applications on Windows, macOS, and Linux.",
   "license": "MIT",
@@ -60,6 +60,9 @@
       "enabled": true
     },
     "portable": {
+      "enabled": true
+    },
+    "cursor": {
       "enabled": true
     }
   }

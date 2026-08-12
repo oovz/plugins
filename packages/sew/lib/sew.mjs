@@ -34,7 +34,7 @@ const MARKETPLACE_SOURCE = "oovz/plugins";
 const CODEX_PLUGIN_ID = `${PLUGIN_ID}@${MARKETPLACE_ID}`;
 const INSTALL_STATE_SCHEMA = 2;
 
-const HOSTS = Object.freeze(["claude-code", "codex", "opencode", "gemini-cli", "antigravity", "oh-my-pi"]);
+const HOSTS = Object.freeze(["claude-code", "codex", "opencode", "cursor", "gemini-cli", "antigravity", "oh-my-pi"]);
 const NATIVE_INSTALL_HOSTS = new Set(["claude-code", "oh-my-pi"]);
 const STATIC_INSTALL_HOSTS = new Set(HOSTS.filter((host) => !NATIVE_INSTALL_HOSTS.has(host)));
 
@@ -82,7 +82,7 @@ Model options:
   --json                         Emit JSON
 
 Doctor options:
-  --host <all|comma-list>        Inspect all six hosts by default
+  --host <all|comma-list>        Inspect all seven hosts by default
   --project <path>               Project root (default: current directory)
   --json                         Emit JSON
 
@@ -167,6 +167,7 @@ function userConfigRoot(host, { env = process.env, platform = process.platform, 
     const xdg = env.XDG_CONFIG_HOME ? path.resolve(env.XDG_CONFIG_HOME) : path.join(home, ".config");
     return path.join(xdg, "opencode");
   }
+  if (host === "cursor") return path.join(home, ".cursor");
   if (host === "gemini-cli") return path.resolve(env.GEMINI_CLI_HOME || path.join(home, ".gemini"));
   if (host === "antigravity") return path.join(home, ".gemini", "config");
   if (host === "oh-my-pi") return path.join(home, ".omp", "agent");
@@ -178,6 +179,7 @@ function projectConfigRoot(host, root) {
   if (host === "claude-code") return path.join(project, ".claude");
   if (host === "codex") return path.join(project, ".codex");
   if (host === "opencode") return path.join(project, ".opencode");
+  if (host === "cursor") return path.join(project, ".cursor");
   if (host === "gemini-cli") return path.join(project, ".gemini");
   if (host === "antigravity") return path.join(project, ".agents");
   if (host === "oh-my-pi") return path.join(project, ".omp");
@@ -200,6 +202,7 @@ function staticInstallRoots(host, scope, project, env = process.env) {
     };
   }
   if (host === "opencode") return { config: scope === "project" ? path.join(project, ".opencode") : userConfigRoot("opencode", { env, home }) };
+  if (host === "cursor") return { config: scope === "project" ? path.join(project, ".cursor") : userConfigRoot("cursor", { env, home }) };
   if (host === "gemini-cli") return { config: scope === "project" ? path.join(project, ".gemini") : userConfigRoot("gemini-cli", { env, home }) };
   if (host === "antigravity") {
     return {
@@ -269,6 +272,10 @@ async function staticPlan(host, scope, project, env = process.env) {
     }
   } else if (host === "opencode") {
     for (const artifact of artifacts) if (artifact.path.startsWith(".opencode/")) files.push({ root: "config", path: normalizeRelative(artifact.path.slice(".opencode/".length)), content: artifact.content });
+  } else if (host === "cursor") {
+    for (const artifact of artifacts) {
+      if (artifact.path.startsWith("skills/") || artifact.path.startsWith("agents/")) files.push({ root: "config", path: normalizeRelative(artifact.path), content: artifact.content });
+    }
   } else if (host === "gemini-cli") {
     for (const artifact of artifacts) {
       if (artifact.path.startsWith("skills/") || artifact.path.startsWith("agents/")) files.push({ root: "config", path: normalizeRelative(artifact.path), content: artifact.content });
@@ -301,7 +308,7 @@ function validateInstallState(value, expected) {
   const unknownKey = Object.keys(value).find((key) => !allowedKeys.has(key));
   if (unknownKey) throw new CliError(`The installation state contains an unknown field: ${unknownKey}.`, 1);
   if (value.package !== PACKAGE_NAME || value.plugin !== PLUGIN_ID) throw new CliError("The Senior Engineering Workflow installation state is invalid.", 1);
-  if (value.schemaVersion !== INSTALL_STATE_SCHEMA) throw new CliError(`Unsupported Senior Engineering Workflow installation-state schema ${value.schemaVersion ?? "missing"}; remove the old managed installation and install again.`, 1);
+  if (value.schemaVersion !== INSTALL_STATE_SCHEMA) throw new CliError(`Unsupported Senior Engineering Workflow installation-state schema ${value.schemaVersion ?? "missing"}; manually delete the 0.9.x payload and state file as documented in the @oovz/sew README, then install again.`, 1);
   if (value.host !== expected.host || value.scope !== expected.scope) throw new CliError("The Senior Engineering Workflow installation state belongs to another host or scope.", 1);
   if (typeof value.packageVersion !== "string" || !value.packageVersion || typeof value.pluginVersion !== "string" || !value.pluginVersion) throw new CliError("The installation state has invalid version metadata.", 1);
   if (!value.roots || typeof value.roots !== "object" || Array.isArray(value.roots)) throw new CliError("The installation state has invalid roots.", 1);

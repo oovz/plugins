@@ -14,8 +14,8 @@ My plugins for agentic coding harnesses.
 
 | Plugin | Version | What it does |
 |---|---:|---|
-| [Senior Engineering Workflow](plugins/senior-engineering-workflow/) | 0.10.0 | Keeps coding decisions in the capable main agent while bounded Researcher, Engineer, Verifier, and Worker roles isolate implementation and noisy evidence when useful. |
-| [Tauri v2 Desktop](plugins/tauri-v2-desktop/) | 1.1.0 | Secure, evidence-driven guidance for building, testing, upgrading, and distributing Tauri v2 desktop applications on Windows, macOS, and Linux. |
+| [Senior Engineering Workflow](plugins/senior-engineering-workflow/) | 0.11.0 | Keeps coding decisions in the capable main agent while bounded Researcher, Engineer, Verifier, and Worker roles isolate implementation and noisy evidence when useful. |
+| [Tauri v2 Desktop](plugins/tauri-v2-desktop/) | 1.2.0 | Secure, evidence-driven guidance for building, testing, upgrading, and distributing Tauri v2 desktop applications on Windows, macOS, and Linux. |
 
 ## Compatibility
 
@@ -26,6 +26,7 @@ The validated coding-harness targets are:
 | Claude Code | Skill + four named subagents | Skill | Native Claude marketplace |
 | Codex | Skill + four companion agents | Skill | Codex marketplace plus companion/static payload |
 | OpenCode | Skill + four Markdown subagents | Skill | Static host payload |
+| Cursor 2.5+ | Skill + four custom subagents | Skill | Native Cursor plugin plus static host payload |
 | Gemini CLI | Skill + four extension subagents | Skill | Static host payload |
 | Antigravity | Skill; bounded roles use inherited generic/dynamic subagents | Skill | Native Antigravity plugin payload |
 | Oh My Pi (`omp`) | Skill + four task agents | Skill | Native OMP marketplace |
@@ -101,6 +102,16 @@ node scripts/install.mjs install --plugin tauri-v2-desktop --host opencode --var
 </details>
 
 <details>
+<summary>Cursor</summary>
+
+```text
+npx @oovz/sew install --host cursor --scope user
+```
+
+Add `--scope project --project /absolute/path/to/project` for one workspace. The command installs the Agent Skill and four custom subagents under the standard `.cursor/skills` and `.cursor/agents` paths, which are available to the local editor and Cursor CLI. The generated `.cursor-plugin` adapter is for Cursor Marketplace or team-marketplace installation in Cursor 2.5 and later. Use either the direct CLI installation or a native Cursor plugin installation, not both, to avoid duplicate role definitions. Cloud-agent delegation is not part of this validated target. Cursor roles keep the parent model by omitting `model`; `sew models configure` does not edit Cursor agents.
+</details>
+
+<details>
 <summary>Gemini CLI</summary>
 
 ```text
@@ -149,7 +160,7 @@ omp plugin install --scope user tauri-v2-desktop@otto-plugins
 ```
 </details>
 
-`update` and `uninstall` mirror `install` for the same host and scope. `npx @oovz/sew doctor` checks all six hosts, and `--dry-run` previews any operation.
+`update` and `uninstall` mirror `install` for the same host and scope. `npx @oovz/sew doctor` checks all seven hosts, and `--dry-run` previews any operation.
 
 ### Configure subagent models
 
@@ -165,6 +176,10 @@ npx @oovz/sew models configure \
 ```
 
 Three-model routing is available through `--preset three-model`. Use `--preset inherit` to remove the model/thinking fields and return to full inheritance. Model configuration is supported only for Codex, OpenCode, and Gemini CLI. Claude Code, Oh My Pi, and Antigravity continue to use their native inheritance behavior.
+
+## Migrate from @oovz/sew 0.9.x
+
+Version 0.10.0 and later use installation-state schema 2 and intentionally do not migrate schema-1 state. Close the affected harness, manually delete the old managed payload and its state file, then reinstall. The exact per-host paths and commands are in [the @oovz/sew migration guide](packages/sew/README.md#migrate-a-09x-static-installation-to-0100-or-later).
 
 ## Build from source
 
@@ -195,6 +210,7 @@ adapters/                         generated, checked-in host projections
 .claude-plugin/marketplace.json   generated Claude Code catalog
 .agents/plugins/marketplace.json  generated Codex catalog
 .omp-plugin/marketplace.json      generated Oh My Pi catalog
+.cursor-plugin/marketplace.json   generated Cursor catalog
 packages/sew/                     source for the @oovz/sew installation CLI
 scripts/                          generation, installation, and validation tools
 test/                             marketplace, workflow, installer, and CLI tests

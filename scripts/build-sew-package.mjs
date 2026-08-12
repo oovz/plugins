@@ -14,10 +14,11 @@ const PACKAGE_OUTPUT = path.join(RELEASE_BUILD_ROOT, "package");
 const STATIC_PAYLOADS = Object.freeze({
   codex: path.join("dist", "codex", PLUGIN_ID),
   opencode: path.join("dist", "opencode", "stable", PLUGIN_ID),
+  cursor: path.join("dist", "cursor", PLUGIN_ID),
   "gemini-cli": path.join("dist", "gemini-cli", PLUGIN_ID),
   antigravity: path.join("dist", "antigravity", PLUGIN_ID),
 });
-const ALL_HOSTS = Object.freeze(["claude-code", "codex", "opencode", "gemini-cli", "antigravity", "oh-my-pi"]);
+const ALL_HOSTS = Object.freeze(["claude-code", "codex", "opencode", "cursor", "gemini-cli", "antigravity", "oh-my-pi"]);
 
 function isContained(root, candidate) {
   const relative = path.relative(path.resolve(root), path.resolve(candidate));

@@ -34,7 +34,7 @@ export async function checkSewRelease(tag, options = {}) {
     throw new Error("The staged npm package manifest does not match the private source package.");
   }
   const payload = JSON.parse(await readFile(path.join(stageRoot, "payloads", "manifest.json"), "utf8"));
-  const expectedStaticHosts = ["codex", "opencode", "gemini-cli", "antigravity"];
+  const expectedStaticHosts = ["codex", "opencode", "cursor", "gemini-cli", "antigravity"];
   if (payload.schemaVersion !== 2 || payload.packageVersion !== source.version || payload.package !== source.name ||
       JSON.stringify(payload.staticHosts) !== JSON.stringify(expectedStaticHosts)) {
     throw new Error("The staged payload manifest does not match the package version or static host set.");
