@@ -61,7 +61,7 @@ For Codex, the marketplace owns the skill and `@oovz/sew` owns only the four com
 - `--force` skips the inventory check, reinstalls the marketplace plugin, and replaces conflicting companion-agent files; and
 - `uninstall` removes only the companion agents and leaves the marketplace plugin intact.
 
-On Windows, the CLI also locates the `codex` binary bundled with Codex Desktop under `%LOCALAPPDATA%\OpenAI\Codex\bin` (and the Claude Desktop bundle under `%LOCALAPPDATA%\AnthropicClaude`) when it is not on `PATH`, selecting the candidate with the highest `--version` output.
+On Windows, the CLI also locates the `codex` binary bundled with Codex Desktop under `%LOCALAPPDATA%\OpenAI\Codex\bin` (and the Claude Desktop bundle under `%LOCALAPPDATA%\AnthropicClaude`) when it is not on `PATH`. On macOS it locates the `codex` binary bundled with the ChatGPT desktop app under `/Applications/ChatGPT.app/Contents/Resources/codex`, and accepts the `Codex.app` compatibility bundle and `~/Applications` installs, when it is not on `PATH`. In both cases the candidate with the highest `--version` output is selected.
 
 The complete Codex projection remains in the CI-built payload for release verification, but the static installer copies and claims ownership only for `companion/agents/*`. `--dry-run` does not invoke Codex; it reports the inventory check and conditional plugin-install commands it would perform.
 

@@ -637,6 +637,27 @@ function probeBinaryVersion(candidate, env = process.env, runner = spawnSync) {
   return parseBinaryVersion(text) ? text : null;
 }
 
+function selectBinaryVersion(candidates, env = process.env, probe = probeBinaryVersion) {
+  if (candidates.length <= 1) return candidates[0] ?? null;
+  let best = null;
+  let bestVersion = null;
+  let newest = null;
+  let newestMtime = -1;
+  for (const candidate of candidates) {
+    const text = probe(candidate, env);
+    const version = text ? parseBinaryVersion(text) : null;
+    if (version) {
+      if (!bestVersion || compareVersions(version, bestVersion) > 0) { best = candidate; bestVersion = version; }
+    } else {
+      try {
+        const mtime = statSync(candidate).mtimeMs;
+        if (mtime > newestMtime) { newest = candidate; newestMtime = mtime; }
+      } catch { /* keep the candidate out of the fallback ranking */ }
+    }
+  }
+  return best ?? newest;
+}
+
 function findWin32AppBinary(name, env = process.env, probe = probeBinaryVersion) {
   const local = env.LOCALAPPDATA;
   if (!local) return null;
@@ -656,25 +677,22 @@ function findWin32AppBinary(name, env = process.env, probe = probeBinaryVersion)
       candidates.push(path.join(root, entry.name, `${name}.exe`), path.join(root, entry.name, `${name}.cmd`), path.join(root, entry.name, `${name}.bat`));
     }
   }
-  const existing = candidates.filter((candidate) => existsSync(candidate));
-  if (existing.length <= 1) return existing[0] ?? null;
-  let best = null;
-  let bestVersion = null;
-  let newest = null;
-  let newestMtime = -1;
-  for (const candidate of existing) {
-    const text = probe(candidate, env);
-    const version = text ? parseBinaryVersion(text) : null;
-    if (version) {
-      if (!bestVersion || compareVersions(version, bestVersion) > 0) { best = candidate; bestVersion = version; }
-    } else {
-      try {
-        const mtime = statSync(candidate).mtimeMs;
-        if (mtime > newestMtime) { newest = candidate; newestMtime = mtime; }
-      } catch { /* keep the candidate out of the fallback ranking */ }
-    }
-  }
-  return best ?? newest;
+  return selectBinaryVersion(candidates.filter((candidate) => existsSync(candidate)), env, probe);
+}
+
+function macosAppBundleRoots(env = process.env) {
+  const home = homeDirectory(env);
+  return ["/Applications", path.join(home, "Applications")].flatMap((base) =>
+    ["ChatGPT.app", "Codex.app"].map((app) => path.join(base, app, "Contents", "Resources"))
+  );
+}
+
+function findMacosAppBinary(name, env = process.env, probe = probeBinaryVersion, roots = macosAppBundleRoots(env)) {
+  if (name !== "codex") return null;
+  const candidates = roots.map((root) => path.join(root, name)).filter((candidate) => {
+    try { return (statSync(candidate).mode & 0o111) !== 0; } catch { return false; }
+  });
+  return selectBinaryVersion(candidates, env, probe);
 }
 
 function spawnHost(executable, args, options) {
@@ -683,7 +701,13 @@ function spawnHost(executable, args, options) {
   const cwd = options.cwd && existsSync(options.cwd) ? options.cwd : process.cwd();
   const spawn = { cwd, encoding: "utf8", stdio: options.stdio ?? "pipe", env, shell: false };
   const result = runner(executable, args, spawn);
-  if (result.error?.code !== "ENOENT" || process.platform !== "win32") return result;
+  if (result.error?.code !== "ENOENT") return result;
+  if (process.platform === "darwin") {
+    const resolved = findMacosAppBinary(executable, env);
+    if (!resolved) return result;
+    return runner(resolved, args, spawn);
+  }
+  if (process.platform !== "win32") return result;
   const resolved = findWin32Executable(executable, env) ?? findWin32AppBinary(executable, env);
   if (!resolved) return result;
   const commandLine = `"${resolved}" ${args.map((arg) => (/\s/u.test(arg) ? `"${arg}"` : arg)).join(" ")}`;
@@ -693,7 +717,7 @@ function spawnHost(executable, args, options) {
 function inspectCodexPlugin(project, runner = spawnSync, env = process.env) {
   const result = spawnHost("codex", ["plugin", "list", "--json"], { cwd: project, stdio: "pipe", spawnSync: runner, env });
   if (result.error) {
-    if (result.error.code === "ENOENT") throw new CliError("Could not find the codex CLI on PATH. Install the Codex CLI (npm install -g @openai/codex) or add it to PATH, then re-run.", 1);
+    if (result.error.code === "ENOENT") throw new CliError("Could not find the codex CLI on PATH or bundled with the ChatGPT or Codex desktop apps. Install the Codex CLI (curl -fsSL https://chatgpt.com/codex/install.sh | sh) or add it to PATH, then re-run.", 1);
     throw new CliError(`Could not inspect Codex plugins: ${result.error.message}. Re-run with --force to reinstall the marketplace skill and companion agents.`, 1);
   }
   if ((result.status ?? 1) !== 0) {
@@ -1240,6 +1264,8 @@ export const internals = Object.freeze({
   nativeCommands,
   findWin32Executable,
   findWin32AppBinary,
+  macosAppBundleRoots,
+  findMacosAppBinary,
   probeBinaryVersion,
   parseBinaryVersion,
   compareVersions,

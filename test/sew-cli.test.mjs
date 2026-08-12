@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { spawnSync as realSpawnSync } from "node:child_process";
 import { utimesSync } from "node:fs";
-import { lstat, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
+import { lstat, mkdir, mkdtemp, chmod, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -71,7 +71,7 @@ function codexRunner({ installed = true, enabled = true, malformed = false, stat
       if (malformed) return { status, stdout: "not-json", stderr: "" };
       return {
         status,
-        stdout: JSON.stringify({ installed: installed ? [{ pluginId: "senior-engineering-workflow@otto-plugins", installed, enabled, version: "0.9.6" }] : [] }),
+        stdout: JSON.stringify({ installed: installed ? [{ pluginId: "senior-engineering-workflow@otto-plugins", installed, enabled, version: "0.9.7" }] : [] }),
         stderr: status === 0 ? "" : "inspection failed",
       };
     }
@@ -368,6 +368,52 @@ test("win32 app-bundle search falls back to mtime only when no candidate reports
   assert.equal(internals.findWin32AppBinary("codex", env, () => null), newer, "unparseable probes fall back to newest mtime");
 });
 
+test("macOS app-bundle search selects the highest --version output, not the newest file", async () => {
+  const home = await temp("sew-macos-app-");
+  const chatgpt = path.join(home, "Applications", "ChatGPT.app", "Contents", "Resources", "codex");
+  const codexApp = path.join(home, "Applications", "Codex.app", "Contents", "Resources", "codex");
+  for (const candidate of [chatgpt, codexApp]) {
+    await mkdir(path.dirname(candidate), { recursive: true });
+    await writeFile(candidate, "#!/bin/sh\n");
+    await chmod(candidate, 0o755);
+  }
+  const env = { HOME: home };
+  const roots = [path.dirname(chatgpt), path.dirname(codexApp)];
+  const versions = new Map([[chatgpt, "codex-cli 0.147.0-alpha.6.5"], [codexApp, "codex-cli 0.130.0-alpha.5"]]);
+  const probe = (candidate) => versions.get(candidate) ?? null;
+  assert.equal(internals.findMacosAppBinary("codex", env, probe, roots), chatgpt, "higher version must win");
+  versions.set(codexApp, "codex-cli 0.999.0");
+  assert.equal(internals.findMacosAppBinary("codex", env, probe, roots), codexApp);
+  versions.set(chatgpt, "codex-cli 1.0.0");
+  assert.equal(internals.findMacosAppBinary("codex", env, probe, roots), chatgpt, "version beats bundle name");
+  assert.equal(internals.findMacosAppBinary("claude", env, probe, roots), null);
+  assert.equal(internals.findMacosAppBinary("codex", env, probe, []), null);
+  assert.equal(internals.findMacosAppBinary("codex", env, probe, [path.join(home, "Missing.app", "Contents", "Resources")]), null);
+
+  let probes = 0;
+  const countingProbe = (candidate, envValue) => { probes += 1; return null; };
+  assert.equal(internals.findMacosAppBinary("codex", env, countingProbe, [path.dirname(chatgpt)]), chatgpt, "a single candidate is used without probing");
+  assert.equal(probes, 0, "a single candidate must not be probed");
+  await chmod(chatgpt, 0o644);
+  assert.equal(internals.findMacosAppBinary("codex", env, countingProbe, [path.dirname(chatgpt)]), null, "non-executable bundles are rejected");
+});
+
+test("macOS app-bundle search falls back to mtime only when no candidate reports a version", async () => {
+  const home = await temp("sew-macos-app-");
+  const chatgpt = path.join(home, "Applications", "ChatGPT.app", "Contents", "Resources", "codex");
+  const codexApp = path.join(home, "Applications", "Codex.app", "Contents", "Resources", "codex");
+  for (const candidate of [chatgpt, codexApp]) {
+    await mkdir(path.dirname(candidate), { recursive: true });
+    await writeFile(candidate, "#!/bin/sh\n");
+    await chmod(candidate, 0o755);
+  }
+  const future = new Date(Date.now() + 60_000);
+  await utimesSync(codexApp, future, future);
+  const env = { HOME: home };
+  const roots = [path.dirname(chatgpt), path.dirname(codexApp)];
+  assert.equal(internals.findMacosAppBinary("codex", env, () => null, roots), codexApp, "unparseable probes fall back to newest mtime");
+});
+
 test("binary version parsing and comparison follow prerelease precedence", () => {
   const parse = internals.parseBinaryVersion;
   assert.deepEqual(parse("codex-cli 0.147.0-alpha.6.6\n"), { numbers: [0, 147, 0], prerelease: ["alpha", "6", "6"] });
@@ -406,6 +452,31 @@ test("Windows retries Desktop-bundled binaries discovered outside PATH", { skip:
   const install = await capture(["install", "--host", "codex", "--scope", "project", "--project", project, "--json"], { env, spawnSync });
   assert.equal(install.code, 0, install.stderr);
   assert.ok(calls.some((item) => item.shell === true && item.executable.includes(path.join(bin, "codex.cmd"))), "install must run the Desktop-bundled codex shim");
+  const result = JSON.parse(install.stdout);
+  assert.equal(result.plugin.status, "installed");
+  for (const role of ROLES) {
+    assert.equal(await exists(path.join(project, ".codex", "agents", `senior-engineering-workflow-${role}.toml`)), true);
+  }
+});
+
+test("macOS retries ChatGPT Desktop-bundled binaries discovered outside PATH", { skip: process.platform !== "darwin" && "requires macOS app bundles" }, async () => {
+  const project = await temp("sew-codex-desktop-macos-");
+  const home = await temp("sew-macos-home-");
+  const bundle = path.join(home, "Applications", "ChatGPT.app", "Contents", "Resources", "codex");
+  await mkdir(path.dirname(bundle), { recursive: true });
+  await writeFile(bundle, "#!/bin/sh\n");
+  await chmod(bundle, 0o755);
+  const env = { HOME: home, XDG_STATE_HOME: path.join(project, "state") };
+  const calls = [];
+  const spawnSync = (executable, args) => {
+    calls.push({ executable, args: [...args] });
+    if (executable === "codex") return { error: { code: "ENOENT", message: `spawnSync ${executable} ENOENT` } };
+    if (args.join(" ") === "plugin list --json") return { status: 0, stdout: JSON.stringify({ installed: [] }), stderr: "" };
+    return { status: 0, stdout: "", stderr: "" };
+  };
+  const install = await capture(["install", "--host", "codex", "--scope", "project", "--project", project, "--json"], { env, spawnSync });
+  assert.equal(install.code, 0, install.stderr);
+  assert.ok(calls.some((item) => item.executable.includes(path.join("ChatGPT.app", "Contents", "Resources", "codex"))), "install must run the ChatGPT Desktop-bundled codex binary");
   const result = JSON.parse(install.stdout);
   assert.equal(result.plugin.status, "installed");
   for (const role of ROLES) {
