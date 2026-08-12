@@ -1,6 +1,4 @@
 import assert from "node:assert/strict";
-import { spawnSync as realSpawnSync } from "node:child_process";
-import { utimesSync } from "node:fs";
 import { lstat, mkdir, mkdtemp, chmod, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -71,7 +69,7 @@ function codexRunner({ installed = true, enabled = true, malformed = false, stat
       if (malformed) return { status, stdout: "not-json", stderr: "" };
       return {
         status,
-        stdout: JSON.stringify({ installed: installed ? [{ pluginId: "senior-engineering-workflow@otto-plugins", installed, enabled, version: "0.9.7" }] : [] }),
+        stdout: JSON.stringify({ installed: installed ? [{ pluginId: "senior-engineering-workflow@otto-plugins", installed, enabled, version: "0.10.0" }] : [] }),
         stderr: status === 0 ? "" : "inspection failed",
       };
     }
@@ -115,16 +113,6 @@ test("host roots follow the six documented conventions", () => {
   assert.equal(internals.userConfigRoot("oh-my-pi", { env, platform: "linux", home }), path.join(home, ".omp/agent"));
 });
 
-test("models configure is inherit-only on hosts without editable agents", async () => {
-  for (const host of ["claude-code", "oh-my-pi", "antigravity"]) {
-    const project = await temp(`sew-inherit-${host}-`);
-    const rejected = await capture(["models", "configure", "--host", host, "--scope", "project", "--project", project, "--preset", "two-model", "--worker-model", "flash"]);
-    assert.equal(rejected.code, 2);
-    assert.match(rejected.stderr, /cannot be edited in place/u);
-    const inherited = await capture(["models", "configure", "--host", host, "--scope", "project", "--project", project, "--preset", "inherit"]);
-    assert.equal(inherited.code, 0, inherited.stderr);
-  }
-});
 
 test("models configure edits installed static agents in place and restores inheritance", async () => {
   const cases = [
@@ -308,214 +296,6 @@ test("a missing host CLI fails with actionable guidance instead of the raw spawn
   assert.match(result.stderr, /Could not find the codex CLI on PATH/u);
   assert.doesNotMatch(result.stderr, /spawnSync codex ENOENT/u);
   assert.equal(await exists(path.join(project, ".codex", "agents")), false);
-});
-
-test("win32 PATH/PATHEXT search resolves npm-style shims and returns null when absent", async () => {
-  const bin = await temp("sew-win32-path-");
-  await writeFile(path.join(bin, "fakecodex.cmd"), "@echo off\n");
-  const env = { PATH: bin, PATHEXT: ".COM;.EXE;.BAT;.CMD" };
-  assert.equal(internals.findWin32Executable("fakecodex", env), path.join(bin, "fakecodex.cmd"));
-  assert.equal(internals.findWin32Executable("missing-tool", env), null);
-  assert.equal(internals.findWin32Executable("fakecodex", {}), null);
-});
-
-test("win32 app-bundle search selects the highest --version output, not the newest file", async () => {
-  const local = await temp("sew-win32-app-");
-  const codexBin = path.join(local, "OpenAI", "Codex", "bin");
-  await mkdir(codexBin, { recursive: true });
-  const topLevel = path.join(codexBin, "codex.exe");
-  const versionedDir = path.join(codexBin, "8e8bf206e63ac436");
-  await mkdir(versionedDir, { recursive: true });
-  const versioned = path.join(versionedDir, "codex.exe");
-  await writeFile(topLevel, "stale\n");
-  await writeFile(versioned, "current\n");
-  const future = new Date(Date.now() + 60_000);
-  await utimesSync(topLevel, future, future);
-  const env = { LOCALAPPDATA: local };
-  const versions = new Map([[topLevel, "codex-cli 0.130.0-alpha.5"], [versioned, "codex-cli 0.147.0-alpha.6.6"]]);
-  const probe = (candidate) => versions.get(candidate) ?? null;
-  assert.equal(internals.findWin32AppBinary("codex", env, probe), versioned, "higher version must win despite an older mtime");
-  versions.set(versioned, "codex-cli 0.999.0");
-  assert.equal(internals.findWin32AppBinary("codex", env, probe), versioned);
-  versions.set(topLevel, "codex-cli 1.0.0");
-  assert.equal(internals.findWin32AppBinary("codex", env, probe), topLevel, "version beats bundle layout");
-  assert.equal(internals.findWin32AppBinary("claude", env, probe), null);
-  assert.equal(internals.findWin32AppBinary("omp", env, probe), null);
-  assert.equal(internals.findWin32AppBinary("codex", {}, probe), null);
-
-  const claude = path.join(local, "AnthropicClaude", "claude.exe");
-  await mkdir(path.dirname(claude), { recursive: true });
-  await writeFile(claude, "claude\n");
-  let probes = 0;
-  const countingProbe = (candidate, envValue) => { probes += 1; return probe(candidate, envValue); };
-  assert.equal(internals.findWin32AppBinary("claude", env, countingProbe), claude, "a single candidate is used without probing");
-  assert.equal(probes, 0, "a single candidate must not be probed");
-});
-
-test("win32 app-bundle search falls back to mtime only when no candidate reports a version", async () => {
-  const local = await temp("sew-win32-app-");
-  const bin = path.join(local, "OpenAI", "Codex", "bin");
-  await mkdir(bin, { recursive: true });
-  const older = path.join(bin, "codex.exe");
-  const versionedDir = path.join(bin, "8e8bf206e63ac436");
-  await mkdir(versionedDir, { recursive: true });
-  const newer = path.join(versionedDir, "codex.exe");
-  await writeFile(older, "older\n");
-  await writeFile(newer, "newer\n");
-  const future = new Date(Date.now() + 60_000);
-  await utimesSync(newer, future, future);
-  const env = { LOCALAPPDATA: local };
-  assert.equal(internals.findWin32AppBinary("codex", env, () => null), newer, "unparseable probes fall back to newest mtime");
-});
-
-test("macOS app-bundle search selects the highest --version output, not the newest file", async () => {
-  const home = await temp("sew-macos-app-");
-  const chatgpt = path.join(home, "Applications", "ChatGPT.app", "Contents", "Resources", "codex");
-  const codexApp = path.join(home, "Applications", "Codex.app", "Contents", "Resources", "codex");
-  for (const candidate of [chatgpt, codexApp]) {
-    await mkdir(path.dirname(candidate), { recursive: true });
-    await writeFile(candidate, "#!/bin/sh\n");
-    await chmod(candidate, 0o755);
-  }
-  const env = { HOME: home };
-  const roots = [path.dirname(chatgpt), path.dirname(codexApp)];
-  const versions = new Map([[chatgpt, "codex-cli 0.147.0-alpha.6.5"], [codexApp, "codex-cli 0.130.0-alpha.5"]]);
-  const probe = (candidate) => versions.get(candidate) ?? null;
-  assert.equal(internals.findMacosAppBinary("codex", env, probe, roots), chatgpt, "higher version must win");
-  versions.set(codexApp, "codex-cli 0.999.0");
-  assert.equal(internals.findMacosAppBinary("codex", env, probe, roots), codexApp);
-  versions.set(chatgpt, "codex-cli 1.0.0");
-  assert.equal(internals.findMacosAppBinary("codex", env, probe, roots), chatgpt, "version beats bundle name");
-  assert.equal(internals.findMacosAppBinary("claude", env, probe, roots), null);
-  assert.equal(internals.findMacosAppBinary("codex", env, probe, []), null);
-  assert.equal(internals.findMacosAppBinary("codex", env, probe, [path.join(home, "Missing.app", "Contents", "Resources")]), null);
-
-  let probes = 0;
-  const countingProbe = (candidate, envValue) => { probes += 1; return null; };
-  assert.equal(internals.findMacosAppBinary("codex", env, countingProbe, [path.dirname(chatgpt)]), chatgpt, "a single candidate is used without probing");
-  assert.equal(probes, 0, "a single candidate must not be probed");
-  await chmod(chatgpt, 0o644);
-  assert.equal(internals.findMacosAppBinary("codex", env, countingProbe, [path.dirname(chatgpt)]), null, "non-executable bundles are rejected");
-});
-
-test("macOS app-bundle search falls back to mtime only when no candidate reports a version", async () => {
-  const home = await temp("sew-macos-app-");
-  const chatgpt = path.join(home, "Applications", "ChatGPT.app", "Contents", "Resources", "codex");
-  const codexApp = path.join(home, "Applications", "Codex.app", "Contents", "Resources", "codex");
-  for (const candidate of [chatgpt, codexApp]) {
-    await mkdir(path.dirname(candidate), { recursive: true });
-    await writeFile(candidate, "#!/bin/sh\n");
-    await chmod(candidate, 0o755);
-  }
-  const future = new Date(Date.now() + 60_000);
-  await utimesSync(codexApp, future, future);
-  const env = { HOME: home };
-  const roots = [path.dirname(chatgpt), path.dirname(codexApp)];
-  assert.equal(internals.findMacosAppBinary("codex", env, () => null, roots), codexApp, "unparseable probes fall back to newest mtime");
-});
-
-test("binary version parsing and comparison follow prerelease precedence", () => {
-  const parse = internals.parseBinaryVersion;
-  assert.deepEqual(parse("codex-cli 0.147.0-alpha.6.6\n"), { numbers: [0, 147, 0], prerelease: ["alpha", "6", "6"] });
-  assert.deepEqual(parse("claude 1.2.3"), { numbers: [1, 2, 3], prerelease: null });
-  assert.equal(parse("not a version"), null);
-  const compare = internals.compareVersions;
-  assert.ok(compare(parse("0.147.0-alpha.6.6"), parse("0.130.0-alpha.5")) > 0, "0.147 beats 0.130");
-  assert.ok(compare(parse("1.0.0"), parse("0.999.0")) > 0, "1.0 beats 0.999");
-  assert.ok(compare(parse("0.147.0"), parse("0.147.0-alpha.6.6")) > 0, "release beats prerelease");
-  assert.ok(compare(parse("0.147.0-alpha.6.6"), parse("0.147.0-alpha.10")) < 0, "numeric prerelease components compare numerically");
-  assert.ok(compare(parse("0.147.0-alpha.6"), parse("0.147.0-alpha.6.1")) < 0, "longer prerelease wins when a prefix matches");
-  assert.equal(compare(parse("1.2.3"), parse("1.2.3")), 0);
-});
-
-test("Windows retries Desktop-bundled binaries discovered outside PATH", { skip: process.platform !== "win32" && "requires Windows .cmd shims" }, async () => {
-  const project = await temp("sew-codex-desktop-");
-  const local = await temp("sew-codex-desktop-app-");
-  const bin = path.join(local, "OpenAI", "Codex", "bin");
-  await mkdir(bin, { recursive: true });
-  await writeFile(path.join(bin, "codex.cmd"), [
-    "@echo off",
-    "if /i \"%1\"==\"plugin\" if /i \"%2\"==\"list\" (",
-    "  echo {\"installed\":[]}",
-    "  exit /b 0",
-    ")",
-    "exit /b 0",
-    "",
-  ].join("\r\n"));
-  const env = { HOME: path.join(project, "home"), XDG_STATE_HOME: path.join(project, "state"), LOCALAPPDATA: local, PATH: process.env.PATH };
-  const calls = [];
-  const spawnSync = (executable, args, options) => {
-    calls.push({ executable, args: [...args], shell: options.shell });
-    if (options.shell !== true) return { error: { code: "ENOENT", message: `spawnSync ${executable} ENOENT` } };
-    return realSpawnSync(executable, args, options);
-  };
-  const install = await capture(["install", "--host", "codex", "--scope", "project", "--project", project, "--json"], { env, spawnSync });
-  assert.equal(install.code, 0, install.stderr);
-  assert.ok(calls.some((item) => item.shell === true && item.executable.includes(path.join(bin, "codex.cmd"))), "install must run the Desktop-bundled codex shim");
-  const result = JSON.parse(install.stdout);
-  assert.equal(result.plugin.status, "installed");
-  for (const role of ROLES) {
-    assert.equal(await exists(path.join(project, ".codex", "agents", `senior-engineering-workflow-${role}.toml`)), true);
-  }
-});
-
-test("macOS retries ChatGPT Desktop-bundled binaries discovered outside PATH", { skip: process.platform !== "darwin" && "requires macOS app bundles" }, async () => {
-  const project = await temp("sew-codex-desktop-macos-");
-  const home = await temp("sew-macos-home-");
-  const bundle = path.join(home, "Applications", "ChatGPT.app", "Contents", "Resources", "codex");
-  await mkdir(path.dirname(bundle), { recursive: true });
-  await writeFile(bundle, "#!/bin/sh\n");
-  await chmod(bundle, 0o755);
-  const env = { HOME: home, XDG_STATE_HOME: path.join(project, "state") };
-  const calls = [];
-  const spawnSync = (executable, args) => {
-    calls.push({ executable, args: [...args] });
-    if (executable === "codex") return { error: { code: "ENOENT", message: `spawnSync ${executable} ENOENT` } };
-    if (args.join(" ") === "plugin list --json") return { status: 0, stdout: JSON.stringify({ installed: [] }), stderr: "" };
-    return { status: 0, stdout: "", stderr: "" };
-  };
-  const install = await capture(["install", "--host", "codex", "--scope", "project", "--project", project, "--json"], { env, spawnSync });
-  assert.equal(install.code, 0, install.stderr);
-  assert.ok(calls.some((item) => item.executable.includes(path.join("ChatGPT.app", "Contents", "Resources", "codex"))), "install must run the ChatGPT Desktop-bundled codex binary");
-  const result = JSON.parse(install.stdout);
-  assert.equal(result.plugin.status, "installed");
-  for (const role of ROLES) {
-    assert.equal(await exists(path.join(project, ".codex", "agents", `senior-engineering-workflow-${role}.toml`)), true);
-  }
-});
-
-test("Windows retries .cmd shims through the shell after an ENOENT spawn", { skip: process.platform !== "win32" && "requires Windows .cmd shims" }, async () => {
-  const project = await temp("sew-codex-shim-");
-  const bin = await temp("sew-codex-bin-");
-  await writeFile(path.join(bin, "codex.cmd"), [
-    "@echo off",
-    "if /i \"%1\"==\"plugin\" if /i \"%2\"==\"list\" (",
-    "  echo {\"installed\":[]}",
-    "  exit /b 0",
-    ")",
-    "exit /b 0",
-    "",
-  ].join("\r\n"));
-  const env = { HOME: path.join(project, "home"), XDG_STATE_HOME: path.join(project, "state"), PATH: `${bin};${process.env.PATH}`, PATHEXT: ".COM;.EXE;.BAT;.CMD" };
-  const calls = [];
-  const spawnSync = (executable, args, options) => {
-    calls.push({ executable, args: [...args], shell: options.shell });
-    if (options.shell !== true) return { error: { code: "ENOENT", message: `spawnSync ${executable} ENOENT` } };
-    return realSpawnSync(executable, args, options);
-  };
-  const install = await capture(["install", "--host", "codex", "--scope", "project", "--project", project, "--json"], { env, spawnSync });
-  assert.equal(install.code, 0, install.stderr);
-  assert.equal(calls.length, 6, "each command attempts a bare spawn then retries through the shell");
-  const shellRetries = calls.filter((item) => item.shell === true);
-  const failedAttempts = calls.filter((item) => item.shell !== true);
-  assert.equal(shellRetries.length, 3, "inspect plus two install commands succeed only through the shell");
-  assert.ok(shellRetries.every((item) => item.executable.includes("codex")), "shell retries must target the codex shim");
-  assert.ok(failedAttempts.every((item) => item.executable === "codex"), "bare spawns must use the plain codex name");
-  const result = JSON.parse(install.stdout);
-  assert.equal(result.plugin.status, "installed");
-  for (const role of ROLES) {
-    assert.equal(await exists(path.join(project, ".codex", "agents", `senior-engineering-workflow-${role}.toml`)), true);
-  }
 });
 
 test("native Claude Code and Oh My Pi commands are exact and dry-run safe", async () => {

@@ -12,7 +12,7 @@
       "source": "./adapters/claude-code/senior-engineering-workflow",
       "description": "A proportional engineering workflow in which the capable main agent owns decisions and bounded specialists isolate research, implementation, verification, and noisy tool work.",
       "displayName": "Senior Engineering Workflow",
-      "version": "0.9.7",
+      "version": "0.10.0",
       "author": {
         "name": "Otto",
         "url": "https://github.com/oovz/plugins"

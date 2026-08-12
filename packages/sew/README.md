@@ -46,11 +46,15 @@ Installation methods:
 | Claude Code | Native Claude plugin marketplace commands |
 | Oh My Pi | Native OMP marketplace commands |
 | Codex | Marketplace skill detected or installed by the CLI; four CI-built companion agents managed by `@oovz/sew` |
-| OpenCode | CI-built `.opencode` skill and agent payload bundled in the published npm tarball |
+| OpenCode | CI-built Agent Skill and four Markdown subagents bundled in the published npm tarball |
 | Gemini CLI | CI-built user/project skill and custom-agent payload bundled in the published npm tarball |
 | Antigravity | CI-built plugin payload bundled in the published npm tarball; user scope targets Antigravity CLI and project scope targets `.agents/plugins` |
 
-The package records ownership only for static installations from its CI-built release payloads. It refuses unmanaged destination files and refuses to overwrite or remove modified managed files unless `--force` is explicitly supplied.
+The package records ownership only for static installations from its CI-built release payloads. It refuses unmanaged destination files and refuses to overwrite or remove modified managed files unless `--force` is explicitly supplied. Installation-state roots are validated against the selected host and scope before any managed file is read, changed, or removed.
+
+OpenCode receives one Agent Skill and four Markdown subagents. This is not an OpenCode JavaScript/TypeScript plugin, so it does not appear in the plugin list or the primary-agent switcher. The roles are `mode: subagent` and appear in `opencode agent list`.
+
+After `install` or `update`, `@oovz/sew` runs `opencode agent list` when the OpenCode CLI is available on `PATH`. It reports `verified` only when all four roles are discovered. A fresh OpenCode process that cannot discover the files produces a nonzero result with the missing role names. When the CLI is unavailable, file installation succeeds with a `not-checked` discovery result and an explicit verification command. Restart any OpenCode session that was already running before installation.
 
 ### Codex hybrid installation
 
@@ -61,7 +65,7 @@ For Codex, the marketplace owns the skill and `@oovz/sew` owns only the four com
 - `--force` skips the inventory check, reinstalls the marketplace plugin, and replaces conflicting companion-agent files; and
 - `uninstall` removes only the companion agents and leaves the marketplace plugin intact.
 
-On Windows, the CLI also locates the `codex` binary bundled with Codex Desktop under `%LOCALAPPDATA%\OpenAI\Codex\bin` (and the Claude Desktop bundle under `%LOCALAPPDATA%\AnthropicClaude`) when it is not on `PATH`. On macOS it locates the `codex` binary bundled with the ChatGPT desktop app under `/Applications/ChatGPT.app/Contents/Resources/codex`, and accepts the `Codex.app` compatibility bundle and `~/Applications` installs, when it is not on `PATH`. In both cases the candidate with the highest `--version` output is selected.
+Host CLIs must be available on `PATH`. The package uses `cross-spawn` for `PATHEXT`, npm command shims, shebangs, paths with spaces, and Windows argument quoting. It does not search private desktop-application bundle directories. Missing executables and missing or invalid working directories fail explicitly.
 
 The complete Codex projection remains in the CI-built payload for release verification, but the static installer copies and claims ownership only for `companion/agents/*`. `--dry-run` does not invoke Codex; it reports the inventory check and conditional plugin-install commands it would perform.
 
@@ -71,7 +75,7 @@ The complete Codex projection remains in the CI-built payload for release verifi
 
 On Codex, OpenCode, and Gemini CLI, `models configure` edits the installed role agents in place: it inserts or replaces only the model and host-native thinking fields with a targeted drop-in replacement and leaves the prompt, description, and permissions byte-identical to the CI payload. The configuration is recorded in the install state, so `update` and `install --force` restore the payload and re-apply it.
 
-Claude Code, Oh My Pi, and Antigravity installs are owned by their hosts or have no editable agents, so model routing is inherit-only there; `models configure` accepts only `--preset inherit` for them.
+Model configuration is supported only for Codex, OpenCode, and Gemini CLI. Claude Code, Oh My Pi, and Antigravity keep their native inheritance behavior; `models configure` rejects those hosts.
 
 Optional model routing uses three slots:
 
@@ -122,7 +126,11 @@ Restore the CI payload (inheritance) by removing the model/thinking fields:
 npx @oovz/sew models configure --host codex --scope user --preset inherit
 ```
 
-On editable hosts the edited files remain byte-identical to the CI payload apart from the model block, so `doctor` reports them as current and `update` re-applies the stored configuration. The CLI refuses to edit an installed agent that was modified outside the package unless `--force` is supplied.
+On editable hosts the edited files remain byte-identical to the CI payload apart from the model block, so `doctor` reports them as current and `update` re-applies the stored configuration. The CLI authorizes edits only when the current file hash matches its recorded state; a generated marker is not treated as ownership. The four role edits and the state update are committed as one rollback-capable transaction.
+
+## 0.10 clean-install boundary
+
+Version 0.10 uses installation-state schema 2 and deliberately does not migrate schema-1 state from 0.9.x. Before replacing a 0.9.x CLI installation, remove its static installation with the matching 0.9.x release, then install 0.10. This keeps obsolete state and ownership paths out of the new implementation. Native marketplace installations owned by Claude Code or Oh My Pi are unaffected.
 
 ## Doctor
 
@@ -164,7 +172,7 @@ Production publication is performed by `.github/workflows/release-sew.yml` from 
 7. publishes the tarball through npm trusted publishing; and
 8. attaches the same tarball and `SHA256SUMS.txt` to a GitHub Release.
 
-Configure the package's npm trusted publisher to the `oovz/plugins` repository and `.github/workflows/release-sew.yml` before creating a release tag. The package has no runtime dependencies.
+Configure the package's npm trusted publisher to the `oovz/plugins` repository and `.github/workflows/release-sew.yml` before creating a release tag. The package has one runtime dependency, `cross-spawn`, for reliable cross-platform host command execution.
 
 ## Release version contract
 

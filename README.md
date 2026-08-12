@@ -14,7 +14,7 @@ My plugins for agentic coding harnesses.
 
 | Plugin | Version | What it does |
 |---|---:|---|
-| [Senior Engineering Workflow](plugins/senior-engineering-workflow/) | 0.9.7 | Keeps coding decisions in the capable main agent while bounded Researcher, Engineer, Verifier, and Worker roles isolate implementation and noisy evidence when useful. |
+| [Senior Engineering Workflow](plugins/senior-engineering-workflow/) | 0.10.0 | Keeps coding decisions in the capable main agent while bounded Researcher, Engineer, Verifier, and Worker roles isolate implementation and noisy evidence when useful. |
 | [Tauri v2 Desktop](plugins/tauri-v2-desktop/) | 1.1.0 | Secure, evidence-driven guidance for building, testing, upgrading, and distributing Tauri v2 desktop applications on Windows, macOS, and Linux. |
 
 ## Compatibility
@@ -34,7 +34,7 @@ Tauri v2 Desktop also ships a portable Agent Skills export. That format carries 
 
 ## Install
 
-`@oovz/sew` installs Senior Engineering Workflow on every host. Tauri v2 Desktop is skill-only and installs through each host's native marketplace where one exists. Pick your harness below.
+`@oovz/sew` installs the host-native Senior Engineering Workflow components on every supported host. Tauri v2 Desktop is skill-only and installs through each host's native marketplace where one exists. Pick your harness below.
 
 <details>
 <summary>Claude Code</summary>
@@ -90,6 +90,8 @@ codex plugin add tauri-v2-desktop@otto-plugins
 ```text
 npx @oovz/sew install --host opencode --scope user
 ```
+
+This installs one Agent Skill and four `mode: subagent` Markdown agents. It is not an OpenCode JavaScript/TypeScript plugin, so it does not appear in the plugin list or the primary-agent switcher. The CLI verifies a fresh OpenCode process with `opencode agent list` when that command is available; restart any OpenCode session that was already running.
 
 Add `--scope project --project /absolute/path/to/project` for a single project. Tauri v2 Desktop has no CLI install; from a clone of this repository:
 
@@ -162,7 +164,7 @@ npx @oovz/sew models configure \
   --worker-thinking max
 ```
 
-Three-model routing is available through `--preset three-model`. Use `--preset inherit` to remove the model/thinking fields and return to full inheritance. Claude Code, Oh My Pi, and Antigravity installs are owned by their hosts or have no editable agents, so model routing is inherit-only there.
+Three-model routing is available through `--preset three-model`. Use `--preset inherit` to remove the model/thinking fields and return to full inheritance. Model configuration is supported only for Codex, OpenCode, and Gemini CLI. Claude Code, Oh My Pi, and Antigravity continue to use their native inheritance behavior.
 
 ## Build from source
 

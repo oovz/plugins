@@ -1,6 +1,6 @@
 # Senior Engineering Workflow
 
-Version 0.9.7 is a proportional engineering workflow for coding repositories. The user-selected main agent owns the accepted contract, architecture, planning, orchestration, integration, iteration control, and completion. Four bounded specialist capabilities isolate research, implementation, verification, and noisy tool work only when delegation adds value.
+Version 0.10.0 is a proportional engineering workflow for coding repositories. The user-selected main agent owns the accepted contract, architecture, planning, orchestration, integration, iteration control, and completion. Four bounded specialist capabilities isolate research, implementation, verification, and noisy tool work only when delegation adds value.
 
 ## Core architecture
 
@@ -39,6 +39,8 @@ npx @oovz/sew install --host opencode --scope project --project /absolute/path/t
 npx @oovz/sew doctor
 ```
 
+OpenCode receives one Agent Skill and four `mode: subagent` Markdown agents, not a JavaScript/TypeScript plugin. They appear in `opencode agent list`, not the plugin list or primary-agent switcher. The installer verifies a fresh OpenCode process when the command is available; restart any OpenCode session that was already running.
+
 For Codex, `sew install` checks the plugin inventory. It preserves an existing enabled marketplace skill and installs only the four companion agents; if the plugin is missing or disabled, it installs the plugin before the agents. `--force` reinstalls both layers, while `sew uninstall --host codex` removes only CLI-managed companion agents.
 
 Claude Code and Oh My Pi install through their native marketplaces. The published CLI ships version-matched payloads for Codex companion agents and the static portions of OpenCode, Gemini CLI, and Antigravity.
@@ -61,7 +63,7 @@ Native Oh My Pi installation:
 
 ## Optional model routing
 
-The default is full inheritance. On Codex, OpenCode, and Gemini CLI, `@oovz/sew models configure` edits the installed role agents in place, inserting or replacing only the `model` and host-native thinking fields while the prompt, description, and permissions stay byte-identical to the CI payload. Claude Code, Oh My Pi, and Antigravity installs are owned by their hosts or have no editable agents, so model routing is inherit-only there.
+The default is full inheritance. On Codex, OpenCode, and Gemini CLI, `@oovz/sew models configure` edits the installed role agents in place, inserting or replacing only the `model` and host-native thinking fields while the prompt, description, and permissions stay byte-identical to the CI payload. Model configuration is supported only for Codex, OpenCode, and Gemini CLI. Claude Code, Oh My Pi, and Antigravity continue to use their native inheritance behavior.
 
 | Preset | Researcher | Engineer | Verifier | Worker |
 |---|---|---|---|---|
@@ -86,7 +88,7 @@ Restore canonical inheritance:
 npx @oovz/sew models configure --host codex --scope user --preset inherit
 ```
 
-In-place model editing works on Codex, OpenCode, and Gemini CLI. Gemini CLI has no per-custom-agent thinking field. Claude Code, Oh My Pi, and Antigravity are inherit-only: their installs are owned by the host or have no editable agents, and preserving the inherited tool set matters more than pinning a role model.
+In-place model editing works on Codex, OpenCode, and Gemini CLI. Gemini CLI has no per-custom-agent thinking field. Claude Code, Oh My Pi, and Antigravity use their native inheritance behavior; `models configure` rejects those hosts rather than reporting a no-op success.
 
 ## Workflow guarantees
 
