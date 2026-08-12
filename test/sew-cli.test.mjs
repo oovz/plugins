@@ -63,15 +63,6 @@ function projectAgentRoot(host, project) {
 
 function extension(host) { return host === "codex" ? ".toml" : ".md"; }
 
-function assertNoPolicyFields(host, content) {
-  if (host === "codex") {
-    for (const key of ["sandbox_mode", "approval_policy", "mcp_servers"]) assert.doesNotMatch(content, new RegExp(`^${key}\\s*=`, "mu"));
-    return;
-  }
-  const fm = internals.parseFrontmatterScalars(content);
-  for (const key of ["tools", "permission", "permissions", "permissionMode", "hooks", "mcpServers", "steps", "maxTurns"]) assert.equal(fm[key], undefined, `${host} alias must omit ${key}`);
-}
-
 function codexRunner({ installed = true, enabled = true, malformed = false, status = 0 } = {}) {
   const calls = [];
   const spawnSync = (executable, args, options) => {
@@ -80,7 +71,7 @@ function codexRunner({ installed = true, enabled = true, malformed = false, stat
       if (malformed) return { status, stdout: "not-json", stderr: "" };
       return {
         status,
-        stdout: JSON.stringify({ installed: installed ? [{ pluginId: "senior-engineering-workflow@otto-plugins", installed, enabled, version: "0.9.3" }] : [] }),
+        stdout: JSON.stringify({ installed: installed ? [{ pluginId: "senior-engineering-workflow@otto-plugins", installed, enabled, version: "0.9.6" }] : [] }),
         stderr: status === 0 ? "" : "inspection failed",
       };
     }
@@ -124,43 +115,90 @@ test("host roots follow the six documented conventions", () => {
   assert.equal(internals.userConfigRoot("oh-my-pi", { env, platform: "linux", home }), path.join(home, ".omp/agent"));
 });
 
-test("model aliases contain only prompt plus model/thinking fields", async () => {
+test("models configure is inherit-only on hosts without editable agents", async () => {
+  for (const host of ["claude-code", "oh-my-pi", "antigravity"]) {
+    const project = await temp(`sew-inherit-${host}-`);
+    const rejected = await capture(["models", "configure", "--host", host, "--scope", "project", "--project", project, "--preset", "two-model", "--worker-model", "flash"]);
+    assert.equal(rejected.code, 2);
+    assert.match(rejected.stderr, /cannot be edited in place/u);
+    const inherited = await capture(["models", "configure", "--host", host, "--scope", "project", "--project", project, "--preset", "inherit"]);
+    assert.equal(inherited.code, 0, inherited.stderr);
+  }
+});
+
+test("models configure edits installed static agents in place and restores inheritance", async () => {
   const cases = [
-    ["claude-code", "haiku", "medium", /effort:/u],
-    ["codex", "gpt-5.6-luna", "max", /model_reasoning_effort/u],
-    ["opencode", "openai/gpt-5.6-luna", "high", /variant:/u],
-    ["gemini-cli", "gemini-3-flash-preview", undefined, /model:/u],
-    ["oh-my-pi", "openai/gpt-5.6-luna", "high", /thinking-level:/u],
+    ["codex", "gpt-5.6-luna", "max", "senior-engineering-workflow-worker.toml", /model = "gpt-5.6-luna"/u, /model_reasoning_effort = "max"/u],
+    ["opencode", "openai/gpt-5.6-luna", "high", "senior-engineering-workflow-worker.md", /model: "openai\/gpt-5.6-luna"/u, /variant: "high"/u],
+    ["gemini-cli", "gemini-3-flash-preview", undefined, "senior-engineering-workflow-worker.md", /model: "gemini-3-flash-preview"/u, undefined],
   ];
-  for (const [host, model, thinking, expected] of cases) {
-    const content = await internals.renderModelAlias(host, "worker", "worker", { "worker-model": model, ...(thinking ? { "worker-thinking": thinking } : {}) });
-    assert.match(content, expected);
-    assertNoPolicyFields(host, content);
+  for (const [host, model, thinking, agentFile, modelPattern, thinkingPattern] of cases) {
+    const project = await temp(`sew-inplace-${host}-`);
+    const env = { HOME: path.join(project, "home"), XDG_STATE_HOME: path.join(project, "state") };
+    const runner = host === "codex" ? codexRunner({ installed: true }) : {};
+    const install = await capture(["install", "--host", host, "--scope", "project", "--project", project, "--json"], { env, spawnSync: runner.spawnSync });
+    assert.equal(install.code, 0, install.stderr);
+    const agentRoot = projectAgentRoot(host, project);
+    const agent = path.join(agentRoot, agentFile);
+    const payload = await readFile(agent, "utf8");
+    assert.doesNotMatch(payload, modelPattern);
+
+    const args = ["models", "configure", "--host", host, "--scope", "project", "--project", project, "--preset", "two-model", "--worker-model", model, ...(thinking ? ["--worker-thinking", thinking] : [])];
+    const configured = await capture([...args, "--json"], { env });
+    assert.equal(configured.code, 0, configured.stderr);
+    const edited = await readFile(agent, "utf8");
+    assert.match(edited, modelPattern, `${host} must gain the model field in place`);
+    if (thinkingPattern) assert.match(edited, thinkingPattern, `${host} must gain the thinking field in place`);
+
+    const result = JSON.parse(configured.stdout);
+    const state = JSON.parse(await readFile(result.statePath, "utf8"));
+    assert.equal(state.models.worker.model, model);
+    assert.equal(state.models.worker.thinking, thinking ?? undefined);
+
+    const restored = await capture(["models", "configure", "--host", host, "--scope", "project", "--project", project, "--preset", "inherit"], { env });
+    assert.equal(restored.code, 0, restored.stderr);
+    assert.equal(await readFile(agent, "utf8"), payload, `${host} inherit must restore the CI payload byte-for-byte`);
   }
 });
 
-test("Antigravity rejects model-only role aliases but permits inheritance cleanup", async () => {
-  const project = await temp();
-  const rejected = await capture(["models", "configure", "--host", "antigravity", "--scope", "project", "--project", project, "--preset", "two-model", "--worker-model", "flash"]);
-  assert.equal(rejected.code, 2);
-  assert.match(rejected.stderr, /explicit tool list/u);
-  const inherited = await capture(["models", "configure", "--host", "antigravity", "--scope", "project", "--project", project, "--preset", "inherit"]);
-  assert.equal(inherited.code, 0);
+test("models configure requires an installed static host and refuses modified agents", async () => {
+  const project = await temp("sew-configure-gate-");
+  const env = { HOME: path.join(project, "home"), XDG_STATE_HOME: path.join(project, "state") };
+  const uninstalled = await capture(["models", "configure", "--host", "codex", "--scope", "project", "--project", project, "--preset", "two-model", "--worker-model", "gpt-5.6-luna"]);
+  assert.equal(uninstalled.code, 1);
+  assert.match(uninstalled.stderr, /sew install/iu);
+
+  const install = await capture(["install", "--host", "codex", "--scope", "project", "--project", project], { env, spawnSync: codexRunner({ installed: true }).spawnSync });
+  assert.equal(install.code, 0, install.stderr);
+  const worker = path.join(project, ".codex", "agents", "senior-engineering-workflow-worker.toml");
+  await writeFile(worker, `${await readFile(worker, "utf8")}user-edit = true\n`);
+  const refused = await capture(["models", "configure", "--host", "codex", "--scope", "project", "--project", project, "--preset", "two-model", "--worker-model", "gpt-5.6-luna"]);
+  assert.equal(refused.code, 1);
+  assert.match(refused.stderr, /modified outside/u);
+  const forced = await capture(["models", "configure", "--host", "codex", "--scope", "project", "--project", project, "--preset", "two-model", "--worker-model", "gpt-5.6-luna", "--force"]);
+  assert.equal(forced.code, 0, forced.stderr);
+  assert.match(await readFile(worker, "utf8"), /model = "gpt-5.6-luna"/u);
 });
 
-test("models configure writes and removes four managed aliases", async () => {
-  for (const host of ["claude-code", "codex", "opencode", "gemini-cli", "oh-my-pi"]) {
-    const project = await temp(`sew-${host}-`);
-    const model = host === "opencode" ? "openai/worker" : "worker-model";
-    const args = ["models", "configure", "--host", host, "--scope", "project", "--project", project, "--preset", "two-model", "--worker-model", model];
-    const result = await capture(args);
-    assert.equal(result.code, 0, result.stderr);
-    const root = projectAgentRoot(host, project);
-    for (const role of ROLES) assert.equal(await exists(path.join(root, `sew-${role}${extension(host)}`)), true);
-    const remove = await capture(["models", "configure", "--host", host, "--scope", "project", "--project", project, "--preset", "inherit"]);
-    assert.equal(remove.code, 0, remove.stderr);
-    for (const role of ROLES) assert.equal(await exists(path.join(root, `sew-${role}${extension(host)}`)), false);
-  }
+test("update restores the CI payload and re-applies the stored model configuration", async () => {
+  const project = await temp("sew-update-models-");
+  const env = { HOME: path.join(project, "home"), XDG_STATE_HOME: path.join(project, "state") };
+  const runner = codexRunner({ installed: true });
+  const install = await capture(["install", "--host", "codex", "--scope", "project", "--project", project], { env, spawnSync: runner.spawnSync });
+  assert.equal(install.code, 0, install.stderr);
+  const configure = await capture(["models", "configure", "--host", "codex", "--scope", "project", "--project", project, "--preset", "two-model", "--worker-model", "gpt-5.6-luna", "--worker-thinking", "max"]);
+  assert.equal(configure.code, 0, configure.stderr);
+  const update = await capture(["update", "--host", "codex", "--scope", "project", "--project", project], { env, spawnSync: runner.spawnSync });
+  assert.equal(update.code, 0, update.stderr);
+  const worker = path.join(project, ".codex", "agents", "senior-engineering-workflow-worker.toml");
+  const content = await readFile(worker, "utf8");
+  assert.match(content, /model = "gpt-5.6-luna"/u, "update must re-apply the stored model");
+  assert.match(content, /model_reasoning_effort = "max"/u);
+  const state = JSON.parse(await readFile(path.join(project, ".oovz", "sew", "codex.json"), "utf8"));
+  assert.equal(state.models.worker.model, "gpt-5.6-luna");
+  const doctor = await capture(["doctor", "--host", "codex", "--project", project, "--json"], { env });
+  assert.equal(doctor.code, 0, doctor.stderr);
+  assert.doesNotMatch(doctor.stdout, /installation-drift/u);
 });
 
 test("static install, update, and uninstall use CI-bundled payloads", async () => {
@@ -453,7 +491,7 @@ test("doctor is read-only across all six hosts", async () => {
   assert.equal(await readFile(path.join(project, ".codex", "agents", "custom.toml"), "utf8"), before);
 });
 
-test("CI-bundled package payloads and role templates cover the canonical plugin", async () => {
+test("CI-bundled package payloads cover the canonical plugin", async () => {
   const sourceManifest = JSON.parse(await readFile(path.join(ROOT, "packages/sew/package.json"), "utf8"));
   const releaseManifest = JSON.parse(await readFile(path.join(BUILT_SEW_ROOT, "package.json"), "utf8"));
   assert.equal(sourceManifest.private, true);
@@ -468,9 +506,7 @@ test("CI-bundled package payloads and role templates cover the canonical plugin"
   assert.deepEqual(manifest.staticHosts, ["codex", "opencode", "gemini-cli", "antigravity"]);
   for (const host of manifest.staticHosts) assert.equal(await exists(path.join(BUILT_SEW_ROOT, "payloads", host)), true);
   for (const host of ["claude-code", "oh-my-pi"]) assert.equal(await exists(path.join(BUILT_SEW_ROOT, "payloads", host)), false);
-  for (const role of ROLES) {
-    assert.equal(await readFile(path.join(BUILT_SEW_ROOT, "templates", `${role}.md`), "utf8"), await readFile(path.join(ROOT, "plugins/senior-engineering-workflow/agents", `${role}.md`), "utf8"));
-  }
+  assert.equal(await exists(path.join(BUILT_SEW_ROOT, "templates")), false, "role templates are no longer bundled");
 });
 
 

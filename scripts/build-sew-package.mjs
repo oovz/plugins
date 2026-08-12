@@ -123,7 +123,7 @@ function releaseManifest(source) {
   delete manifest.private;
   delete manifest.scripts;
   manifest.description = "Install, update, diagnose, and configure Senior Engineering Workflow across supported coding-agent harnesses.";
-  manifest.files = ["bin/", "lib/", "payloads/", "templates/", "README.md", "LICENSE"];
+  manifest.files = ["bin/", "lib/", "payloads/", "README.md", "LICENSE"];
   manifest.publishConfig = { ...(manifest.publishConfig ?? {}), access: "public" };
   return manifest;
 }
@@ -145,11 +145,6 @@ export async function buildSewPackage(options = {}) {
   artifacts.push({ path: "README.md", content: await readFile(path.join(sourceRoot, "README.md")) });
   artifacts.push({ path: "LICENSE", content: await readFile(path.join(sourceRoot, "LICENSE")) });
   artifacts.push({ path: "package.json", content: Buffer.from(json(releaseManifest(sourceManifest))) });
-
-  const templateRoot = path.join(root, "plugins", PLUGIN_ID, "agents");
-  for (const role of ["researcher", "engineer", "verifier", "worker"]) {
-    artifacts.push({ path: path.posix.join("templates", `${role}.md`), content: await readFile(path.join(templateRoot, `${role}.md`)) });
-  }
 
   for (const [host, relative] of Object.entries(STATIC_PAYLOADS)) {
     artifacts.push(...prefixArtifacts(path.posix.join("payloads", host), await requiredTree(root, relative, `${host} release payload`)));

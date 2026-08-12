@@ -1,6 +1,6 @@
 {
   "name": "@oovz/sew",
-  "version": "0.9.3",
+  "version": "0.9.6",
   "description": "Source workspace for the CI-built @oovz/sew release package.",
   "type": "module",
   "bin": {

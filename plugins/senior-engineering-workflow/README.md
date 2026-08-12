@@ -1,6 +1,6 @@
 # Senior Engineering Workflow
 
-Version 0.9.3 is a proportional engineering workflow for coding repositories. The user-selected main agent owns the accepted contract, architecture, planning, orchestration, integration, iteration control, and completion. Four bounded specialist capabilities isolate research, implementation, verification, and noisy tool work only when delegation adds value.
+Version 0.9.6 is a proportional engineering workflow for coding repositories. The user-selected main agent owns the accepted contract, architecture, planning, orchestration, integration, iteration control, and completion. Four bounded specialist capabilities isolate research, implementation, verification, and noisy tool work only when delegation adds value.
 
 ## Core architecture
 
@@ -61,7 +61,7 @@ Native Oh My Pi installation:
 
 ## Optional model routing
 
-The default is full inheritance. `@oovz/sew` can create model-only aliases without changing workflow prompts or permissions.
+The default is full inheritance. On Codex, OpenCode, and Gemini CLI, `@oovz/sew models configure` edits the installed role agents in place, inserting or replacing only the `model` and host-native thinking fields while the prompt, description, and permissions stay byte-identical to the CI payload. Claude Code, Oh My Pi, and Antigravity installs are owned by their hosts or have no editable agents, so model routing is inherit-only there.
 
 | Preset | Researcher | Engineer | Verifier | Worker |
 |---|---|---|---|---|
@@ -86,7 +86,7 @@ Restore canonical inheritance:
 npx @oovz/sew models configure --host codex --scope user --preset inherit
 ```
 
-Model aliases work on Claude Code, Codex, OpenCode, Gemini CLI, and Oh My Pi. Gemini CLI has no per-custom-agent thinking field. Antigravity gets no aliases: preserving the inherited tool set matters more than pinning a role model.
+In-place model editing works on Codex, OpenCode, and Gemini CLI. Gemini CLI has no per-custom-agent thinking field. Claude Code, Oh My Pi, and Antigravity are inherit-only: their installs are owned by the host or have no editable agents, and preserving the inherited tool set matters more than pinning a role model.
 
 ## Workflow guarantees
 

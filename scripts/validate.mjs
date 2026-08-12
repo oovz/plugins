@@ -569,6 +569,7 @@ async function validatePlugin(plugin) {
   for (const agent of plugin.agents) {
     assert(agent.frontmatter.name === agent.id, `${plugin.manifest.id} agent ${agent.id} frontmatter name must match logical id`);
     assert(typeof agent.frontmatter.description === "string" && agent.frontmatter.description.trim(), `${plugin.manifest.id} agent ${agent.id} needs a description`);
+    assert(agent.frontmatter.description === agent.description, `${plugin.manifest.id} agent ${agent.id} template description must match the manifest contract description`);
     const neutralFields = new Set(["name", "description"]);
     for (const key of Object.keys(agent.frontmatter)) assert(neutralFields.has(key), `${plugin.manifest.id} canonical agent ${agent.id} has host-specific frontmatter field ${key}`);
     assert(agent.body.trim().length > 0, `${plugin.manifest.id} canonical agent ${agent.id} body is empty`);
