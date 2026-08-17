@@ -40,6 +40,23 @@ function codexRunner({ installed = true } = {}) {
         stderr: "",
       };
     }
+    if (executable === "opencode" && args.join(" ") === "models") {
+      return { status: 0, stdout: "openai/test\n", stderr: "" };
+    }
+    if (executable === "codex" && args.join(" ") === "debug models") {
+      return {
+        status: 0,
+        stdout: JSON.stringify({
+          models: ["gpt-5.6-luna", "gpt-5.6-terra", "gpt-test", "openai/test", "o3", "o3-mini", "gpt-4o"].map((slug) => ({
+            slug,
+            visibility: "list",
+            supported_in_api: true,
+            supported_reasoning_levels: ["low", "medium", "high", "max"].map((effort) => ({ effort })),
+          })),
+        }),
+        stderr: "",
+      };
+    }
     return { status: 0, stdout: "", stderr: "" };
   };
 }
@@ -52,18 +69,22 @@ function frontmatter(content) {
   return YAML.parse(normalized.slice(4, end));
 }
 
-test("model configuration rejects hosts without editable installed agents", async () => {
-  for (const host of ["claude-code", "cursor", "oh-my-pi", "antigravity"]) {
+test("model configuration rejects hosts without sew-owned editable agents", async () => {
+  const runner = codexRunner();
+  for (const host of ["claude-code", "oh-my-pi", "antigravity"]) {
     const project = await temp(`sew-unsupported-${host}-`);
-    for (const preset of ["inherit", "two-model"]) {
-      const result = await capture([
-        "models", "configure", "--host", host, "--scope", "project", "--project", project, "--preset", preset,
-        ...(preset === "two-model" ? ["--worker-model", "worker"] : []),
-      ]);
-      assert.equal(result.code, 2);
-      assert.match(result.stderr, /Model configuration is not supported/u);
-    }
+    const result = await capture([
+      "models", "configure", "--host", host, "--scope", "project", "--project", project, "--preset", "inherit",
+    ], { env: {}, spawnSync: runner });
+    assert.equal(result.code, 2);
+    assert.match(result.stderr, /Model configuration is not supported/u);
   }
+
+  const invalidHostResult = await capture([
+    "models", "configure", "--host", "unknown-harness", "--scope", "project", "--preset", "inherit",
+  ]);
+  assert.equal(invalidHostResult.code, 2);
+  assert.match(invalidHostResult.stderr, /--host must be one of/u);
 });
 
 test("inherit removes durable model state and a later update remains inherited", async () => {
@@ -71,8 +92,8 @@ test("inherit removes durable model state and a later update remains inherited",
   const env = { HOME: path.join(project, "home"), XDG_STATE_HOME: path.join(project, "state") };
   const spawnSync = codexRunner();
   assert.equal((await capture(["install", "--host", "codex", "--scope", "project", "--project", project], { env, spawnSync })).code, 0);
-  assert.equal((await capture(["models", "configure", "--host", "codex", "--scope", "project", "--project", project, "--preset", "two-model", "--worker-model", "gpt-test"], { env })).code, 0);
-  assert.equal((await capture(["models", "configure", "--host", "codex", "--scope", "project", "--project", project, "--preset", "inherit"], { env })).code, 0);
+  assert.equal((await capture(["models", "configure", "--host", "codex", "--scope", "project", "--project", project, "--preset", "two-model", "--worker-model", "gpt-test"], { env, spawnSync })).code, 0);
+  assert.equal((await capture(["models", "configure", "--host", "codex", "--scope", "project", "--project", project, "--preset", "inherit"], { env, spawnSync })).code, 0);
 
   const statePath = path.join(project, ".oovz", "sew", "codex.json");
   assert.equal(Object.hasOwn(JSON.parse(await readFile(statePath, "utf8")), "models"), false);
@@ -90,11 +111,11 @@ test("a generated marker does not authorize subsequent external edits", async ()
   const spawnSync = codexRunner();
   assert.equal((await capture(["install", "--host", "codex", "--scope", "project", "--project", project], { env, spawnSync })).code, 0);
   const configure = ["models", "configure", "--host", "codex", "--scope", "project", "--project", project, "--preset", "two-model", "--worker-model", "gpt-test"];
-  assert.equal((await capture(configure, { env })).code, 0);
+  assert.equal((await capture(configure, { env, spawnSync })).code, 0);
 
   const worker = path.join(project, ".codex", "agents", "senior-engineering-workflow-worker.toml");
   await writeFile(worker, `${await readFile(worker, "utf8")}user-edit = true\n`);
-  const refused = await capture(configure, { env });
+  const refused = await capture(configure, { env, spawnSync });
   assert.equal(refused.code, 1);
   assert.match(refused.stderr, /modified outside/u);
 });
@@ -104,8 +125,9 @@ test("OpenCode removes a stale variant and emits valid YAML", async () => {
   const env = { HOME: path.join(project, "home"), XDG_STATE_HOME: path.join(project, "state") };
   assert.equal((await capture(["install", "--host", "opencode", "--scope", "project", "--project", project], { env, spawnSync: () => ({ error: { code: "ENOENT" } }) })).code, 0);
   const base = ["models", "configure", "--host", "opencode", "--scope", "project", "--project", project, "--preset", "two-model", "--worker-model", "openai/test"];
-  assert.equal((await capture([...base, "--worker-thinking", "high"], { env })).code, 0);
-  assert.equal((await capture(base, { env })).code, 0);
+  const opencodeRunner = codexRunner();
+  assert.equal((await capture([...base, "--worker-thinking", "high"], { env, spawnSync: opencodeRunner })).code, 0);
+  assert.equal((await capture(base, { env, spawnSync: opencodeRunner })).code, 0);
 
   const worker = await readFile(path.join(project, ".opencode", "agents", "senior-engineering-workflow-worker.md"), "utf8");
   const parsed = frontmatter(worker);

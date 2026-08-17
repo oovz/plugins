@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { lstat, mkdtemp, readFile } from "node:fs/promises";
+import { lstat, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -14,14 +14,21 @@ const { internals, main } = await import(`${pathToFileURL(path.join(BUILT_SEW_RO
 
 async function temp(prefix) { return mkdtemp(path.join(os.tmpdir(), prefix)); }
 async function exists(file) { try { await lstat(file); return true; } catch (error) { if (error?.code === "ENOENT") return false; throw error; } }
-async function capture(argv, env) {
+function cursorSpawnSync(bin, args) {
+  if (args.join(" ") === "models") {
+    return { status: 0, stdout: "claude-3.7-sonnet\ncomposer-1.5\ngpt-4o\n", stderr: "" };
+  }
+  return { status: 0, stdout: "", stderr: "" };
+}
+
+async function capture(argv, env, spawnSync = cursorSpawnSync) {
   let stdout = "";
   let stderr = "";
   const oldOut = process.stdout.write;
   const oldErr = process.stderr.write;
   process.stdout.write = ((chunk) => { stdout += String(chunk); return true; });
   process.stderr.write = ((chunk) => { stderr += String(chunk); return true; });
-  try { return { code: await main(argv, { env }), stdout, stderr }; }
+  try { return { code: await main(argv, { env, spawnSync }), stdout, stderr }; }
   finally { process.stdout.write = oldOut; process.stderr.write = oldErr; }
 }
 
@@ -68,8 +75,52 @@ test("@oovz/sew installs and configures Cursor user and project agents", async (
     "models", "configure", "--host", "cursor", "--scope", "project", "--project", project,
     "--preset", "two-model", "--worker-model", "composer-1.5"
   ], env);
-  assert.equal(modelConfig.code, 2);
-  assert.match(modelConfig.stderr, /Model configuration is not supported for cursor/u);
+  assert.equal(modelConfig.code, 0, modelConfig.stderr);
+  assert.match(await readFile(worker, "utf8"), /^model:\s*"composer-1\.5"/mu);
+  assert.doesNotMatch(await readFile(worker, "utf8"), /^thinking:/mu);
+
+  const invalidThinking = await capture([
+    "models", "configure", "--host", "cursor", "--scope", "project", "--project", project,
+    "--preset", "two-model", "--worker-model", "composer-1.5", "--worker-thinking", "high"
+  ], env);
+  assert.equal(invalidThinking.code, 2);
+  assert.match(invalidThinking.stderr, /Cursor agent files do not expose a supported thinking-level field/u);
+
+  const unsupportedConfig = await capture([
+    "models", "configure", "--host", "cursor", "--scope", "project", "--project", project,
+    "--preset", "two-model", "--worker-model", "unsupported-cursor-model"
+  ], env);
+  assert.equal(unsupportedConfig.code, 2);
+  assert.match(unsupportedConfig.stderr, /not available in the local Cursor catalog/u);
+
+  const restore = await capture([
+    "models", "configure", "--host", "cursor", "--scope", "project", "--project", project,
+    "--preset", "inherit"
+  ], env);
+  assert.equal(restore.code, 0, restore.stderr);
+  assert.doesNotMatch(await readFile(worker, "utf8"), /^model:/mu);
+});
+
+test("Cursor inheritance reset can remove a stale unsupported thinking field from prior state", async () => {
+  const project = await temp("sew-cursor-stale-thinking-");
+  const env = { HOME: path.join(project, "home"), XDG_STATE_HOME: path.join(project, "state") };
+  assert.equal((await capture(["install", "--host", "cursor", "--scope", "project", "--project", project], env)).code, 0);
+  assert.equal((await capture([
+    "models", "configure", "--host", "cursor", "--scope", "project", "--project", project,
+    "--preset", "two-model", "--worker-model", "composer-1.5",
+  ], env)).code, 0);
+
+  const statePath = path.join(project, ".oovz", "sew", "cursor.json");
+  const state = JSON.parse(await readFile(statePath, "utf8"));
+  state.models.worker.thinking = "high";
+  await writeFile(statePath, JSON.stringify(state));
+
+  const restore = await capture([
+    "models", "configure", "--host", "cursor", "--scope", "project", "--project", project,
+    "--preset", "inherit",
+  ], env);
+  assert.equal(restore.code, 0, restore.stderr);
+  const worker = path.join(project, ".cursor", "agents", "senior-engineering-workflow-worker.md");
   assert.doesNotMatch(await readFile(worker, "utf8"), /^model:/mu);
 });
 

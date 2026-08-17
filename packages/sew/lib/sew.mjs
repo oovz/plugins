@@ -1,6 +1,13 @@
 import { createHash } from "node:crypto";
 import { readFile, readdir } from "node:fs/promises";
 import { CliError } from "./errors.mjs";
+import {
+  HARNESS_METADATA,
+  fetchHarnessCapabilities,
+  isModelSupported,
+  isReasoningSupported,
+  parseCliModelsOutput,
+} from "./harness-catalog.mjs";
 import { assertSafePath, commitManagedOperation, hashFile, isContained, pathInfo } from "./managed-files.mjs";
 import {
   MODEL_EDIT_HOSTS,
@@ -80,7 +87,6 @@ Model options:
   --dry-run                      Show changes without writing
   --force                        Edit installed agents even when modified outside the package
   --json                         Emit JSON
-
 Doctor options:
   --host <all|comma-list>        Inspect all seven hosts by default
   --project <path>               Project root (default: current directory)
@@ -88,14 +94,16 @@ Doctor options:
 
 Notes:
   Canonical plugin agents inherit the host session's model, thinking level, tools, and permissions.
-  models configure edits installed role agents in place on codex, opencode, and gemini-cli; other hosts are unsupported.
+  models configure validates live harness model catalogs when available; unsupported discovery is reported as a warning.
   models configure --preset inherit restores the CI payload by removing the model/thinking fields.
+  model configuration is supported for Codex, OpenCode, Cursor, and Gemini CLI; native or inherited-only hosts are rejected.
   doctor is read-only and never calls a model API.
 `;
 }
 
 function parseArgs(argv) {
   const args = [...argv];
+  if (args.length === 0) throw new CliError(`A command is required.\n\n${usage()}`);
   const first = args[0];
   if (first === "--help" || first === "-h") return { command: "help", options: {} };
   if (first === "--version" || first === "-v") return { command: "version", options: {} };
@@ -211,6 +219,8 @@ function staticInstallRoots(host, scope, project, env = process.env) {
         : path.join(home, ".gemini", "antigravity-cli", "plugins", PLUGIN_ID),
     };
   }
+  if (host === "claude-code") return { config: scope === "project" ? path.join(project, ".claude") : userConfigRoot("claude-code", { env, home }) };
+  if (host === "oh-my-pi") return { config: scope === "project" ? path.join(project, ".omp") : userConfigRoot("oh-my-pi", { env, home }) };
   throw new CliError(`Host ${host} does not use the static installer.`);
 }
 
@@ -347,7 +357,7 @@ async function readInstallState(file, expected) {
 }
 
 
-async function planStaticOperation(operation, host, scope, project, options, env = process.env) {
+async function planStaticOperation(operation, host, scope, project, options, env = process.env, runtime = {}) {
   const manifest = await payloadManifest();
   const statePath = stateFile(host, scope, project, env);
   await assertSafePath(path.dirname(statePath), statePath);
@@ -356,6 +366,12 @@ async function planStaticOperation(operation, host, scope, project, options, env
   const plan = operation === "uninstall" ? { roots: currentState?.roots ?? expectedRoots, files: [] } : await staticPlan(host, scope, project, env);
   if (operation === "install" && currentState && !options.force) throw new CliError(`Senior Engineering Workflow is already installed for ${host}/${scope}; use sew update or reinstall with --force.`, 1);
   if (operation !== "install" && !currentState) throw new CliError(`No managed Senior Engineering Workflow installation exists for ${host}/${scope}.`, 1);
+
+  let modelWarnings = [];
+  if (operation !== "uninstall" && currentState?.models && Object.keys(currentState.models).length > 0) {
+    const capabilities = fetchHarnessCapabilities(host, { project, env, spawnSync: runtime.spawnSync });
+    modelWarnings = validateStoredModels(currentState.models, host, capabilities);
+  }
 
   const owned = new Map();
   if (currentState) {
@@ -404,7 +420,7 @@ async function planStaticOperation(operation, host, scope, project, options, env
     files: writes.map((file) => ({ root: file.root, path: file.path, sha256: file.sha256 })),
     ...(currentState?.models && Object.keys(currentState.models).length > 0 ? { models: currentState.models } : {}),
   };
-  return { statePath, currentState, nextState, writes, removals, roots, pluginVersion: manifest.pluginVersion };
+  return { statePath, currentState, nextState, writes, removals, roots, pluginVersion: manifest.pluginVersion, modelWarnings };
 }
 
 function nativeCommands(operation, host, scope, project, force = false) {
@@ -554,6 +570,7 @@ function inspectOpenCodeDiscovery(project, env = process.env, runner = defaultSp
 function printOperation(result, json) {
   if (json) { process.stdout.write(`${JSON.stringify(result, null, 2)}\n`); return; }
   process.stdout.write(`${result.status}: ${result.host}/${result.scope}\n`);
+  for (const warning of result.warnings ?? []) process.stderr.write(`sew: warning: ${warning}\n`);
   for (const item of result.actions ?? []) process.stdout.write(`- ${item.action ?? item.status} ${item.path ?? item.command}\n`);
   if (result.discovery) {
     process.stdout.write(`- ${result.discovery.status} ${result.discovery.message}\n`);
@@ -570,7 +587,7 @@ function staticOperationActions(operation, plan) {
 }
 
 async function runCodexOperation(operation, options, runtime, scope, project) {
-  const plan = await planStaticOperation(operation, "codex", scope, project, options, runtime.env ?? process.env);
+  const plan = await planStaticOperation(operation, "codex", scope, project, options, runtime.env ?? process.env, runtime);
   const companionActions = staticOperationActions(operation, plan);
   let plugin;
   let pluginActions = [];
@@ -617,6 +634,7 @@ async function runCodexOperation(operation, options, runtime, scope, project) {
     statePath: plan.statePath,
     plugin,
     actions: [...pluginActions, ...companionActions],
+    ...(plan.modelWarnings.length > 0 ? { warnings: plan.modelWarnings } : {}),
   };
   printOperation(result, options.json);
   return 0;
@@ -637,7 +655,7 @@ async function runInstallOperation(operation, options, runtime = {}) {
     return 0;
   }
   if (!STATIC_INSTALL_HOSTS.has(host)) throw new CliError(`Unsupported install host: ${host}`);
-  const plan = await planStaticOperation(operation, host, scope, project, options, runtime.env ?? process.env);
+  const plan = await planStaticOperation(operation, host, scope, project, options, runtime.env ?? process.env, runtime);
   const actions = staticOperationActions(operation, plan);
   if (!options["dry-run"]) await commitManagedOperation(operation, plan);
   const discovery = host === "opencode" && operation !== "uninstall"
@@ -656,26 +674,32 @@ async function runInstallOperation(operation, options, runtime = {}) {
     pluginVersion: plan.pluginVersion,
     statePath: plan.statePath,
     actions,
+    ...(plan.modelWarnings.length > 0 ? { warnings: plan.modelWarnings } : {}),
     ...(discovery ? { discovery } : {}),
   };
   printOperation(result, options.json);
   return discoveryFailed ? 1 : 0;
 }
 
-async function configureModels(options, runtime = {}) {
+async function configureModels(options, runtime = {}, capabilities = null) {
   const host = normalizeHost(options.host);
   const scope = normalizeScope(options.scope);
   const preset = normalizePreset(options.preset);
   const project = projectRoot(options);
   const env = runtime.env ?? process.env;
   if (options.project !== undefined && scope !== "project") throw new CliError("--project is valid only with --scope project.");
+  if (!MODEL_EDIT_HOSTS.has(host)) throw new CliError(`Model configuration is not supported for ${host}; canonical roles already use the host's inheritance behavior.`);
+
   const mapping = parseRoleMap(options.map, PRESETS[preset]);
-  validateModelConfiguration(host, preset, mapping, options);
   const statePath = stateFile(host, scope, project, env);
   await assertSafePath(path.dirname(statePath), statePath);
   const expectedRoots = Object.fromEntries(Object.entries(staticInstallRoots(host, scope, project, env)).map(([key, value]) => [key, path.resolve(value)]));
   const state = await readInstallState(statePath, { host, scope, roots: expectedRoots });
   if (!state) throw new CliError(`No managed ${host}/${scope} installation exists. Run sew install --host ${host} --scope ${scope} first, then configure models.`, 1);
+
+  const resolvedCaps = capabilities || (preset === "inherit" ? null : fetchHarnessCapabilities(host, { project, env, spawnSync: runtime.spawnSync }));
+  const validationWarnings = validateModelConfiguration(host, preset, mapping, options, resolvedCaps ?? HARNESS_METADATA[host]);
+  const warnings = [...new Set([...(resolvedCaps?.warnings ?? []), ...validationWarnings])];
   const edits = [];
   for (const role of ROLES) {
     const fileName = `${PLUGIN_ID}-${role}${modelExtension(host)}`;
@@ -717,10 +741,21 @@ async function configureModels(options, runtime = {}) {
       roots: state.roots,
     });
   }
-  const result = { command: "models configure", status: options["dry-run"] ? "dry-run" : "configured", host, scope, preset, statePath, mapping, files: edits.map(({ content: _content, ...item }) => item) };
+  const result = {
+    command: "models configure",
+    status: options["dry-run"] ? "dry-run" : "configured",
+    host,
+    scope,
+    preset,
+    statePath,
+    mapping,
+    files: edits.map(({ content: _content, ...item }) => item),
+    ...(warnings.length > 0 ? { warnings } : {}),
+  };
   if (options.json) process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
   else {
     process.stdout.write(`${result.status}: ${host}/${scope}\n`);
+    for (const warning of warnings) process.stderr.write(`sew: warning: ${warning}\n`);
     for (const item of result.files) process.stdout.write(`- ${item.action.padEnd(18)} ${item.path}\n`);
   }
   return 0;
@@ -945,6 +980,7 @@ export async function main(argv = process.argv.slice(2), runtime = {}) {
     const { command, options } = parseArgs(argv);
     if (command === "help" || options.help) { process.stdout.write(usage()); return 0; }
     if (command === "version") { process.stdout.write(`${PACKAGE_VERSION}\n`); return 0; }
+
     if (["install", "update", "uninstall"].includes(command)) return await runInstallOperation(command, options, runtime);
     if (command === "models-configure") return await configureModels(options, runtime);
     if (command === "doctor") return await doctor(options, runtime);
@@ -964,6 +1000,13 @@ export const internals = Object.freeze({
   ROLES,
   PRESETS,
   MODEL_MARKER,
+  HARNESS_METADATA,
+  fetchHarnessCapabilities,
+  isModelSupported,
+  isReasoningSupported,
+  parseCliModelsOutput,
+  validateStoredModels,
+  configureModels,
   parseArgs,
   normalizePreset,
   parseRoleMap,

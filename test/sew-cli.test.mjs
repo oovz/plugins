@@ -63,8 +63,8 @@ function extension(host) { return host === "codex" ? ".toml" : ".md"; }
 
 function codexRunner({ installed = true, enabled = true, malformed = false, status = 0 } = {}) {
   const calls = [];
-  const spawnSync = (executable, args, options) => {
-    calls.push({ executable, args: [...args], cwd: options.cwd });
+  const spawnSync = (executable, args, options = {}) => {
+    calls.push({ executable, args: [...args], cwd: options?.cwd });
     if (args.join(" ") === "plugin list --json") {
       if (malformed) return { status, stdout: "not-json", stderr: "" };
       return {
@@ -73,9 +73,59 @@ function codexRunner({ installed = true, enabled = true, malformed = false, stat
         stderr: status === 0 ? "" : "inspection failed",
       };
     }
+    if (args.join(" ") === "debug models") {
+      return {
+        status: 0,
+        stdout: JSON.stringify({
+          models: ["gpt-5.6-luna", "gpt-5.6-terra", "o3", "o3-mini", "gpt-4o", "gpt-test"].map((slug) => ({
+            slug,
+            visibility: "list",
+            supported_in_api: true,
+            supported_reasoning_levels: ["low", "medium", "high", "max"].map((effort) => ({ effort })),
+          })),
+        }),
+        stderr: "",
+      };
+    }
     return { status: 0, stdout: "", stderr: "" };
   };
   return { calls, spawnSync };
+}
+
+function harnessRunner(host) {
+  const models = {
+    codex: ["gpt-5.6-luna", "gpt-5.6-terra", "o3", "o3-mini", "gpt-4o", "gpt-test"],
+    opencode: ["openai/gpt-5.6-luna", "openai/gpt-4o", "anthropic/claude-3-7-sonnet", "deepseek/deepseek-v4-flash", "openai/test"],
+    "gemini-cli": ["gemini-2.5-pro", "gemini-2.5-flash", "gemini-3-flash-preview"],
+    "claude-code": ["claude-3-7-sonnet", "claude-3-5-sonnet", "claude-3-5-haiku", "claude-3-opus", "sonnet", "haiku", "opus"],
+    cursor: ["claude-3.7-sonnet", "composer-1.5", "gpt-4o"],
+    antigravity: ["gemini-2.5-pro", "claude-3-7-sonnet", "gpt-4o"],
+    "oh-my-pi": ["claude-3-7-sonnet", "gpt-4o", "deepseek-chat"],
+  };
+  return {
+    spawnSync(executable, args, options) {
+      if (executable === "opencode" && args[0] === "agent" && args[1] === "list") {
+        return {
+          status: 0,
+          stdout: "senior-engineering-workflow-researcher (subagent)\nsenior-engineering-workflow-engineer (subagent)\nsenior-engineering-workflow-verifier (subagent)\nsenior-engineering-workflow-worker (subagent)\n",
+          stderr: "",
+        };
+      }
+      if (executable === "opencode" && args.join(" ") === "models") {
+        return { status: 0, stdout: `${(models[host] ?? []).join("\n")}\n`, stderr: "" };
+      }
+      if (executable === "agent" && args.join(" ") === "models") {
+        return { status: 0, stdout: `${(models[host] ?? []).join("\n")}\n`, stderr: "" };
+      }
+      if (executable === "codex" && args.join(" ") === "debug models") {
+        return { status: 0, stdout: JSON.stringify({ models: (models[host] ?? []).map((slug) => ({ slug, visibility: "list", supported_in_api: true })) }), stderr: "" };
+      }
+      if (executable === "codex" && args.join(" ") === "plugin list --json") {
+        return { status: 0, stdout: JSON.stringify({ installed: [{ pluginId: "senior-engineering-workflow@otto-plugins", installed: true, enabled: true }] }), stderr: "" };
+      }
+      return { status: 0, stdout: "", stderr: "" };
+    },
+  };
 }
 
 test("@oovz/sew is the only SEW CLI implementation", async () => {
@@ -88,6 +138,7 @@ test("@oovz/sew is the only SEW CLI implementation", async () => {
   assert.equal(await exists(path.join(ROOT, "packages/sew-models")), false);
   assert.equal(await exists(path.join(ROOT, "scripts/sew-models.mjs")), false);
   assert.equal(await exists(path.join(ROOT, "plugins/senior-engineering-workflow/scripts/sew-models.mjs")), false);
+  assert.equal(await exists(path.join(BUILT_SEW_ROOT, "lib", "interactive.mjs")), false);
 });
 
 test("CLI surface is strict and has no legacy aliases", async () => {
@@ -114,7 +165,6 @@ test("host roots follow the seven documented conventions", () => {
   assert.equal(internals.userConfigRoot("oh-my-pi", { env, platform: "linux", home }), path.join(home, ".omp/agent"));
 });
 
-
 test("models configure edits installed static agents in place and restores inheritance", async () => {
   const cases = [
     ["codex", "gpt-5.6-luna", "max", "senior-engineering-workflow-worker.toml", /model = "gpt-5.6-luna"/u, /model_reasoning_effort = "max"/u],
@@ -124,7 +174,7 @@ test("models configure edits installed static agents in place and restores inher
   for (const [host, model, thinking, agentFile, modelPattern, thinkingPattern] of cases) {
     const project = await temp(`sew-inplace-${host}-`);
     const env = { HOME: path.join(project, "home"), XDG_STATE_HOME: path.join(project, "state") };
-    const runner = host === "codex" ? codexRunner({ installed: true }) : {};
+    const runner = host === "codex" ? codexRunner({ installed: true }) : harnessRunner(host);
     const install = await capture(["install", "--host", host, "--scope", "project", "--project", project, "--json"], { env, spawnSync: runner.spawnSync });
     assert.equal(install.code, 0, install.stderr);
     const agentRoot = projectAgentRoot(host, project);
@@ -133,7 +183,7 @@ test("models configure edits installed static agents in place and restores inher
     assert.doesNotMatch(payload, modelPattern);
 
     const args = ["models", "configure", "--host", host, "--scope", "project", "--project", project, "--preset", "two-model", "--worker-model", model, ...(thinking ? ["--worker-thinking", thinking] : [])];
-    const configured = await capture([...args, "--json"], { env });
+    const configured = await capture([...args, "--json"], { env, spawnSync: runner.spawnSync });
     assert.equal(configured.code, 0, configured.stderr);
     const edited = await readFile(agent, "utf8");
     assert.match(edited, modelPattern, `${host} must gain the model field in place`);
@@ -144,7 +194,7 @@ test("models configure edits installed static agents in place and restores inher
     assert.equal(state.models.worker.model, model);
     assert.equal(state.models.worker.thinking, thinking ?? undefined);
 
-    const restored = await capture(["models", "configure", "--host", host, "--scope", "project", "--project", project, "--preset", "inherit"], { env });
+    const restored = await capture(["models", "configure", "--host", host, "--scope", "project", "--project", project, "--preset", "inherit"], { env, spawnSync: runner.spawnSync });
     assert.equal(restored.code, 0, restored.stderr);
     assert.equal(await readFile(agent, "utf8"), payload, `${host} inherit must restore the CI payload byte-for-byte`);
   }
@@ -153,7 +203,7 @@ test("models configure edits installed static agents in place and restores inher
 test("models configure requires an installed static host and refuses modified agents", async () => {
   const project = await temp("sew-configure-gate-");
   const env = { HOME: path.join(project, "home"), XDG_STATE_HOME: path.join(project, "state") };
-  const uninstalled = await capture(["models", "configure", "--host", "codex", "--scope", "project", "--project", project, "--preset", "two-model", "--worker-model", "gpt-5.6-luna"]);
+  const uninstalled = await capture(["models", "configure", "--host", "codex", "--scope", "project", "--project", project, "--preset", "two-model", "--worker-model", "gpt-5.6-luna"], { env, spawnSync: codexRunner().spawnSync });
   assert.equal(uninstalled.code, 1);
   assert.match(uninstalled.stderr, /sew install/iu);
 
@@ -161,10 +211,10 @@ test("models configure requires an installed static host and refuses modified ag
   assert.equal(install.code, 0, install.stderr);
   const worker = path.join(project, ".codex", "agents", "senior-engineering-workflow-worker.toml");
   await writeFile(worker, `${await readFile(worker, "utf8")}user-edit = true\n`);
-  const refused = await capture(["models", "configure", "--host", "codex", "--scope", "project", "--project", project, "--preset", "two-model", "--worker-model", "gpt-5.6-luna"]);
+  const refused = await capture(["models", "configure", "--host", "codex", "--scope", "project", "--project", project, "--preset", "two-model", "--worker-model", "gpt-5.6-luna"], { env, spawnSync: codexRunner().spawnSync });
   assert.equal(refused.code, 1);
   assert.match(refused.stderr, /modified outside/u);
-  const forced = await capture(["models", "configure", "--host", "codex", "--scope", "project", "--project", project, "--preset", "two-model", "--worker-model", "gpt-5.6-luna", "--force"]);
+  const forced = await capture(["models", "configure", "--host", "codex", "--scope", "project", "--project", project, "--preset", "two-model", "--worker-model", "gpt-5.6-luna", "--force"], { env, spawnSync: codexRunner().spawnSync });
   assert.equal(forced.code, 0, forced.stderr);
   assert.match(await readFile(worker, "utf8"), /model = "gpt-5.6-luna"/u);
 });
@@ -175,7 +225,7 @@ test("update restores the CI payload and re-applies the stored model configurati
   const runner = codexRunner({ installed: true });
   const install = await capture(["install", "--host", "codex", "--scope", "project", "--project", project], { env, spawnSync: runner.spawnSync });
   assert.equal(install.code, 0, install.stderr);
-  const configure = await capture(["models", "configure", "--host", "codex", "--scope", "project", "--project", project, "--preset", "two-model", "--worker-model", "gpt-5.6-luna", "--worker-thinking", "max"]);
+  const configure = await capture(["models", "configure", "--host", "codex", "--scope", "project", "--project", project, "--preset", "two-model", "--worker-model", "gpt-5.6-luna", "--worker-thinking", "max"], { env, spawnSync: runner.spawnSync });
   assert.equal(configure.code, 0, configure.stderr);
   const update = await capture(["update", "--host", "codex", "--scope", "project", "--project", project], { env, spawnSync: runner.spawnSync });
   assert.equal(update.code, 0, update.stderr);

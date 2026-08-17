@@ -61,7 +61,7 @@ After `install` or `update`, `@oovz/sew` runs `opencode agent list` when the Ope
 
 `sew install --host cursor` copies the skill and four custom subagents directly to `~/.cursor/skills` and `~/.cursor/agents`, or to `<project>/.cursor/` for project scope. This direct layout is available to the local Cursor editor and Cursor CLI. CI also generates a native `.cursor-plugin` adapter and root marketplace catalog for Cursor 2.5 and later. Use either the direct CLI installation or a native plugin installation, not both, to avoid duplicate role definitions.
 
-Cursor agents omit `model`, `readonly`, and `tools`. The adapter therefore does not pin a model or add plugin-level restrictions. Cursor model routing is not exposed through `sew models configure`; the current validated contract is parent-model inheritance. Cloud-agent delegation is outside this target.
+Canonical Cursor agents omit `model`, `readonly`, and `tools`. The adapter therefore does not pin a model or add plugin-level restrictions. Subagent model routing can be configured with `sew models configure --host cursor`, which validates model IDs against `agent models`. Cloud-agent delegation is outside this target.
 
 ### Codex hybrid installation
 
@@ -80,9 +80,15 @@ The complete Codex projection remains in the CI-built payload for release verifi
 
 `install` and `update` deploy the CI-built role agents unchanged; every role inherits the parent session's model, thinking level, tools, and permissions.
 
-On Codex, OpenCode, and Gemini CLI, `models configure` edits the installed role agents in place: it inserts or replaces only the model and host-native thinking fields with a targeted drop-in replacement and leaves the prompt, description, and permissions byte-identical to the CI payload. The configuration is recorded in the install state, so `update` and `install --force` restore the payload and re-apply it.
+`models configure` customizes subagent model routing using CLI flags. It queries live host capabilities when the target harness documents a machine-readable source and never maintains its own model-ID catalog.
 
-Model configuration is supported only for Codex, OpenCode, and Gemini CLI. Claude Code, Cursor, Oh My Pi, and Antigravity keep their native inheritance behavior; `models configure` rejects those hosts.
+- Codex uses `codex debug models` and validates both the model ID and the selected model's supported reasoning efforts.
+- OpenCode uses `opencode models` and validates the exact `provider/model` ID. OpenCode variants are model-specific but do not have a documented machine-readable list, so a supplied variant is applied with a warning.
+- Cursor uses `agent models` and validates the model ID. Cursor custom-agent files do not expose a supported thinking field.
+- Gemini CLI has no documented machine-readable model catalog, so a supplied model is applied with a warning. Gemini custom-agent files do not expose a supported thinking field.
+- Claude Code, Oh My Pi, and Antigravity remain inheritance-only because `@oovz/sew` does not own editable role files for those hosts.
+
+### CLI configuration
 
 Optional model routing uses three slots:
 
@@ -117,23 +123,25 @@ npx @oovz/sew models configure \
   --worker-thinking max
 ```
 
-`--map researcher=worker,engineer=worker,verifier=inherit,worker=worker` customizes role-to-slot assignment. Slots are exactly `inherit`, `balanced`, and `worker`; no legacy preset or slot aliases are accepted.
+`--map researcher=worker,engineer=worker,verifier=inherit,worker=worker` customizes role-to-slot assignment. Slots are exactly `inherit`, `balanced`, and `worker`.
 
 Thinking maps to:
 
 | Host | Field |
 |---|---|
-| Codex | `model_reasoning_effort` |
-| OpenCode | `variant` |
-| Gemini CLI | No per-agent thinking field; omit the thinking flag |
+| Codex | `model_reasoning_effort` (validated per model) |
+| OpenCode | `variant` (applied with a warning because variants are not exposed as a machine-readable list) |
+| Cursor | No supported per-agent thinking field; omit the thinking flag |
+| Gemini CLI | No supported per-agent thinking field; omit the thinking flag |
+| Claude Code, Antigravity, Oh My Pi | Model configuration is not supported by `sew` |
 
-Restore the CI payload (inheritance) by removing the model/thinking fields:
+Restore canonical inheritance by removing the model/thinking fields:
 
 ```bash
 npx @oovz/sew models configure --host codex --scope user --preset inherit
 ```
 
-On editable hosts the edited files remain byte-identical to the CI payload apart from the model block, so `doctor` reports them as current and `update` re-applies the stored configuration. The CLI authorizes edits only when the current file hash matches its recorded state; a generated marker is not treated as ownership. The four role edits and the state update are committed as one rollback-capable transaction.
+On editable hosts the edited files remain byte-identical to the CI payload apart from the model block, so `doctor` reports them as current and `update` re-applies the stored configuration after revalidating any available live catalog. A listed model or Codex reasoning effort that is no longer available blocks the update; unverifiable values produce a warning. The CLI authorizes edits only when the current file hash matches its recorded state; a generated marker is not treated as ownership. The role edits and the state update are committed as one rollback-capable transaction.
 
 ## Migrate a 0.9.x static installation to 0.10.0 or later
 

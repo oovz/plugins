@@ -65,7 +65,9 @@ Native Oh My Pi installation:
 
 ## Optional model routing
 
-The default is full inheritance. On Codex, OpenCode, and Gemini CLI, `@oovz/sew models configure` edits the installed role agents in place, inserting or replacing only the `model` and host-native thinking fields while the prompt, description, and permissions stay byte-identical to the CI payload. Model configuration is supported only for Codex, OpenCode, and Gemini CLI. Claude Code, Cursor, Oh My Pi, and Antigravity continue to use their native inheritance behavior.
+The default is full inheritance. `@oovz/sew models configure` edits installed role agents in place, inserting or replacing only the `model` and host-native thinking fields while the prompt, description, and permissions stay byte-identical to the CI payload.
+
+Model configuration uses live harness capability output when documented. Codex model IDs and per-model reasoning efforts are validated from `codex debug models`; OpenCode model IDs are validated from `opencode models`, while variants are applied with a warning because no machine-readable variant list is documented; Cursor model IDs are validated from `agent models`; Gemini CLI model IDs are accepted with a warning because it has no documented machine-readable model catalog. Claude Code, Oh My Pi, and Antigravity continue to use their native inheritance behavior because `sew` does not own editable role files for them.
 
 | Preset | Researcher | Engineer | Verifier | Worker |
 |---|---|---|---|---|
@@ -73,7 +75,7 @@ The default is full inheritance. On Codex, OpenCode, and Gemini CLI, `@oovz/sew 
 | `two-model` | worker | worker | inherit | worker |
 | `three-model` | balanced | balanced | inherit | worker |
 
-Example:
+CLI example:
 
 ```text
 npx @oovz/sew models configure \
@@ -89,9 +91,6 @@ Restore canonical inheritance:
 ```text
 npx @oovz/sew models configure --host codex --scope user --preset inherit
 ```
-
-In-place model editing works on Codex, OpenCode, and Gemini CLI. Gemini CLI has no per-custom-agent thinking field. Claude Code, Cursor, Oh My Pi, and Antigravity use their native inheritance behavior; `models configure` rejects those hosts rather than reporting a no-op success.
-
 ## Workflow guarantees
 
 - The main agent owns every cross-role transition and every repeated attempt.

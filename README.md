@@ -108,7 +108,7 @@ node scripts/install.mjs install --plugin tauri-v2-desktop --host opencode --var
 npx @oovz/sew install --host cursor --scope user
 ```
 
-Add `--scope project --project /absolute/path/to/project` for one workspace. The command installs the Agent Skill and four custom subagents under the standard `.cursor/skills` and `.cursor/agents` paths, which are available to the local editor and Cursor CLI. The generated `.cursor-plugin` adapter is for Cursor Marketplace or team-marketplace installation in Cursor 2.5 and later. Use either the direct CLI installation or a native Cursor plugin installation, not both, to avoid duplicate role definitions. Cloud-agent delegation is not part of this validated target. Cursor roles keep the parent model by omitting `model`; `sew models configure` does not edit Cursor agents.
+Add `--scope project --project /absolute/path/to/project` for one workspace. The command installs the Agent Skill and four custom subagents under the standard `.cursor/skills` and `.cursor/agents` paths, which are available to the local editor and Cursor CLI. The generated `.cursor-plugin` adapter is for Cursor Marketplace or team-marketplace installation in Cursor 2.5 and later. Use either the direct CLI installation or a native Cursor plugin installation, not both, to avoid duplicate role definitions. Cloud-agent delegation is not part of this validated target. Cursor roles keep the parent model by omitting `model` until `sew models configure` applies a live-listed model override.
 </details>
 
 <details>
@@ -164,7 +164,7 @@ omp plugin install --scope user tauri-v2-desktop@otto-plugins
 
 ### Configure subagent models
 
-By default the four roles run on your main agent's model, with its thinking level, tools, and permissions. On Codex, OpenCode, and Gemini CLI you can route some roles to another model; `models configure` edits the installed role agents in place, changing only their model and thinking fields:
+By default the four roles run on your main agent's model, with its thinking level, tools, and permissions. On Codex, OpenCode, Cursor, and Gemini CLI you can route some roles to another model; `models configure` edits the installed role agents in place, changing only supported model and thinking fields. It uses live harness values when available, rejects a listed model or Codex reasoning effort that is unavailable, and warns when the target harness cannot expose a machine-readable capability list:
 
 ```text
 npx @oovz/sew models configure \
@@ -175,7 +175,7 @@ npx @oovz/sew models configure \
   --worker-thinking max
 ```
 
-Three-model routing is available through `--preset three-model`. Use `--preset inherit` to remove the model/thinking fields and return to full inheritance. Model configuration is supported only for Codex, OpenCode, and Gemini CLI. Claude Code, Oh My Pi, and Antigravity continue to use their native inheritance behavior.
+Three-model routing is available through `--preset three-model`. Use `--preset inherit` to remove the model/thinking fields and return to full inheritance. OpenCode variants are accepted with a validation warning because their available values are model-specific and not exposed through a documented machine-readable list. Cursor and Gemini CLI do not expose a supported per-agent thinking field. Claude Code, Oh My Pi, and Antigravity continue to use their native inheritance behavior.
 
 ## Migrate from @oovz/sew 0.9.x
 
