@@ -14,7 +14,7 @@
       "name": "senior-engineering-workflow",
       "source": "./adapters/oh-my-pi/senior-engineering-workflow",
       "description": "A proportional engineering workflow in which the capable main agent owns decisions and bounded specialists isolate research, implementation, verification, and noisy tool work.",
-      "version": "0.12.0",
+      "version": "0.12.1",
       "author": {
         "name": "Otto",
         "url": "https://github.com/oovz/plugins"
