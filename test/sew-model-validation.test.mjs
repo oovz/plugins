@@ -464,12 +464,60 @@ test("parseCliModelsOutput strips bullet points from line-based models output", 
   ]);
 });
 
-test("validateStoredModels accepts default model keyword", () => {
+test("validateStoredModels accepts inherit model keyword for supported hosts and rejects it for unsupported hosts", () => {
   const { validateStoredModels } = internals;
-  // validateStoredModels is part of model-config
   assert.doesNotThrow(() => {
-    internals.validateStoredModels?.({ worker: { model: "default" } }, "opencode")
-      || validateStoredModels?.({ worker: { model: "default" } }, "opencode");
+    validateStoredModels({ worker: { model: "inherit" } }, "gemini-cli");
   });
+  assert.doesNotThrow(() => {
+    validateStoredModels({ worker: { model: "inherit" } }, "cursor");
+  });
+  assert.throws(() => {
+    validateStoredModels({ worker: { model: "inherit" } }, "codex");
+  }, /installation state Codex model.*cannot use the "inherit" keyword/u);
+  assert.throws(() => {
+    validateStoredModels({ worker: { model: "inherit" } }, "opencode");
+  }, /must use provider\/model syntax/u);
+});
+
+test("Codex and OpenCode reject inherit and default model and reasoning values with actionable guidance", () => {
+  const codexCaps = { ...internals.HARNESS_METADATA.codex, models: ["gpt-5.6-luna"] };
+  const codexModelCheck = internals.isModelSupported("codex", "inherit", codexCaps);
+  assert.equal(codexModelCheck.supported, false);
+  assert.match(codexModelCheck.reason, /do not support a "inherit" model keyword.*use --preset inherit/u);
+
+  const codexDefaultCheck = internals.isModelSupported("codex", "default", codexCaps);
+  assert.equal(codexDefaultCheck.supported, false);
+  assert.match(codexDefaultCheck.reason, /do not support a "default" model keyword/u);
+
+  const codexThinkingCheck = internals.isReasoningSupported("codex", "inherit", codexCaps, "gpt-5.6-luna");
+  assert.equal(codexThinkingCheck.supported, false);
+  assert.match(codexThinkingCheck.reason, /do not support a "inherit" reasoning-effort keyword/u);
+
+  const opencodeCaps = { ...internals.HARNESS_METADATA.opencode, models: ["openai/gpt-4o"] };
+  const opencodeModelCheck = internals.isModelSupported("opencode", "inherit", opencodeCaps);
+  assert.equal(opencodeModelCheck.supported, false);
+  assert.match(opencodeModelCheck.reason, /do not support a "inherit" model keyword/u);
+});
+
+test("Cursor capability discovery degrades to warning when agent CLI is missing or fails", async () => {
+  const project = await temp("sew-cursor-discovery-degrade-");
+  const env = { HOME: path.join(project, "home"), XDG_STATE_HOME: path.join(project, "state") };
+  const failingRunner = () => ({ error: { code: "ENOENT", message: "spawnSync agent ENOENT" } });
+
+  const install = await capture(["install", "--host", "cursor", "--scope", "project", "--project", project], { env });
+  assert.equal(install.code, 0, install.stderr);
+
+  const result = await capture([
+    "models", "configure", "--host", "cursor", "--scope", "project", "--project", project,
+    "--preset", "two-model", "--worker-model", "composer-1.5", "--json",
+  ], { env, spawnSync: failingRunner });
+
+  assert.equal(result.code, 0, result.stderr);
+  const output = JSON.parse(result.stdout);
+  assert.ok(output.warnings?.some((warning) => /Could not find the agent CLI on PATH/u.test(warning)));
+
+  const worker = path.join(project, ".cursor", "agents", "senior-engineering-workflow-worker.md");
+  assert.match(await readFile(worker, "utf8"), /model:\s*"composer-1\.5"/u);
 });
 

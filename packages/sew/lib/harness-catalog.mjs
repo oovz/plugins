@@ -31,6 +31,7 @@ export const HARNESS_METADATA = Object.freeze({
     queryArgs: Object.freeze(["models"]),
     modelOutput: "cursor",
     supportsThinking: false,
+    optionalQuery: true,
   }),
   "gemini-cli": Object.freeze({
     host: "gemini-cli",
@@ -148,8 +149,8 @@ export function parseCliModelsOutput(stdout, format = "generic") {
   }
 }
 
-function unavailableCapabilities(meta) {
-  const modelWarning = `${meta.displayName} does not expose a documented machine-readable model catalog; model IDs will not be validated.`;
+function unavailableCapabilities(meta, reason = null) {
+  const modelWarning = reason ?? `${meta.displayName} does not expose a documented machine-readable model catalog; model IDs will not be validated.`;
   return {
     ...meta,
     models: null,
@@ -169,15 +170,24 @@ export function fetchHarnessCapabilities(host, { project = process.cwd(), env = 
 
   let result = spawnHost(meta.executable, meta.queryArgs, { env, cwd: project, spawnSync });
   if (result?.error?.code === "ENOENT") {
+    if (meta.optionalQuery) {
+      return unavailableCapabilities(meta, `Could not find the ${meta.executable} CLI on PATH; ${meta.displayName} model IDs will not be validated.`);
+    }
     throw new CliError(`Could not find the ${meta.executable} CLI on PATH. Ensure ${meta.displayName} is installed and available to fetch supported models.`, 1);
   }
   if (result?.status !== 0 || !result?.stdout) {
+    if (meta.optionalQuery) {
+      return unavailableCapabilities(meta, `Failed to fetch supported models from ${meta.displayName} (${meta.executable}); model IDs will not be validated.`);
+    }
     const detail = result?.stderr || result?.stdout || result?.error?.message || `exit code ${result?.status}`;
     throw new CliError(`Failed to fetch supported models from ${meta.displayName} (${meta.executable}): ${detail}`, 1);
   }
 
   const parsed = parseCliModelsOutput(String(result.stdout), meta.modelOutput);
   if (parsed.models.length === 0 && parsed.disabledModels.length === 0) {
+    if (meta.optionalQuery) {
+      return unavailableCapabilities(meta, `No available models returned by the ${meta.displayName} harness (${meta.executable}); model IDs will not be validated.`);
+    }
     throw new CliError(`No available models returned by the ${meta.displayName} harness (${meta.executable}).`, 1);
   }
 
@@ -201,7 +211,14 @@ export function isModelSupported(host, model, capabilities) {
   const caps = capabilities || HARNESS_METADATA[host];
   if (!caps) return { supported: false, reason: `Unknown host: ${host}` };
   if (normalized.toLowerCase() === "inherit" || normalized.toLowerCase() === "default") {
-    return { supported: true, normalizedModel: normalized.toLowerCase(), validated: true };
+    if (host === "cursor" || host === "gemini-cli" || host === "claude-code") {
+      return { supported: true, normalizedModel: "inherit", validated: true };
+    }
+    return {
+      supported: false,
+      normalizedModel: normalized,
+      reason: `${caps.displayName} agent files do not support a "${normalized}" model keyword; use --preset inherit to restore parent model inheritance.`,
+    };
   }
   if (caps.requireProviderPrefix && !normalized.includes("/")) {
     return {
@@ -248,7 +265,12 @@ export function isReasoningSupported(host, reasoning, capabilities, model) {
       reason: `${caps.displayName} agent files do not expose a supported thinking-level field; omit thinking setting.`,
     };
   }
-  if (normalized === "inherit" || normalized === "default") return { supported: true, normalizedReasoning: normalized, validated: true };
+  if (normalized === "inherit" || normalized === "default") {
+    return {
+      supported: false,
+      reason: `${caps.displayName} agent files do not support a "${normalized}" reasoning-effort keyword; omit the thinking setting or use --preset inherit.`,
+    };
+  }
 
   const modelKey = findModelKey(model, caps.reasoningLevelsByModel);
   if (!modelKey) {

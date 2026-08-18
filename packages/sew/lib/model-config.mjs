@@ -117,10 +117,12 @@ export function validateStoredModels(models, host, capabilities = null) {
       throw error;
     }
     if (!model) throw new CliError(`The installation state model for ${role} is missing.`, 1);
-    if (host === "opencode" && !model.includes("/") && model !== "inherit" && model !== "default") {
+    if (host === "opencode" && !model.includes("/")) {
       throw new CliError(`The installation state OpenCode model for ${role} must use provider/model syntax.`, 1);
     }
-
+    if (host === "codex" && (model.toLowerCase() === "inherit" || model.toLowerCase() === "default")) {
+      throw new CliError(`The installation state Codex model for ${role} cannot use the "${model}" keyword.`, 1);
+    }
     if (capabilities) {
       const modelCheck = isModelSupported(host, model, capabilities);
       if (!modelCheck.supported) throw new CliError(`The installation state model for ${role} is no longer valid: ${modelCheck.reason}`, 2);
