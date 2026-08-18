@@ -1,0 +1,5 @@
+{
+  "name": "chrome-extension-tester",
+  "version": "0.1.0",
+  "description": "Test and debug Chrome extensions in real Chrome-managed extension contexts with Chrome DevTools MCP, with WXT-aware workflows."
+}

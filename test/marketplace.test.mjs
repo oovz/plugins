@@ -66,6 +66,33 @@ test("Tauri v2 desktop is a skill-only all-host plugin", async () => {
   assert.doesNotMatch(`${plugin.manifest.description}\n${plugin.skills[0].body}`, /cce-tauri|nodnarbnitram|claude-code-extensions/i);
 });
 
+test("Chrome Extension Tester is a multi-skill plugin with Codex MCP host integration", async () => {
+  const result = await validateRepository();
+  const plugin = result.plugins.find((item) => item.manifest.id === "chrome-extension-tester");
+  assert.ok(plugin);
+  assert.deepEqual(plugin.manifest.components.agents, []);
+  assert.deepEqual(plugin.manifest.components.commands, []);
+  assert.equal(plugin.skills.length, 2);
+  assert.deepEqual(plugin.skills.map((s) => s.id).sort(), ["chrome-extension-test", "wxt-extension-test"]);
+  assert.equal(plugin.manifest.version, "0.1.0");
+  for (const host of ["claude-code", "codex", "cursor", "gemini-cli", "antigravity", "oh-my-pi", "opencode", "portable"]) {
+    assert.equal(plugin.manifest.hosts[host].enabled, true, `${host} should be enabled`);
+  }
+  const codexManifest = await readJson(path.join(ROOT, "adapters", "codex", "chrome-extension-tester", ".codex-plugin", "plugin.json"));
+  assert.equal(codexManifest.version, plugin.manifest.version);
+  assert.deepEqual(codexManifest.interface.capabilities, ["Read", "Write", "Execute"]);
+  assert.equal(codexManifest.mcpServers, "./.mcp.json");
+  const codexMcp = await readJson(path.join(ROOT, "adapters", "codex", "chrome-extension-tester", ".mcp.json"));
+  assert.ok(codexMcp.mcp_servers["chrome-devtools"]);
+  assert.deepEqual(codexMcp.mcp_servers["chrome-devtools"].args, [
+    "-y",
+    "chrome-devtools-mcp@latest",
+    "--categoryExtensions",
+    "--allowUnrestrictedPaths"
+  ]);
+  await assert.rejects(readFile(path.join(ROOT, "adapters", "claude-code", "chrome-extension-tester", ".mcp.json")), /ENOENT/);
+});
+
 test("Senior Engineering Workflow targets exactly the seven subagent-capable harnesses", async () => {
   const result = await validateRepository();
   const plugin = result.plugins.find((item) => item.manifest.id === "senior-engineering-workflow");
@@ -217,7 +244,7 @@ test("semantic Tauri profile requires the remote security version boundary and p
 
   await writeFile(reference, source.replace("A remote origin needs an explicit, narrowly scoped remote capability before it can reach a custom command", "Remote origins require a narrowly scoped explicit remote capability before reaching a custom command"));
   const result = await validateRepository(root);
-  assert.equal(result.plugins.length, 2);
+  assert.equal(result.plugins.length, result.catalog.marketplace.plugins.length);
 });
 
 test("Codex capability metadata is explicit, scoped, and single-line", async (t) => {

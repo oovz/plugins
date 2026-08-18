@@ -24,6 +24,14 @@
       "minClientVersions": {
         "cursor": "2.5.0"
       }
+    },
+    {
+      "name": "chrome-extension-tester",
+      "source": "./adapters/cursor/chrome-extension-tester",
+      "description": "Test and debug Chrome extensions in real Chrome-managed extension contexts with Chrome DevTools MCP, with WXT-aware workflows.",
+      "minClientVersions": {
+        "cursor": "2.5.0"
+      }
     }
   ]
 }

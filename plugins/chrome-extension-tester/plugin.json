@@ -1,0 +1,79 @@
+{
+  "$schema": "../../schemas/plugin.schema.json",
+  "schemaVersion": 1,
+  "id": "chrome-extension-tester",
+  "version": "0.1.0",
+  "displayName": "Chrome Extension Tester",
+  "shortDescription": "Test and debug Chrome extensions with Chrome DevTools MCP.",
+  "description": "Test and debug Chrome extensions in real Chrome-managed extension contexts with Chrome DevTools MCP, with WXT-aware workflows.",
+  "license": "MIT",
+  "author": {
+    "name": "Otto",
+    "url": "https://github.com/oovz/plugins"
+  },
+  "keywords": [
+    "chrome-extension",
+    "chrome-devtools",
+    "mcp",
+    "side-panel",
+    "wxt",
+    "e2e",
+    "testing"
+  ],
+  "category": "Developer Tools",
+  "components": {
+    "skills": [
+      {
+        "id": "chrome-extension-test",
+        "path": "skills/chrome-extension-test/SKILL.md"
+      },
+      {
+        "id": "wxt-extension-test",
+        "path": "skills/wxt-extension-test/SKILL.md"
+      }
+    ],
+    "agents": [],
+    "commands": [],
+    "hostFiles": [
+      {
+        "id": "codex-mcp",
+        "path": "codex.mcp.json",
+        "destination": ".mcp.json",
+        "hosts": [
+          "codex"
+        ]
+      }
+    ]
+  },
+  "hosts": {
+    "claude-code": {
+      "enabled": true
+    },
+    "codex": {
+      "enabled": true,
+      "capabilities": [
+        "Read",
+        "Write",
+        "Execute"
+      ]
+    },
+    "gemini-cli": {
+      "enabled": true
+    },
+    "antigravity": {
+      "enabled": true
+    },
+    "oh-my-pi": {
+      "enabled": true
+    },
+    "opencode": {
+      "enabled": true
+    },
+    "portable": {
+      "enabled": true
+    },
+    "cursor": {
+      "enabled": true
+    }
+  }
+}

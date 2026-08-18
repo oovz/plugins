@@ -80,7 +80,7 @@ export function codexPluginManifest(plugin, repository = plugin.marketplace?.rep
     ...(codexComponents.nativeFiles.some((file) => file.nativeKind === "mcpServers") ? { mcpServers: `./${codexComponents.nativeFiles.find((file) => file.nativeKind === "mcpServers").destination}` } : {}),
     interface: {
       displayName: compact(plugin.manifest.displayName, 30),
-      shortDescription: compact(plugin.manifest.description, 30),
+      shortDescription: compact(plugin.manifest.shortDescription ?? plugin.manifest.description, plugin.manifest.shortDescription ? 60 : 30),
       longDescription: plugin.manifest.description,
       developerName: plugin.manifest.author.name,
       category: plugin.manifest.category ?? "Other",

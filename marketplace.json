@@ -18,6 +18,10 @@
     {
       "id": "tauri-v2-desktop",
       "path": "plugins/tauri-v2-desktop"
+    },
+    {
+      "id": "chrome-extension-tester",
+      "path": "plugins/chrome-extension-tester"
     }
   ]
 }

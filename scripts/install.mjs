@@ -155,7 +155,10 @@ export function resolveInstallPlan(plugin, args, env = process.env, cwd = proces
     throw new Error(`Claude Code manages its plugin cache. Run "claude plugin marketplace add ${plugin.marketplace.repository}" then "claude plugin install ${plugin.manifest.id}@${plugin.marketplace.id}".`);
   }
   if (args.host === "gemini-cli") {
-    throw new Error(`Gemini CLI installation is provided by the public CLI. Run "npx @oovz/sew install --host gemini-cli --scope ${args.scope}${args.scope === "project" ? ` --project ${args.project ?? process.cwd()}` : ""}". Build dist/gemini-cli/${plugin.manifest.id} only for adapter development.`);
+    if (plugin.manifest.id === "senior-engineering-workflow") {
+      throw new Error(`Gemini CLI installation is provided by the public CLI. Run "npx @oovz/sew install --host gemini-cli --scope ${args.scope}${args.scope === "project" ? ` --project ${args.project ?? process.cwd()}` : ""}". Build dist/gemini-cli/${plugin.manifest.id} only for adapter development.`);
+    }
+    throw new Error(`Gemini CLI installation for "${plugin.manifest.displayName}" requires building the adapter. Run "npm run build -- --plugin ${plugin.manifest.id} --host gemini-cli" then "gemini extensions install ./dist/gemini-cli/${plugin.manifest.id}".`);
   }
   if (args.host === "oh-my-pi") {
     const scope = args.scope === "project" ? " --scope project" : "";

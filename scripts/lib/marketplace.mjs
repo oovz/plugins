@@ -237,6 +237,7 @@ export function validatePluginManifest(manifest, directoryName) {
   for (const key of ["displayName", "description", "license"]) assert(typeof manifest[key] === "string" && manifest[key].trim(), `${key} is required`);
   assert(manifest.id.length <= 64, "plugin id must be at most 64 characters");
   assert(manifest.description.length <= 1024, "plugin description must be at most 1024 characters");
+  if (manifest.shortDescription !== undefined) assert(typeof manifest.shortDescription === "string" && manifest.shortDescription.trim() && manifest.shortDescription.length <= 60, "shortDescription must be a 1-60 character string when present");
   assert(manifest.author && typeof manifest.author.name === "string" && manifest.author.name.trim(), "author.name is required");
   assert(manifest.author.name.length <= 120, "author.name must be at most 120 characters");
   assert(manifest.components && typeof manifest.components === "object", "components is required");

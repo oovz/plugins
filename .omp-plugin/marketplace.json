@@ -58,6 +58,29 @@
         "distribution"
       ],
       "category": "Developer Tools"
+    },
+    {
+      "name": "chrome-extension-tester",
+      "source": "./adapters/oh-my-pi/chrome-extension-tester",
+      "description": "Test and debug Chrome extensions in real Chrome-managed extension contexts with Chrome DevTools MCP, with WXT-aware workflows.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Otto",
+        "url": "https://github.com/oovz/plugins"
+      },
+      "homepage": "https://github.com/oovz/plugins",
+      "repository": "https://github.com/oovz/plugins",
+      "license": "MIT",
+      "keywords": [
+        "chrome-extension",
+        "chrome-devtools",
+        "mcp",
+        "side-panel",
+        "wxt",
+        "e2e",
+        "testing"
+      ],
+      "category": "Developer Tools"
     }
   ]
 }

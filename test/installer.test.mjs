@@ -114,6 +114,25 @@ test("Codex standalone dry-run lists skill-only files and license", async (t) =>
   await assert.rejects(lstat(path.join(ctx.project, ".agents")), /ENOENT/);
 });
 
+test("Chrome Extension Tester rejects Codex standalone due to native host files and directs Gemini CLI to build adapter", async (t) => {
+  const ctx = await fixture(t);
+  const env = { ...process.env, HOME: ctx.home, USERPROFILE: ctx.home, XDG_STATE_HOME: path.join(ctx.home, ".state") };
+  await assert.rejects(
+    runInstaller(
+      ["install", "--plugin", "chrome-extension-tester", "--host", "codex", "--scope", "project", "--mode", "standalone", "--project", ctx.project, "--dry-run"],
+      { root: ROOT, env, cwd: ctx.project, stdout: { write() {} } }
+    ),
+    /Codex standalone cannot install native host files \(codex-mcp\)/
+  );
+  await assert.rejects(
+    runInstaller(
+      ["install", "--plugin", "chrome-extension-tester", "--host", "gemini-cli", "--scope", "user", "--dry-run"],
+      { root: ROOT, env, cwd: ctx.project, stdout: { write() {} } }
+    ),
+    /npm run build -- --plugin chrome-extension-tester --host gemini-cli/
+  );
+});
+
 test("Codex user scope splits Agent Skills from CODEX_HOME agents", async (t) => {
   const ctx = await fixture(t);
   const codexHome = path.join(ctx.root, "custom-codex");

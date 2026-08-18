@@ -16,26 +16,26 @@ My plugins for agentic coding harnesses.
 |---|---:|---|
 | [Senior Engineering Workflow](plugins/senior-engineering-workflow/) | 0.12.0 | Keeps coding decisions in the capable main agent while bounded Researcher, Engineer, Verifier, and Worker roles isolate implementation and noisy evidence when useful. |
 | [Tauri v2 Desktop](plugins/tauri-v2-desktop/) | 1.2.0 | Secure, evidence-driven guidance for building, testing, upgrading, and distributing Tauri v2 desktop applications on Windows, macOS, and Linux. |
+| [Chrome Extension Tester](plugins/chrome-extension-tester/) | 0.1.0 | Test and debug Chrome extensions in real Chrome-managed extension contexts with Chrome DevTools MCP, with WXT-aware workflows. |
 
 ## Compatibility
 
 The validated coding-harness targets are:
 
-| Host | Senior Engineering Workflow | Tauri v2 Desktop | Distribution |
-|---|---|---|---|
-| Claude Code | Skill + four named subagents | Skill | Native Claude marketplace |
-| Codex | Skill + four companion agents | Skill | Codex marketplace plus companion/static payload |
-| OpenCode | Skill + four Markdown subagents | Skill | Static host payload |
-| Cursor 2.5+ | Skill + four custom subagents | Skill | Native Cursor plugin plus static host payload |
-| Gemini CLI | Skill + four extension subagents | Skill | Static host payload |
-| Antigravity | Skill; bounded roles use inherited generic/dynamic subagents | Skill | Native Antigravity plugin payload |
-| Oh My Pi (`omp`) | Skill + four task agents | Skill | Native OMP marketplace |
+| Host | Senior Engineering Workflow | Tauri v2 Desktop | Chrome Extension Tester | Distribution |
+|---|---|---|---|---|
+| Claude Code | Skill + four named subagents | Skill | Skills | Native Claude marketplace |
+| Codex | Skill + four companion agents | Skill | Skills + MCP | Codex marketplace plus companion/static payload |
+| OpenCode | Skill + four Markdown subagents | Skill | Skills | Static host payload |
+| Cursor 2.5+ | Skill + four custom subagents | Skill | Skills | Native Cursor plugin plus static host payload |
+| Gemini CLI | Skill + four extension subagents | Skill | Skills | Static host payload |
+| Antigravity | Skill; bounded roles use inherited generic/dynamic subagents | Skill | Skills | Native Antigravity plugin payload |
+| Oh My Pi (`omp`) | Skill + four task agents | Skill | Skills | Native OMP marketplace |
 
-Tauri v2 Desktop also ships a portable Agent Skills export. That format carries skills only (no harness, no subagents), which is why Senior Engineering Workflow does not target it.
-
+Tauri v2 Desktop and Chrome Extension Tester also ship a portable Agent Skills export. That format carries skills only (no harness, no subagents), which is why Senior Engineering Workflow does not target it.
 ## Install
 
-`@oovz/sew` installs the host-native Senior Engineering Workflow components on every supported host. Tauri v2 Desktop is skill-only and installs through each host's native marketplace where one exists. Pick your harness below.
+`@oovz/sew` installs the host-native Senior Engineering Workflow components on every supported host. Tauri v2 Desktop and Chrome Extension Tester are skill-only and install through each host's native marketplace where one exists. Pick your harness below.
 
 <details>
 <summary>Claude Code</summary>
@@ -44,6 +44,7 @@ Tauri v2 Desktop also ships a portable Agent Skills export. That format carries 
 /plugin marketplace add oovz/plugins
 /plugin install senior-engineering-workflow@otto-plugins
 /plugin install tauri-v2-desktop@otto-plugins
+/plugin install chrome-extension-tester@otto-plugins
 /reload-plugins
 ```
 
@@ -53,6 +54,7 @@ From the CLI:
 claude plugin marketplace add oovz/plugins
 claude plugin install senior-engineering-workflow@otto-plugins --scope user
 claude plugin install tauri-v2-desktop@otto-plugins --scope user
+claude plugin install chrome-extension-tester@otto-plugins --scope user
 ```
 </details>
 
@@ -82,6 +84,7 @@ Using Codex CLI or Desktop:
 ```text
 codex plugin marketplace add oovz/plugins
 codex plugin add tauri-v2-desktop@otto-plugins
+codex plugin add chrome-extension-tester@otto-plugins
 ```
 </details>
 
@@ -94,10 +97,11 @@ npx @oovz/sew install --host opencode --scope user
 
 This installs one Agent Skill and four `mode: subagent` Markdown agents. It is not an OpenCode JavaScript/TypeScript plugin, so it does not appear in the plugin list or the primary-agent switcher. The CLI verifies a fresh OpenCode process with `opencode agent list` when that command is available; restart any OpenCode session that was already running.
 
-Add `--scope project --project /absolute/path/to/project` for a single project. Tauri v2 Desktop has no CLI install; from a clone of this repository:
+Add `--scope project --project /absolute/path/to/project` for a single project. Tauri v2 Desktop and Chrome Extension Tester have no CLI install; from a clone of this repository:
 
 ```text
 node scripts/install.mjs install --plugin tauri-v2-desktop --host opencode --variant stable --scope user
+node scripts/install.mjs install --plugin chrome-extension-tester --host opencode --variant stable --scope user
 ```
 </details>
 
@@ -118,11 +122,13 @@ Add `--scope project --project /absolute/path/to/project` for one workspace. The
 npx @oovz/sew install --host gemini-cli --scope user
 ```
 
-Tauri v2 Desktop, from a clone:
+Tauri v2 Desktop and Chrome Extension Tester, from a clone:
 
 ```text
 npm run build -- --plugin tauri-v2-desktop --host gemini-cli
 gemini extensions install ./dist/gemini-cli/tauri-v2-desktop
+npm run build -- --plugin chrome-extension-tester --host gemini-cli
+gemini extensions install ./dist/gemini-cli/chrome-extension-tester
 ```
 </details>
 
@@ -133,11 +139,13 @@ gemini extensions install ./dist/gemini-cli/tauri-v2-desktop
 npx @oovz/sew install --host antigravity --scope user
 ```
 
-Tauri v2 Desktop, from a clone:
+Tauri v2 Desktop and Chrome Extension Tester, from a clone:
 
 ```text
 npm run build -- --plugin tauri-v2-desktop --host antigravity
 agy plugin install ./dist/antigravity/tauri-v2-desktop
+npm run build -- --plugin chrome-extension-tester --host antigravity
+agy plugin install ./dist/antigravity/chrome-extension-tester
 ```
 </details>
 
@@ -148,6 +156,7 @@ agy plugin install ./dist/antigravity/tauri-v2-desktop
 /marketplace add oovz/plugins
 /marketplace install senior-engineering-workflow@otto-plugins
 /marketplace install tauri-v2-desktop@otto-plugins
+/marketplace install chrome-extension-tester@otto-plugins
 /reload-plugins
 ```
 
@@ -157,6 +166,7 @@ From the CLI:
 omp plugin marketplace add oovz/plugins
 omp plugin install --scope user senior-engineering-workflow@otto-plugins
 omp plugin install --scope user tauri-v2-desktop@otto-plugins
+omp plugin install --scope user chrome-extension-tester@otto-plugins
 ```
 </details>
 
@@ -223,6 +233,7 @@ Generated catalogs and adapters are checked in. Change canonical plugin source a
 
 - [Senior Engineering Workflow](plugins/senior-engineering-workflow/README.md)
 - [Tauri v2 Desktop](plugins/tauri-v2-desktop/README.md)
+- [Chrome Extension Tester](plugins/chrome-extension-tester/README.md)
 - [Adding a marketplace plugin](docs/adding-a-plugin.md)
 
 > [!IMPORTANT]
