@@ -129,13 +129,13 @@ function harnessRunner(host) {
 }
 
 test("@oovz/sew is the only SEW CLI implementation", async () => {
-  const manifest = JSON.parse(await readFile(path.join(ROOT, "packages/sew/package.json"), "utf8"));
+  const manifest = JSON.parse(await readFile(path.join(ROOT, "tools/sew/package.json"), "utf8"));
   assert.equal(manifest.name, "@oovz/sew");
   assert.equal(manifest.private, true);
   assert.deepEqual(manifest.bin, { sew: "./bin/sew.mjs" });
-  assert.equal(await exists(path.join(ROOT, "packages/sew/payloads")), false);
-  assert.equal(await exists(path.join(ROOT, "packages/sew/templates")), false);
-  assert.equal(await exists(path.join(ROOT, "packages/sew-models")), false);
+  assert.equal(await exists(path.join(ROOT, "tools/sew/payloads")), false);
+  assert.equal(await exists(path.join(ROOT, "tools/sew/templates")), false);
+  assert.equal(await exists(path.join(ROOT, "tools/sew-models")), false);
   assert.equal(await exists(path.join(ROOT, "scripts/sew-models.mjs")), false);
   assert.equal(await exists(path.join(ROOT, "plugins/senior-engineering-workflow/scripts/sew-models.mjs")), false);
   assert.equal(await exists(path.join(BUILT_SEW_ROOT, "lib", "interactive.mjs")), false);
@@ -394,7 +394,7 @@ test("doctor is read-only across all seven hosts", async () => {
 });
 
 test("CI-bundled package payloads cover the canonical plugin", async () => {
-  const sourceManifest = JSON.parse(await readFile(path.join(ROOT, "packages/sew/package.json"), "utf8"));
+  const sourceManifest = JSON.parse(await readFile(path.join(ROOT, "tools/sew/package.json"), "utf8"));
   const releaseManifest = JSON.parse(await readFile(path.join(BUILT_SEW_ROOT, "package.json"), "utf8"));
   assert.equal(sourceManifest.private, true);
   assert.equal(releaseManifest.private, undefined);
@@ -454,7 +454,7 @@ test("release packaging creates one npm tarball and checksum from the staged pac
   const releaseRoot = await temp("sew-release-");
   try {
     const result = await packSew({ root: ROOT, packageRoot: BUILT_SEW_ROOT, releaseRoot });
-    const manifest = JSON.parse(await readFile(path.join(ROOT, "packages", "sew", "package.json"), "utf8"));
+    const manifest = JSON.parse(await readFile(path.join(ROOT, "tools", "sew", "package.json"), "utf8"));
     assert.equal(await exists(result.tarball), true);
     assert.equal(await exists(result.checksumFile), true);
     assert.equal(path.basename(result.tarball), `oovz-sew-${manifest.version}.tgz`);

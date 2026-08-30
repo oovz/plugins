@@ -1,6 +1,6 @@
 # Adding a marketplace plugin
 
-A normal new plugin is data, not a new branch in the build scripts. Register it in `marketplace.json`, then give it a canonical manifest and canonical components below `plugins/<plugin-id>/`; discovery, validation, host catalog generation, rendering, and packaging consume those declarations generically.
+A normal new plugin is data, not a new branch in the build scripts. Register it in `marketplace.json`, then add a bundle manifest and plugin-only components below `plugins/<plugin-id>/`. Canonical skills remain under `skills/` and are referenced by ID.
 
 ## 1. Choose a stable identity
 
@@ -9,42 +9,39 @@ Use a lowercase kebab-case identifier and keep it immutable after publication. T
 ```text
 plugins/example-plugin/
 ├── LICENSE
-├── plugin.json
+├── manifest.json
 ├── README.md
-├── skills/
-│   └── example-skill/
-│       ├── SKILL.md
-│       ├── references/   # optional
-│       ├── scripts/      # optional executable content
-│       └── assets/       # optional
 ├── agents/
 │   └── analyst.md
-└── commands/             # optional
+├── commands/             # optional
+├── evals/                # optional
+└── host-specific files   # optional, declared by the manifest
 ```
 
-Do not add a root `gemini-extension.json`, `plugin.json`, `agents/`, or `skills/` directory for the new plugin. The repository root remains the multi-plugin marketplace.
+Do not add `plugin.json` to a canonical source directory. The unqualified root filename is defined by the [Agent Plugins specification](https://agent-plugins.org/specification), and some native harnesses also use it for their generated package format. The internal bundle definition uses `manifest.json` so clients cannot mistake canonical build data for an installable plugin.
 
 Add one catalog entry to the root `marketplace.json`:
 
 ```json
 {
-  "id": "example-plugin",
-  "path": "plugins/example-plugin"
+  "plugins": [
+    "example-plugin"
+  ]
 }
 ```
 
-The entry `id`, directory name, and plugin manifest `id` must match. This is marketplace data; no renderer, installer, validator, or other core code should need a plugin-specific branch.
+The catalog ID, directory name, and bundle manifest `id` must match. The fixed path is `plugins/<plugin-id>/`, so catalog entries need no path field.
 
 Every plugin must include its own `LICENSE` as a regular file. The declared license and bundled notice travel with each independently installed adapter; they must not depend on the marketplace-root license.
 
 ## 2. Add the canonical manifest
 
-`plugins/<plugin-id>/plugin.json` is the source of truth for identity, version, components, target hosts, and agent capabilities. A minimal skill-and-agent example is:
+`plugins/<plugin-id>/manifest.json` is the source of truth for identity, version, components, target hosts, and agent capabilities. A minimal skill-and-agent example is:
 
 ```json
 {
-  "$schema": "../../schemas/plugin.schema.json",
-  "schemaVersion": 1,
+  "$schema": "../../schemas/plugin-manifest.schema.json",
+  "schemaVersion": 2,
   "id": "example-plugin",
   "version": "1.0.0",
   "displayName": "Example Plugin",
@@ -58,10 +55,7 @@ Every plugin must include its own `LICENSE` as a regular file. The declared lice
   "category": "Productivity",
   "components": {
     "skills": [
-      {
-        "id": "example-skill",
-        "path": "skills/example-skill/SKILL.md"
-      }
+      "example-skill"
     ],
     "agents": [
       {
@@ -116,7 +110,7 @@ Use semantic versions per plugin. The root package version belongs to marketplac
 
 ## 3. Write host-neutral canonical components
 
-Every skill uses an exact uppercase `SKILL.md` and follows the [Agent Skills specification](https://agentskills.io/specification). Keep discovery metadata concise and put lengthy, conditionally needed material under `references/`, `scripts/`, or `assets/` for progressive disclosure.
+Create reusable skills through [Adding a standalone skill](adding-a-skill.md). A plugin manifest references cataloged skill IDs and never duplicates their files.
 
 An agent file is Markdown with YAML frontmatter and a self-contained body. Its prompt should define one bounded job, input assumptions, authority, stopping conditions, and a concise output contract. Keep host tool names, model IDs, reasoning controls, permission syntax, and installation paths out of the behavioral body; the renderer derives those from the canonical manifest.
 
@@ -151,12 +145,10 @@ npm run build -- --all
 
 `generate` updates deterministic, committed host projections such as the Claude and Codex marketplace catalogs. `build` stages self-contained installable trees under `dist/`. Neither command should mutate a user's home directory.
 
-Generated paths are predictable:
+Generated paths are predictable. Cursor may be enabled for plugins whose agents use `permissionPolicy: inherit`; its renderer refuses explicit-permission agents because Cursor has no equivalent cross-host permission mapping.
 
 ```text
 dist/claude-code/<plugin-id>/
-Cursor may be enabled for plugins whose agents use `permissionPolicy: inherit`. The Cursor adapter omits `model`, `readonly`, and `tools`; it refuses explicit-permission agents rather than inventing a cross-host permission mapping.
-
 dist/codex/<plugin-id>/
 dist/cursor/<plugin-id>/
 dist/gemini-cli/<plugin-id>/
@@ -194,7 +186,7 @@ Prefer a host-native installer for native packages. The repository installer exi
 
 Before release:
 
-1. bump only `plugins/<plugin-id>/plugin.json` for a plugin-only change;
+1. bump only `plugins/<plugin-id>/manifest.json` for a plugin-only change;
 2. regenerate and inspect every enabled host projection;
 3. run `npm run check:generated`, `npm run validate`, and `npm test`;
 4. build the one plugin and inspect every generated manifest and executable file;

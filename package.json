@@ -1,5 +1,5 @@
 {
-  "name": "oovz-plugin-marketplace-tooling",
+  "name": "oovz-agent-marketplace-tooling",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -27,6 +27,6 @@
     "yaml": "^2.9.0"
   },
   "workspaces": [
-    "packages/*"
+    "tools/*"
   ]
 }

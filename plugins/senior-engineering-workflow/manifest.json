@@ -1,6 +1,6 @@
 {
-  "$schema": "../../schemas/plugin.schema.json",
-  "schemaVersion": 1,
+  "$schema": "../../schemas/plugin-manifest.schema.json",
+  "schemaVersion": 2,
   "id": "senior-engineering-workflow",
   "version": "0.12.1",
   "displayName": "Senior Engineering Workflow",
@@ -28,10 +28,7 @@
   },
   "components": {
     "skills": [
-      {
-        "id": "senior-engineering-workflow",
-        "path": "skills/senior-engineering-workflow/SKILL.md"
-      }
+      "senior-engineering-workflow"
     ],
     "agents": [
       {

@@ -4,8 +4,8 @@ import { fileURLToPath } from "node:url";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const REPO_ROOT = path.resolve(HERE, "..", "..");
-export const SEW_SOURCE_PACKAGE = path.join(REPO_ROOT, "packages", "sew", "package.json");
-export const SEW_PLUGIN_MANIFEST = path.join(REPO_ROOT, "plugins", "senior-engineering-workflow", "plugin.json");
+export const SEW_SOURCE_PACKAGE = path.join(REPO_ROOT, "tools", "sew", "package.json");
+export const SEW_PLUGIN_MANIFEST = path.join(REPO_ROOT, "plugins", "senior-engineering-workflow", "manifest.json");
 export const SEW_STAGE_ROOT = path.join(REPO_ROOT, "release-build", "sew", "package");
 
 async function readJson(filePath) {

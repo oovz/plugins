@@ -8,20 +8,7 @@ function hostFiles(plugin, hostKey) {
 }
 
 function skills(plugin, prefix = "skills") {
-  return plugin.skills.flatMap((skill) => {
-    const artifacts = copySkillArtifacts(skill, prefix);
-    const license = artifacts.find((artifact) => artifact.path.toLowerCase() === pathForSkill(prefix, skill.id, "LICENSE").toLowerCase());
-    if (license) {
-      if (!Buffer.from(license.content).equals(plugin.license.content)) throw new Error(`skill ${skill.id} LICENSE conflicts with plugin-local LICENSE`);
-    } else {
-      artifacts.push({ path: pathForSkill(prefix, skill.id, "LICENSE"), content: plugin.license.content });
-    }
-    return artifacts;
-  });
-}
-
-function pathForSkill(prefix, skillId, relative) {
-  return [prefix, skillId, relative].filter(Boolean).join("/");
+  return plugin.skills.flatMap((skill) => copySkillArtifacts(skill, prefix));
 }
 
 function inheritsPermissions(agent) {

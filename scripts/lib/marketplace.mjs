@@ -93,7 +93,7 @@ export function classifyCodexComponents(components) {
   const skills = components?.skills ?? [];
   const agents = components?.agents ?? [];
   const hostFiles = (components?.hostFiles ?? []).filter((file) => file.hosts?.includes("codex"));
-  const skillIds = new Set(skills.map((skill) => skill.id));
+  const skillIds = new Set(skills);
   const skillSupportFiles = [];
   const nativeFiles = [];
   const invalidDestinations = [];
@@ -190,47 +190,61 @@ export async function discoverMarketplace(root = ROOT) {
   const marketplaceStat = await lstat(manifestPath);
   assert(marketplaceStat.isFile() && !marketplaceStat.isSymbolicLink(), "marketplace.json must be a regular file");
   const marketplace = await readJson(manifestPath);
-  assert(marketplace.schemaVersion === 1, "marketplace.json schemaVersion must be 1");
+  assert(marketplace.schemaVersion === 2, "marketplace.json schemaVersion must be 2");
   assertId(marketplace.id, "marketplace id");
-  const pluginRootName = assertRelative(marketplace.pluginRoot, "marketplace pluginRoot");
-  const pluginRoot = within(root, path.join(root, pluginRootName), "pluginRoot");
+  const pluginRoot = within(root, path.join(root, "plugins"), "plugin root");
+  const skillRoot = within(root, path.join(root, "skills"), "skill root");
   await assertSecureSourcePath(root, pluginRoot, "pluginRoot");
-  const plugins = [];
-  assert(Array.isArray(marketplace.plugins) && marketplace.plugins.length > 0, "marketplace.plugins must explicitly publish at least one plugin");
-  for (const catalogEntry of marketplace.plugins) {
-    assert(catalogEntry, "catalog plugin entry must be an object");
-    assertId(catalogEntry.id, "catalog plugin id");
-    const relative = assertRelative(catalogEntry.path, `catalog path for ${catalogEntry.id}`);
-    const directory = within(pluginRoot, path.join(root, relative), `catalog plugin ${catalogEntry.id}`);
-    await assertSecureSourcePath(pluginRoot, directory, `catalog plugin ${catalogEntry.id}`);
+  await assertSecureSourcePath(root, skillRoot, "skillRoot");
+
+  assert(Array.isArray(marketplace.skills), "marketplace.skills must be an array");
+  const skills = [];
+  const skillIds = new Set();
+  for (const skillId of marketplace.skills) {
+    assertId(skillId, "catalog skill id");
+    assert(!skillIds.has(skillId), `duplicate catalog skill id: ${skillId}`);
+    skillIds.add(skillId);
+    const directory = within(skillRoot, path.join(skillRoot, skillId), `catalog skill ${skillId}`);
+    await assertSecureSourcePath(skillRoot, directory, `catalog skill ${skillId}`);
     const directoryStat = await lstat(directory);
-    assert(directoryStat.isDirectory() && !directoryStat.isSymbolicLink(), `catalog plugin path must be a regular directory: ${relative}`);
-    const manifestFile = path.join(directory, "plugin.json");
+    assert(directoryStat.isDirectory() && !directoryStat.isSymbolicLink(), `catalog skill path must be a regular directory: skills/${skillId}`);
+    skills.push({ id: skillId, directory });
+  }
+
+  const plugins = [];
+  assert(Array.isArray(marketplace.plugins), "marketplace.plugins must be an array");
+  assert(marketplace.plugins.length > 0 || marketplace.skills.length > 0, "marketplace must explicitly publish at least one plugin or skill");
+  for (const pluginId of marketplace.plugins) {
+    assertId(pluginId, "catalog plugin id");
+    const directory = within(pluginRoot, path.join(pluginRoot, pluginId), `catalog plugin ${pluginId}`);
+    await assertSecureSourcePath(pluginRoot, directory, `catalog plugin ${pluginId}`);
+    const directoryStat = await lstat(directory);
+    assert(directoryStat.isDirectory() && !directoryStat.isSymbolicLink(), `catalog plugin path must be a regular directory: plugins/${pluginId}`);
+    const manifestFile = path.join(directory, "manifest.json");
     try {
-      await assertSecureSourcePath(directory, manifestFile, `plugin manifest ${catalogEntry.id}`);
+      await assertSecureSourcePath(directory, manifestFile, `plugin manifest ${pluginId}`);
       const manifestStat = await lstat(manifestFile);
-      assert(manifestStat.isFile() && !manifestStat.isSymbolicLink(), `plugin manifest ${catalogEntry.id} must be a regular file`);
+      assert(manifestStat.isFile() && !manifestStat.isSymbolicLink(), `plugin manifest ${pluginId} must be a regular file`);
       const manifest = await readJson(manifestFile);
       validatePluginManifest(manifest, path.basename(directory));
-      assert(manifest.id === catalogEntry.id, `catalog id ${catalogEntry.id} does not match manifest id ${manifest.id}`);
-      plugins.push({ directory, manifestFile, manifest, marketplace });
+      assert(manifest.id === pluginId, `catalog id ${pluginId} does not match manifest id ${manifest.id}`);
+      plugins.push({ directory, manifestFile, manifest, marketplace, catalogSkills: skills });
     } catch (error) {
       throw new Error(`${path.relative(root, manifestFile)}: ${error.message}`, { cause: error });
     }
   }
 
-  assert(plugins.length > 0, `no plugin.json manifests found under ${pluginRootName}`);
   const ids = new Set();
   for (const plugin of plugins) {
     assert(!ids.has(plugin.manifest.id), `duplicate plugin id: ${plugin.manifest.id}`);
     ids.add(plugin.manifest.id);
   }
-  return { root, marketplace, pluginRoot, plugins };
+  return { root, marketplace, pluginRoot, skillRoot, skills, plugins };
 }
 
 export function validatePluginManifest(manifest, directoryName) {
   assert(manifest && typeof manifest === "object" && !Array.isArray(manifest), "manifest must be an object");
-  assert(manifest.schemaVersion === 1, "schemaVersion must be 1");
+  assert(manifest.schemaVersion === 2, "schemaVersion must be 2");
   assertId(manifest.id, "plugin id");
   assert(manifest.id === directoryName, `plugin id ${manifest.id} must match directory ${directoryName}`);
   assert(SEMVER_PATTERN.test(manifest.version), `invalid semantic version: ${manifest.version}`);
@@ -244,8 +258,15 @@ export function validatePluginManifest(manifest, directoryName) {
   for (const kind of ["skills", "agents", "commands"]) assert(Array.isArray(manifest.components[kind]), `components.${kind} must be an array`);
   if (manifest.components.hostFiles !== undefined) assert(Array.isArray(manifest.components.hostFiles), "components.hostFiles must be an array");
 
+  const skillIds = new Set();
+  for (const skillId of manifest.components.skills) {
+    assertId(skillId, "skill id");
+    assert(!skillIds.has(skillId), `duplicate skill id: ${skillId}`);
+    skillIds.add(skillId);
+  }
+
   const componentIds = new Map();
-  for (const kind of ["skills", "agents", "commands"]) {
+  for (const kind of ["agents", "commands"]) {
     for (const component of manifest.components[kind]) {
       assert(component, `${kind} component must be an object`);
       assertId(component.id, `${kind} id`);
@@ -281,7 +302,7 @@ export function validatePluginManifest(manifest, directoryName) {
     const categories = new Set(["Productivity", "Creativity", "Developer Tools", "Business & Operations", "Data & Analytics", "Communication", "Education & Research", "Security", "Finance", "Healthcare", "Travel", "Entertainment", "Other"]);
     assert(categories.has(manifest.category ?? "Other"), `unsupported Codex category: ${manifest.category}`);
   }
-  const commandHosts = new Set(["claude-code", "gemini-cli", "oh-my-pi", "opencode"]);
+  const commandHosts = new Set(["claude-code", "cursor", "gemini-cli", "oh-my-pi", "opencode"]);
   for (const command of manifest.components.commands) {
     assert(Array.isArray(command.hosts) && command.hosts.length > 0, `command ${command.id} must declare supported hosts`);
     for (const host of command.hosts) {
@@ -317,33 +338,43 @@ export function validatePluginManifest(manifest, directoryName) {
   }
 }
 
+export async function inspectSkill(skill) {
+  const skillFile = path.join(skill.directory, "SKILL.md");
+  await assertSecureSourcePath(skill.directory, skillFile, `skill ${skill.id}`);
+  const stat = await lstat(skillFile);
+  assert(stat.isFile() && !stat.isSymbolicLink(), `skill ${skill.id} must contain a regular SKILL.md`);
+  const licenseFile = path.join(skill.directory, "LICENSE");
+  await assertSecureSourcePath(skill.directory, licenseFile, `skill ${skill.id} LICENSE`);
+  const licenseStat = await lstat(licenseFile);
+  assert(licenseStat.isFile() && !licenseStat.isSymbolicLink(), `skill ${skill.id} must contain a regular LICENSE`);
+  const files = await walkFiles(skill.directory, skill.directory);
+  const parsed = parseFrontmatter(decodeUtf8(await readFile(skillFile), `skills/${skill.id}/SKILL.md`), `skills/${skill.id}/SKILL.md`);
+  assert(ID_PATTERN.test(parsed.frontmatter.name) && parsed.frontmatter.name.length <= 64, `skill ${skill.id} has an invalid Agent Skills name`);
+  assert(parsed.frontmatter.name === skill.id, `skill ${skill.id} frontmatter name must match its catalog id`);
+  assert(path.basename(skill.directory) === skill.id, `skill ${skill.id} directory must match its id`);
+  assert(typeof parsed.frontmatter.description === "string" && parsed.frontmatter.description.trim().length > 0 && parsed.frontmatter.description.length <= 1024, `skill ${skill.id} must have a 1-1024 character description`);
+  if (parsed.frontmatter.license !== undefined) assert(typeof parsed.frontmatter.license === "string" && parsed.frontmatter.license.trim(), `skill ${skill.id} license must be a non-empty string`);
+  if (parsed.frontmatter.compatibility !== undefined) assert(typeof parsed.frontmatter.compatibility === "string" && parsed.frontmatter.compatibility.length <= 500, `skill ${skill.id} compatibility must be a string of at most 500 characters`);
+  if (parsed.frontmatter.metadata !== undefined) {
+    assert(parsed.frontmatter.metadata && typeof parsed.frontmatter.metadata === "object" && !Array.isArray(parsed.frontmatter.metadata), `skill ${skill.id} metadata must be a string map`);
+    for (const [key, value] of Object.entries(parsed.frontmatter.metadata)) assert(typeof key === "string" && typeof value === "string", `skill ${skill.id} metadata values must be strings`);
+  }
+  if (parsed.frontmatter["allowed-tools"] !== undefined) assert(typeof parsed.frontmatter["allowed-tools"] === "string", `skill ${skill.id} allowed-tools must be a string`);
+  return { ...skill, file: skillFile, files, licenseFile, frontmatter: parsed.frontmatter, body: parsed.body };
+}
+
 export async function inspectPlugin(plugin) {
   const licenseFile = path.join(plugin.directory, "LICENSE");
   await assertSecureSourcePath(plugin.directory, licenseFile, `${plugin.manifest.id} LICENSE`);
   const licenseStat = await lstat(licenseFile);
   assert(licenseStat.isFile() && !licenseStat.isSymbolicLink(), `${plugin.manifest.id} must contain a regular plugin-local LICENSE`);
   const license = { file: licenseFile, content: await readFile(licenseFile) };
+  const skillCatalog = new Map(plugin.catalogSkills.map((skill) => [skill.id, skill]));
   const skills = [];
-  for (const component of plugin.manifest.components.skills) {
-    const skillFile = within(plugin.directory, path.join(plugin.directory, component.path), `skill ${component.id}`);
-    await assertSecureSourcePath(plugin.directory, skillFile, `skill ${component.id}`);
-    assert(path.basename(skillFile) === "SKILL.md", `skill ${component.id} path must point to SKILL.md`);
-    const stat = await lstat(skillFile);
-    assert(stat.isFile() && !stat.isSymbolicLink(), `skill ${component.id} must be a regular file`);
-    const files = await walkFiles(path.dirname(skillFile), plugin.directory);
-    const parsed = parseFrontmatter(decodeUtf8(await readFile(skillFile), component.path), component.path);
-    assert(ID_PATTERN.test(parsed.frontmatter.name) && parsed.frontmatter.name.length <= 64, `skill ${component.id} has an invalid Agent Skills name`);
-    assert(parsed.frontmatter.name === component.id, `skill ${component.id} frontmatter name must match its id`);
-    assert(path.basename(path.dirname(skillFile)) === component.id, `skill ${component.id} directory must match its id`);
-    assert(typeof parsed.frontmatter.description === "string" && parsed.frontmatter.description.trim().length > 0 && parsed.frontmatter.description.length <= 1024, `skill ${component.id} must have a 1-1024 character description`);
-    if (parsed.frontmatter.license !== undefined) assert(typeof parsed.frontmatter.license === "string" && parsed.frontmatter.license.trim(), `skill ${component.id} license must be a non-empty string`);
-    if (parsed.frontmatter.compatibility !== undefined) assert(typeof parsed.frontmatter.compatibility === "string" && parsed.frontmatter.compatibility.length <= 500, `skill ${component.id} compatibility must be a string of at most 500 characters`);
-    if (parsed.frontmatter.metadata !== undefined) {
-      assert(parsed.frontmatter.metadata && typeof parsed.frontmatter.metadata === "object" && !Array.isArray(parsed.frontmatter.metadata), `skill ${component.id} metadata must be a string map`);
-      for (const [key, value] of Object.entries(parsed.frontmatter.metadata)) assert(typeof key === "string" && typeof value === "string", `skill ${component.id} metadata values must be strings`);
-    }
-    if (parsed.frontmatter["allowed-tools"] !== undefined) assert(typeof parsed.frontmatter["allowed-tools"] === "string", `skill ${component.id} allowed-tools must be a string`);
-    skills.push({ ...component, file: skillFile, directory: path.dirname(skillFile), files, frontmatter: parsed.frontmatter, body: parsed.body });
+  for (const skillId of plugin.manifest.components.skills) {
+    const source = skillCatalog.get(skillId);
+    assert(source, `${plugin.manifest.id} references uncataloged skill ${skillId}`);
+    skills.push(source.files ? source : await inspectSkill(source));
   }
 
   const agents = [];

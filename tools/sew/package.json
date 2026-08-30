@@ -1,7 +1,7 @@
 {
   "name": "@oovz/sew",
   "version": "0.12.1",
-  "description": "Source workspace for the CI-built @oovz/sew release package.",
+  "description": "Command-line installer for the Senior Engineering Workflow plugin.",
   "type": "module",
   "bin": {
     "sew": "./bin/sew.mjs"
@@ -23,7 +23,7 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/oovz/plugins.git",
-    "directory": "packages/sew"
+    "directory": "tools/sew"
   },
   "keywords": [
     "coding-agent",

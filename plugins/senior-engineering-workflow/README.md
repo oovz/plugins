@@ -32,7 +32,7 @@ Senior Engineering Workflow is not emitted as a portable skill-only bundle; its 
 
 ## Install
 
-No repository clone is required. Per-harness steps are in the [root README](../README.md#install); here is the short version:
+No repository clone is required. Per-harness steps are in the [root README](../../README.md#install); here is the short version:
 
 ```text
 npx @oovz/sew install --host codex --scope user
@@ -108,16 +108,18 @@ npx @oovz/sew models configure --host codex --scope user --preset inherit
 plugins/senior-engineering-workflow/
 ├── ENGINEERING_OPERATING_CONTRACT.md
 ├── README.md
-├── plugin.json
+├── manifest.json
 ├── agents/
 │   ├── researcher.md
 │   ├── engineer.md
 │   ├── verifier.md
 │   └── worker.md
-├── evals/workflow-routing.yaml
-└── skills/senior-engineering-workflow/
-    ├── SKILL.md
-    └── references/
+└── evals/workflow-routing.yaml
+
+skills/senior-engineering-workflow/
+├── LICENSE
+├── SKILL.md
+└── references/
 ```
 
 The manifest and role prompts here are canonical. Adapters under `adapters/` are generated and checked in; edit the source and regenerate, never the adapters.

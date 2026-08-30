@@ -18,6 +18,13 @@ async function addSchemas(root) {
   await cp(path.join(ROOT, "schemas"), path.join(root, "schemas"), { recursive: true });
 }
 
+async function copyCanonicalRepository(root) {
+  await cp(path.join(ROOT, "marketplace.json"), path.join(root, "marketplace.json"));
+  await cp(path.join(ROOT, "schemas"), path.join(root, "schemas"), { recursive: true });
+  await cp(path.join(ROOT, "plugins"), path.join(root, "plugins"), { recursive: true });
+  await cp(path.join(ROOT, "skills"), path.join(root, "skills"), { recursive: true });
+}
+
 async function treeDigest(directory) {
   const hash = createHash("sha256");
   async function walk(current) {
@@ -38,8 +45,45 @@ async function treeDigest(directory) {
 test("canonical marketplace and semantic workflow contract validate", async () => {
   const result = await validateRepository();
   assert.equal(result.plugins.length, result.catalog.marketplace.plugins.length);
+  assert.equal(result.skills.length, result.catalog.marketplace.skills.length);
+  assert.deepEqual(result.skills.map((skill) => skill.id), result.catalog.marketplace.skills);
+  for (const skill of result.skills) {
+    assert.ok(skill.files.some((file) => file.relative === "LICENSE"), `${skill.id} must be independently licensed`);
+  }
+  for (const plugin of result.plugins) {
+    assert.equal(plugin.manifest.schemaVersion, 2);
+    assert.ok(plugin.manifest.components.skills.every((skillId) => typeof skillId === "string"));
+    await assert.rejects(lstat(path.join(plugin.directory, "skills")), /ENOENT/);
+    await assert.rejects(lstat(path.join(plugin.directory, "plugin.json")), /ENOENT/);
+  }
   const contractFiles = result.plugins.flatMap((plugin) => plugin.skills.flatMap((skill) => skill.files.filter((file) => file.relative.endsWith("workflow-contract.yaml"))));
   assert.ok(contractFiles.length > 0, "a declared skill must carry the workflow contract");
+});
+
+test("a cataloged skill can remain standalone without a plugin bundle", async (t) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "oovz-standalone-skill-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  await createFixtureMarketplace(root, [{ id: "temporary-bundle", version: "1.0.0" }]);
+  const marketplaceFile = path.join(root, "marketplace.json");
+  const marketplace = await readJson(marketplaceFile);
+  marketplace.plugins = [];
+  await writeFile(marketplaceFile, `${JSON.stringify(marketplace, null, 2)}\n`);
+
+  const result = await validateRepository(root);
+  assert.equal(result.plugins.length, 0);
+  assert.deepEqual(result.skills.map((skill) => skill.id), ["temporary-bundle-skill"]);
+});
+
+test("plugin bundles reject uncataloged skill references", async (t) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "oovz-uncataloged-skill-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  await createFixtureMarketplace(root, [{ id: "bundle-plugin", version: "1.0.0" }]);
+  const manifestFile = path.join(root, "plugins", "bundle-plugin", "manifest.json");
+  const manifest = await readJson(manifestFile);
+  manifest.components.skills = ["missing-skill"];
+  await writeFile(manifestFile, `${JSON.stringify(manifest, null, 2)}\n`);
+
+  await assert.rejects(validateRepository(root), /references uncataloged skill missing-skill/);
 });
 
 test("Tauri v2 desktop is a skill-only all-host plugin", async () => {
@@ -122,8 +166,7 @@ test("active marketplace README versions match canonical manifests", async () =>
   const catalog = await validateRepository();
   const readme = await readFile(path.join(ROOT, "README.md"), "utf8");
   for (const plugin of catalog.plugins) {
-    const entry = catalog.catalog.marketplace.plugins.find((item) => item.id === plugin.manifest.id);
-    assert.match(readme, new RegExp(`\\| \\[[^\\]]+\\]\\(${entry.path}/\\) \\| ${plugin.manifest.version} \\|`));
+    assert.match(readme, new RegExp(`\\| \\[[^\\]]+\\]\\(plugins/${plugin.manifest.id}/\\) \\| ${plugin.manifest.version} \\|`));
   }
   assert.match(await readFile(path.join(ROOT, "plugins", "tauri-v2-desktop", "README.md"), "utf8"), /evals[\s\S]{0,80}security-guidance\.yaml/);
 });
@@ -170,10 +213,8 @@ test("semantic Tauri profile rejects unsafe guidance mutations", async (t) => {
   for (const [relative, unsafePhrase] of mutations) {
     const root = await mkdtemp(path.join(os.tmpdir(), "oovz-tauri-profile-"));
     t.after(() => rm(root, { recursive: true, force: true }));
-    await cp(path.join(ROOT, "marketplace.json"), path.join(root, "marketplace.json"));
-    await cp(path.join(ROOT, "schemas"), path.join(root, "schemas"), { recursive: true });
-    await cp(path.join(ROOT, "plugins"), path.join(root, "plugins"), { recursive: true });
-    const file = path.join(root, "plugins", "tauri-v2-desktop", relative);
+    await copyCanonicalRepository(root);
+    const file = path.join(root, relative);
     await writeFile(file, `${await readFile(file, "utf8")}\n${unsafePhrase}\n`);
     await assert.rejects(validateRepository(root), /forbidden guidance/);
   }
@@ -182,11 +223,9 @@ test("semantic Tauri profile rejects unsafe guidance mutations", async (t) => {
 test("semantic Tauri profile accepts explicit refutations", async (t) => {
   const root = await mkdtemp(path.join(os.tmpdir(), "oovz-tauri-semantic-refutation-"));
   t.after(() => rm(root, { recursive: true, force: true }));
-  await cp(path.join(ROOT, "marketplace.json"), path.join(root, "marketplace.json"));
-  await cp(path.join(ROOT, "schemas"), path.join(root, "schemas"), { recursive: true });
-  await cp(path.join(ROOT, "plugins"), path.join(root, "plugins"), { recursive: true });
-  const security = path.join(root, "plugins", "tauri-v2-desktop", "skills", "tauri-v2-desktop", "references", "security-and-ipc.md");
-  const skill = path.join(root, "plugins", "tauri-v2-desktop", "skills", "tauri-v2-desktop", "SKILL.md");
+  await copyCanonicalRepository(root);
+  const security = path.join(root, "skills", "tauri-v2-desktop", "references", "security-and-ipc.md");
+  const skill = path.join(root, "skills", "tauri-v2-desktop", "SKILL.md");
   await writeFile(security, `${await readFile(security, "utf8")}\nDo not claim that remote-origin IPC bypasses ACL resolution.\n`);
   await writeFile(skill, `${await readFile(skill, "utf8")}\nDo not claim that capabilities automatically restrict ordinary application commands registered through \`invoke_handler\`.\n`);
   await validateRepository(root);
@@ -195,37 +234,29 @@ test("semantic Tauri profile accepts explicit refutations", async (t) => {
 test("semantic Tauri checks do not exempt unsafe clauses or unrelated history", async (t) => {
   const contradictoryRoot = await mkdtemp(path.join(os.tmpdir(), "oovz-tauri-semantic-contradiction-"));
   t.after(() => rm(contradictoryRoot, { recursive: true, force: true }));
-  await cp(path.join(ROOT, "marketplace.json"), path.join(contradictoryRoot, "marketplace.json"));
-  await cp(path.join(ROOT, "schemas"), path.join(contradictoryRoot, "schemas"), { recursive: true });
-  await cp(path.join(ROOT, "plugins"), path.join(contradictoryRoot, "plugins"), { recursive: true });
-  const security = path.join(contradictoryRoot, "plugins", "tauri-v2-desktop", "skills", "tauri-v2-desktop", "references", "security-and-ipc.md");
+  await copyCanonicalRepository(contradictoryRoot);
+  const security = path.join(contradictoryRoot, "skills", "tauri-v2-desktop", "references", "security-and-ipc.md");
   await writeFile(security, `${await readFile(security, "utf8")}\nNever require an explicit remote capability: remote origins can invoke any custom command without a remote capability.\n`);
   await assert.rejects(validateRepository(contradictoryRoot), /forbidden guidance/);
 
   const commaRoot = await mkdtemp(path.join(os.tmpdir(), "oovz-tauri-semantic-comma-contradiction-"));
   t.after(() => rm(commaRoot, { recursive: true, force: true }));
-  await cp(path.join(ROOT, "marketplace.json"), path.join(commaRoot, "marketplace.json"));
-  await cp(path.join(ROOT, "schemas"), path.join(commaRoot, "schemas"), { recursive: true });
-  await cp(path.join(ROOT, "plugins"), path.join(commaRoot, "plugins"), { recursive: true });
-  const commaSecurity = path.join(commaRoot, "plugins", "tauri-v2-desktop", "skills", "tauri-v2-desktop", "references", "security-and-ipc.md");
+  await copyCanonicalRepository(commaRoot);
+  const commaSecurity = path.join(commaRoot, "skills", "tauri-v2-desktop", "references", "security-and-ipc.md");
   await writeFile(commaSecurity, `${await readFile(commaSecurity, "utf8")}\nDo not claim that remote-origin IPC bypasses ACL resolution, but remote origins can invoke any custom command without a remote capability.\n`);
   await assert.rejects(validateRepository(commaRoot), /forbidden guidance/);
 
   const unrelatedHistoryRoot = await mkdtemp(path.join(os.tmpdir(), "oovz-tauri-semantic-unrelated-history-"));
   t.after(() => rm(unrelatedHistoryRoot, { recursive: true, force: true }));
-  await cp(path.join(ROOT, "marketplace.json"), path.join(unrelatedHistoryRoot, "marketplace.json"));
-  await cp(path.join(ROOT, "schemas"), path.join(unrelatedHistoryRoot, "schemas"), { recursive: true });
-  await cp(path.join(ROOT, "plugins"), path.join(unrelatedHistoryRoot, "plugins"), { recursive: true });
-  const delivery = path.join(unrelatedHistoryRoot, "plugins", "tauri-v2-desktop", "skills", "tauri-v2-desktop", "references", "desktop-runtime-and-delivery.md");
+  await copyCanonicalRepository(unrelatedHistoryRoot);
+  const delivery = path.join(unrelatedHistoryRoot, "skills", "tauri-v2-desktop", "references", "desktop-runtime-and-delivery.md");
   await writeFile(delivery, `${await readFile(delivery, "utf8")}\nBefore Tauri 2.11.1, updater signatures are optional.\n`);
   await assert.rejects(validateRepository(unrelatedHistoryRoot), /forbidden guidance/);
 
   const historicalRoot = await mkdtemp(path.join(os.tmpdir(), "oovz-tauri-semantic-history-"));
   t.after(() => rm(historicalRoot, { recursive: true, force: true }));
-  await cp(path.join(ROOT, "marketplace.json"), path.join(historicalRoot, "marketplace.json"));
-  await cp(path.join(ROOT, "schemas"), path.join(historicalRoot, "schemas"), { recursive: true });
-  await cp(path.join(ROOT, "plugins"), path.join(historicalRoot, "plugins"), { recursive: true });
-  const historicalSecurity = path.join(historicalRoot, "plugins", "tauri-v2-desktop", "skills", "tauri-v2-desktop", "references", "security-and-ipc.md");
+  await copyCanonicalRepository(historicalRoot);
+  const historicalSecurity = path.join(historicalRoot, "skills", "tauri-v2-desktop", "references", "security-and-ipc.md");
   await writeFile(historicalSecurity, `${await readFile(historicalSecurity, "utf8")}\nPrior to Tauri 2.11.1, a missing AppManifest could let remote origins bypass ACL checks. That historical behavior is fixed; supported releases require an explicit remote capability.\n`);
   await validateRepository(historicalRoot);
 });
@@ -233,11 +264,9 @@ test("semantic Tauri checks do not exempt unsafe clauses or unrelated history", 
 test("semantic Tauri profile requires the remote security version boundary and permits safe rewrites", async (t) => {
   const root = await mkdtemp(path.join(os.tmpdir(), "oovz-tauri-semantic-boundary-"));
   t.after(() => rm(root, { recursive: true, force: true }));
-  await cp(path.join(ROOT, "marketplace.json"), path.join(root, "marketplace.json"));
-  await cp(path.join(ROOT, "schemas"), path.join(root, "schemas"), { recursive: true });
-  await cp(path.join(ROOT, "plugins"), path.join(root, "plugins"), { recursive: true });
+  await copyCanonicalRepository(root);
 
-  const reference = path.join(root, "plugins", "tauri-v2-desktop", "skills", "tauri-v2-desktop", "references", "security-and-ipc.md");
+  const reference = path.join(root, "skills", "tauri-v2-desktop", "references", "security-and-ipc.md");
   const source = await readFile(reference, "utf8");
   await writeFile(reference, source.replace("Tauri 2.11.1 and later", "Tauri current releases and later"));
   await assert.rejects(validateRepository(root), /missing semantic guidance|missing required guidance/);
@@ -274,7 +303,7 @@ test("Codex capability metadata is explicit, scoped, and single-line", async (t)
     const root = await mkdtemp(path.join(os.tmpdir(), `oovz-codex-capability-${name}-`));
     t.after(() => rm(root, { recursive: true, force: true }));
     await createFixtureMarketplace(root, [{ id: "capability-plugin", version: "1.0.0" }]);
-    const manifestFile = path.join(root, "plugins", "capability-plugin", "plugin.json");
+    const manifestFile = path.join(root, "plugins", "capability-plugin", "manifest.json");
     const manifest = await readJson(manifestFile);
     mutate(manifest);
     await writeFile(manifestFile, `${JSON.stringify(manifest, null, 2)}\n`);
@@ -298,7 +327,7 @@ test("Codex capability metadata is explicit, scoped, and single-line", async (t)
 test("validator CLI executes its platform-safe main entry point", async () => {
   const result = await execFileAsync(process.execPath, [path.join(ROOT, "scripts", "validate.mjs")], { cwd: ROOT });
   const marketplace = await readJson(path.join(ROOT, "marketplace.json"));
-  assert.match(result.stdout, new RegExp(`validated ${marketplace.plugins.length} plugins across 8 host targets`));
+  assert.match(result.stdout, new RegExp(`validated ${marketplace.plugins.length} plugins and ${marketplace.skills.length} skills across 8 host targets`));
 });
 
 test("two explicitly cataloged plugins build independently and deterministically", async (t) => {
@@ -461,7 +490,7 @@ test("Codex native host files use recognized manifest components", async (t) => 
       hostFile: { path: "native/.mcp.json", hosts: ["codex"], destination: ".mcp.json", content: "{\"docs\":{\"command\":\"docs-mcp\"}}\n" }
     }
   }]);
-  const duplicateManifestFile = path.join(duplicateRoot, "plugins", "duplicate-native-plugin", "plugin.json");
+  const duplicateManifestFile = path.join(duplicateRoot, "plugins", "duplicate-native-plugin", "manifest.json");
   const duplicateManifest = await readJson(duplicateManifestFile);
   await mkdir(path.join(duplicateRoot, "plugins", "duplicate-native-plugin", "native"), { recursive: true });
   await writeFile(path.join(duplicateRoot, "plugins", "duplicate-native-plugin", "native", "hooks.json"), "{}\n");
@@ -532,10 +561,10 @@ test("an explicitly cataloged missing manifest fails closed", async (t) => {
   t.after(() => rm(root, { recursive: true, force: true }));
   await createFixtureMarketplace(root, [{ id: "present-plugin", version: "1.0.0" }]);
   const marketplace = await readJson(path.join(root, "marketplace.json"));
-  marketplace.plugins.push({ id: "missing-plugin", path: "plugins/missing-plugin" });
+  marketplace.plugins.push("missing-plugin");
   await mkdir(path.join(root, "plugins", "missing-plugin"));
   await writeFile(path.join(root, "marketplace.json"), `${JSON.stringify(marketplace, null, 2)}\n`);
-  await assert.rejects(discoverMarketplace(root), /missing-plugin[/\\]plugin\.json/);
+  await assert.rejects(discoverMarketplace(root), /missing-plugin[/\\]manifest\.json/);
 });
 
 test("generate, build, and check reject schema-invalid marketplace and plugin manifests", async (t) => {
@@ -545,7 +574,7 @@ test("generate, build, and check reject schema-invalid marketplace and plugin ma
     await createFixtureMarketplace(root, [{ id: "schema-plugin", version: "1.0.0" }]);
     const manifestFile = target === "marketplace"
       ? path.join(root, "marketplace.json")
-      : path.join(root, "plugins", "schema-plugin", "plugin.json");
+      : path.join(root, "plugins", "schema-plugin", "manifest.json");
     const manifest = await readJson(manifestFile);
     manifest.unexpectedProperty = true;
     await writeFile(manifestFile, `${JSON.stringify(manifest, null, 2)}\n`);
@@ -643,7 +672,7 @@ test("invalid Agent Skills frontmatter fails validation", async (t) => {
   const root = await mkdtemp(path.join(os.tmpdir(), "oovz-invalid-skill-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   await createFixtureMarketplace(root, [{ id: "invalid-skill-plugin", version: "1.0.0" }]);
-  await writeFile(path.join(root, "plugins", "invalid-skill-plugin", "skills", "invalid-skill-plugin-skill", "SKILL.md"), "No frontmatter.\n");
+  await writeFile(path.join(root, "skills", "invalid-skill-plugin-skill", "SKILL.md"), "No frontmatter.\n");
   const catalog = await discoverMarketplace(root);
   await assert.rejects(inspectPlugin(catalog.plugins[0]), /YAML frontmatter/);
 });
@@ -673,7 +702,7 @@ test("plugin-scoped regeneration removes outputs for a newly disabled host", asy
   await createFixtureMarketplace(root, [{ id: "toggle-plugin", version: "1.0.0" }]);
   await runGenerator(["generate", "--all"], { root, stdout: silent });
   await runGenerator(["build", "--all"], { root, stdout: silent });
-  const manifestFile = path.join(root, "plugins", "toggle-plugin", "plugin.json");
+  const manifestFile = path.join(root, "plugins", "toggle-plugin", "manifest.json");
   const manifest = await readJson(manifestFile);
   manifest.hosts["gemini-cli"].enabled = false;
   await writeFile(manifestFile, `${JSON.stringify(manifest, null, 2)}\n`);
@@ -800,15 +829,26 @@ test("Oh My Pi explicit agents use documented tool names", async (t) => {
 test("commands receive collision-safe flat IDs outside scoped Claude bundles", async (t) => {
   const root = await mkdtemp(path.join(os.tmpdir(), "oovz-command-namespace-"));
   t.after(() => rm(root, { recursive: true, force: true }));
-  const command = { id: "review", path: "commands/review.md", hosts: ["claude-code", "gemini-cli", "opencode"] };
+  const command = { id: "review", path: "commands/review.md", hosts: ["claude-code", "cursor", "gemini-cli", "opencode"] };
+  const options = {
+    command,
+    permissionPolicy: "inherit",
+    hosts: {
+      "claude-code": { enabled: true },
+      cursor: { enabled: true },
+      "gemini-cli": { enabled: true },
+      opencode: { enabled: true }
+    }
+  };
   await createFixtureMarketplace(root, [
-    { id: "first-plugin", version: "1.0.0", options: { command } },
-    { id: "second-plugin", version: "2.0.0", options: { command } }
+    { id: "first-plugin", version: "1.0.0", options },
+    { id: "second-plugin", version: "2.0.0", options }
   ]);
   await runGenerator(["build", "--all"], { root, stdout: silent });
   for (const id of ["first-plugin", "second-plugin"]) {
     assert.ok(await readFile(path.join(root, "dist", "gemini-cli", id, "commands", `${id}-review.toml`)));
     assert.ok(await readFile(path.join(root, "dist", "opencode", "stable", id, ".opencode", "commands", `${id}-review.md`)));
+    assert.ok(await readFile(path.join(root, "dist", "cursor", id, "commands", `${id}-review.md`)));
     assert.ok(await readFile(path.join(root, "dist", "claude-code", id, "commands", "review.md")));
   }
 });

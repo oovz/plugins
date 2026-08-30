@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import { parse as parseToml } from "smol-toml";
 import YAML from "yaml";
 import { allHostTargets, renderHost, resolveHost, supportsHost } from "./lib/hosts.mjs";
-import { assert, classifyCodexComponents, decodeUtf8, discoverMarketplace, flatAgentId, inspectPlugin, parseFrontmatter, ROOT, walkFiles } from "./lib/marketplace.mjs";
+import { assert, classifyCodexComponents, decodeUtf8, discoverMarketplace, flatAgentId, inspectPlugin, inspectSkill, parseFrontmatter, ROOT, walkFiles } from "./lib/marketplace.mjs";
 import { assertCatalogMatchesSchemas } from "./lib/schema.mjs";
 
 const GEMINI_TOOLS = new Set(["read_file", "read_many_files", "grep_search", "glob", "list_directory", "replace", "write_file", "run_shell_command", "google_web_search", "web_fetch", "ask_user"]);
@@ -168,7 +168,7 @@ function validateContract(plugin, contract, label) {
   assert(roles.length === contract.leaf_role_count, `${label} leaf_role_count does not match leaf_roles`);
   const manifestIds = new Set(plugin.agents.map((agent) => agent.id));
   const contractIds = new Set(roles.map((role) => role.logical_agent_id));
-  assert(manifestIds.size === contractIds.size && [...manifestIds].every((id) => contractIds.has(id)), `${label} roles do not match plugin.json agents`);
+  assert(manifestIds.size === contractIds.size && [...manifestIds].every((id) => contractIds.has(id)), `${label} roles do not match manifest agents`);
   for (const role of roles) assert(role.is_leaf === true && role.delegates === false, `${label} role ${role.logical_agent_id} must be a non-delegating leaf`);
   const fast = contract.routes?.supplied_plan_fast_path;
   assert(fast && fast.required_roles?.includes("engineer") && fast.required_roles?.includes("tester"), `${label} supplied-plan route must hand directly to engineer and tester`);
@@ -193,7 +193,7 @@ function sourceFiles(plugin) {
   const files = new Map();
   for (const skill of plugin.skills) {
     for (const file of skill.files) {
-      const relative = path.relative(plugin.directory, file.absolute).split(path.sep).join("/");
+      const relative = path.posix.join("skills", skill.id, file.relative);
       files.set(relative, decodeUtf8(file.content, `${plugin.manifest.id}/${relative}`));
     }
   }
@@ -222,11 +222,20 @@ async function validateActiveMarketplaceReadme(catalog) {
   }
   assert(rows.size > 0, "README.md Available plugins table must contain plugin rows");
   for (const plugin of catalog.plugins) {
-    const catalogPath = plugin.marketplace.plugins.find((entry) => entry.id === plugin.manifest.id)?.path.replace(/\\/g, "/").replace(/^\.\//, "").replace(/\/$/, "");
-    assert(catalogPath && rows.has(catalogPath), `README.md is missing an Available plugins row for ${plugin.manifest.id}`);
+    const catalogPath = `plugins/${plugin.manifest.id}`;
+    assert(rows.has(catalogPath), `README.md is missing an Available plugins row for ${plugin.manifest.id}`);
     assert(rows.get(catalogPath) === plugin.manifest.version, `README.md version for ${plugin.manifest.id} does not match ${plugin.manifest.version}`);
   }
-  for (const link of rows.keys()) assert(catalog.plugins.some((plugin) => plugin.marketplace.plugins.find((entry) => entry.id === plugin.manifest.id)?.path.replace(/\\/g, "/").replace(/^\.\//, "").replace(/\/$/, "") === link), `README.md references an uncataloged plugin path: ${link}`);
+  for (const link of rows.keys()) assert(catalog.plugins.some((plugin) => `plugins/${plugin.manifest.id}` === link), `README.md references an uncataloged plugin path: ${link}`);
+
+  const skillHeading = "## Available skills";
+  const skillStart = readme.indexOf(skillHeading);
+  assert(skillStart >= 0, "README.md must contain an Available skills table");
+  const nextSkillHeading = readme.indexOf("\n## ", skillStart + skillHeading.length);
+  const skillSection = readme.slice(skillStart, nextSkillHeading < 0 ? readme.length : nextSkillHeading);
+  const skillLinks = new Set([...skillSection.matchAll(/\[[^\]]+\]\((skills\/[^)]+)\)/g)].map((match) => match[1].replace(/\/$/, "")));
+  for (const skill of catalog.skills) assert(skillLinks.has(`skills/${skill.id}`), `README.md is missing an Available skills row for ${skill.id}`);
+  for (const link of skillLinks) assert(catalog.skills.some((skill) => `skills/${skill.id}` === link), `README.md references an uncataloged skill path: ${link}`);
 }
 
 function normalizedGuidance(source) {
@@ -383,7 +392,7 @@ function validateEngineeringContractV2(plugin, contract, label) {
   assert(
     manifestIds.size === expectedRoleIds.size &&
       [...expectedRoleIds].every((id) => manifestIds.has(id)),
-    `${label} plugin.json agents must be researcher, engineer, verifier, and worker`,
+    `${label} manifest agents must be researcher, engineer, verifier, and worker`,
   );
   assert(
     contractIds.size === expectedRoleIds.size &&
@@ -453,7 +462,7 @@ function validateEngineeringProfileV2(plugin, contract, suite, label) {
   );
   assert(
     suite.contract_ref ===
-      "../skills/senior-engineering-workflow/references/workflow-contract.yaml",
+      "../../../skills/senior-engineering-workflow/references/workflow-contract.yaml",
     `${label} must reference the canonical workflow-contract.yaml path`,
   );
   assert(Array.isArray(suite.cases) && suite.cases.length > 0, `${label} must contain cases`);
@@ -600,7 +609,8 @@ async function validatePlugin(plugin) {
     for (const skill of plugin.skills) {
       const prefix = target.id === "opencode" ? ".opencode/skills" : target.id === "portable-agent-skills" ? ".agents/skills" : "skills";
       for (const file of skill.files) assert(artifacts.has(path.posix.join(prefix, skill.id, file.relative)), `${target.id} bundle omits ${skill.id}/${file.relative}`);
-      assert(artifacts.get(path.posix.join(prefix, skill.id, "LICENSE"))?.toString("utf8") === localLicense, `${target.id} bundle skill ${skill.id} lacks the plugin license`);
+      const skillLicense = skill.files.find((file) => file.relative === "LICENSE")?.content.toString("utf8");
+      assert(skillLicense && artifacts.get(path.posix.join(prefix, skill.id, "LICENSE"))?.toString("utf8") === skillLicense, `${target.id} bundle skill ${skill.id} lacks its canonical license`);
     }
     if (target.id === "claude-code") {
       const manifest = JSON.parse(artifacts.get(".claude-plugin/plugin.json"));
@@ -647,8 +657,7 @@ async function validatePlugin(plugin) {
     for (const file of skill.files.filter((entry) => /workflow-contract\.ya?ml$/i.test(entry.relative))) {
       const parsed = YAML.parse(decodeUtf8(file.content, `${plugin.manifest.id}/${file.relative}`));
       assert(parsed && typeof parsed === "object", `${plugin.manifest.id}/${file.relative} must contain a YAML object`);
-      const pluginRelative = path.relative(plugin.directory, file.absolute).split(path.sep).join("/");
-      contractFiles.set(pluginRelative, parsed);
+      contractFiles.set(path.posix.join("skills", skill.id, file.relative), parsed);
     }
   }
   const evalDirectory = path.join(plugin.directory, "evals");
@@ -679,27 +688,23 @@ export async function validateRepository(root = ROOT) {
   await assertCatalogMatchesSchemas(catalog);
   await validateActiveMarketplaceReadme(catalog);
   try { await lstat(path.join(root, "gemini-extension.json")); throw new Error("repository root must not be a Gemini extension; remove gemini-extension.json"); } catch (error) { if (error.code !== "ENOENT") throw error; }
-  const plugins = await Promise.all(catalog.plugins.map(inspectPlugin));
+  const skills = await Promise.all(catalog.skills.map(inspectSkill));
+  const plugins = await Promise.all(catalog.plugins.map((plugin) => inspectPlugin({ ...plugin, catalogSkills: skills })));
   const flatIds = new Set();
-  const skillIds = new Set();
   for (const plugin of plugins) {
     for (const agent of plugin.agents) {
       const id = flatAgentId(plugin.manifest.id, agent.id);
       assert(!flatIds.has(id), `flat agent id collision: ${id}`);
       flatIds.add(id);
     }
-    for (const skill of plugin.skills) {
-      assert(!skillIds.has(skill.id), `marketplace skill id collision: ${skill.id}`);
-      skillIds.add(skill.id);
-    }
     await validatePlugin(plugin);
   }
-  return { catalog, plugins };
+  return { catalog, skills, plugins };
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  validateRepository().then(({ plugins }) => {
-    process.stdout.write(`validated ${plugins.length} plugin${plugins.length === 1 ? "" : "s"} across ${allHostTargets().length} host targets\n`);
+  validateRepository().then(({ plugins, skills }) => {
+    process.stdout.write(`validated ${plugins.length} plugin${plugins.length === 1 ? "" : "s"} and ${skills.length} skill${skills.length === 1 ? "" : "s"} across ${allHostTargets().length} host targets\n`);
   }).catch((error) => {
     process.stderr.write(`validation failed: ${error.message}\n`);
     process.exitCode = 1;

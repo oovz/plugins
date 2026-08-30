@@ -487,17 +487,17 @@ test("Codex skill overlays require a declared owner and share route guidance", a
   await assert.rejects(lstat(path.join(home, ".state")), /ENOENT/);
 });
 
-test("direct skill installs include the plugin-local license when the source skill does not", async (t) => {
+test("direct skill installs preserve the canonical standalone skill license", async (t) => {
   const root = await mkdtemp(path.join(os.tmpdir(), "oovz-skill-license-"));
   const home = path.join(root, "home");
   const project = path.join(root, "project");
   await mkdir(home);
   await mkdir(project);
   t.after(() => rm(root, { recursive: true, force: true }));
-  await createFixtureMarketplace(root, [{ id: "licensed-plugin", version: "1.0.0", options: { hosts: { portable: { enabled: true } }, license: "Private fixture license.\n", licenseId: "LicenseRef-Private" } }]);
+  await createFixtureMarketplace(root, [{ id: "licensed-plugin", version: "1.0.0", options: { hosts: { portable: { enabled: true } }, license: "Private plugin license.\n", skillLicense: "Independent skill license.\n", licenseId: "LicenseRef-Private" } }]);
   const env = { ...process.env, HOME: home, USERPROFILE: home, XDG_STATE_HOME: path.join(home, ".state") };
   await runInstaller(["install", "--plugin", "licensed-plugin", "--host", "portable-agent-skills", "--scope", "project", "--project", project], { root, env, cwd: project, stdout: { write() {} } });
-  assert.equal(await readFile(path.join(project, ".agents", "skills", "licensed-plugin-skill", "LICENSE"), "utf8"), "Private fixture license.\n");
+  assert.equal(await readFile(path.join(project, ".agents", "skills", "licensed-plugin-skill", "LICENSE"), "utf8"), "Independent skill license.\n");
 });
 
 test("tampered ownership entries outside exact host roots are rejected", async (t) => {

@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const json = (value) => `${JSON.stringify(value, null, 2)}\n`;
 const PLUGIN_ID = "senior-engineering-workflow";
-const PACKAGE_SOURCE = path.join("packages", "sew");
+const PACKAGE_SOURCE = path.join("tools", "sew");
 const RELEASE_BUILD_ROOT = path.join("release-build", "sew");
 const PACKAGE_OUTPUT = path.join(RELEASE_BUILD_ROOT, "package");
 const STATIC_PAYLOADS = Object.freeze({
@@ -134,10 +134,10 @@ export async function buildSewPackage(options = {}) {
   const output = path.resolve(options.output ?? path.join(root, PACKAGE_OUTPUT));
   const sourceRoot = path.join(root, PACKAGE_SOURCE);
   const sourceManifest = JSON.parse(await readFile(path.join(sourceRoot, "package.json"), "utf8"));
-  const pluginManifest = JSON.parse(await readFile(path.join(root, "plugins", PLUGIN_ID, "plugin.json"), "utf8"));
+  const pluginManifest = JSON.parse(await readFile(path.join(root, "plugins", PLUGIN_ID, "manifest.json"), "utf8"));
 
   if (sourceManifest.name !== "@oovz/sew") throw new Error(`Unexpected source package name: ${sourceManifest.name}`);
-  if (sourceManifest.private !== true) throw new Error("packages/sew must remain private; only the staged CI package may be published.");
+  if (sourceManifest.private !== true) throw new Error("tools/sew must remain private; only the staged CI package may be published.");
   if (pluginManifest.id !== PLUGIN_ID) throw new Error(`Unexpected plugin manifest id: ${pluginManifest.id}`);
 
   const artifacts = [];

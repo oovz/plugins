@@ -34,7 +34,7 @@ Version 1.2.0 is a host-neutral Agent Skill for building, reviewing, securing, t
 
 ## Install
 
-Per-harness steps are in the [root README](../README.md#install).
+Per-harness steps are in the [root README](../../README.md#install).
 
 ## Scope
 
@@ -45,17 +45,18 @@ The skill covers desktop targets only: Windows, macOS, and Linux. No Android or 
 ```text
 plugins/tauri-v2-desktop/
 ├── LICENSE
-├── plugin.json
+├── manifest.json
 ├── README.md
-├── evals/
-│   └── security-guidance.yaml
-└── skills/tauri-v2-desktop/
-    ├── SKILL.md
-    └── references/
-        ├── security-and-ipc.md
-        ├── versions-and-upgrades.md
-        ├── desktop-runtime-and-delivery.md
-        └── testing-and-visual-validation.md
+└── evals/security-guidance.yaml
+
+skills/tauri-v2-desktop/
+├── LICENSE
+├── SKILL.md
+└── references/
+    ├── security-and-ipc.md
+    ├── versions-and-upgrades.md
+    ├── desktop-runtime-and-delivery.md
+    └── testing-and-visual-validation.md
 ```
 
 Adapters under `adapters/` are generated and checked in; edit the source and regenerate, never the adapters.
@@ -66,10 +67,10 @@ After installation, the skill is addressed by the host-specific plugin namespace
 
 Read only the reference needed for the task:
 
-- [Security, capabilities, and IPC](skills/tauri-v2-desktop/references/security-and-ipc.md)
-- [Versions and upgrades](skills/tauri-v2-desktop/references/versions-and-upgrades.md)
-- [Desktop runtime and delivery](skills/tauri-v2-desktop/references/desktop-runtime-and-delivery.md)
-- [Testing and visual validation](skills/tauri-v2-desktop/references/testing-and-visual-validation.md)
+- [Security, capabilities, and IPC](../../skills/tauri-v2-desktop/references/security-and-ipc.md)
+- [Versions and upgrades](../../skills/tauri-v2-desktop/references/versions-and-upgrades.md)
+- [Desktop runtime and delivery](../../skills/tauri-v2-desktop/references/desktop-runtime-and-delivery.md)
+- [Testing and visual validation](../../skills/tauri-v2-desktop/references/testing-and-visual-validation.md)
 
 ## Official sources
 

@@ -1,7 +1,7 @@
 schema_version: "2.0.0"
 suite_id: senior-engineering-workflow-routing-v2
 profile: engineering-delivery-v2
-contract_ref: ../skills/senior-engineering-workflow/references/workflow-contract.yaml
+contract_ref: ../../../skills/senior-engineering-workflow/references/workflow-contract.yaml
 description: >-
   Outcome-oriented routing and conformance cases for the primary-owner workflow.
 result_schema:

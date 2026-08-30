@@ -1,42 +1,94 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://raw.githubusercontent.com/oovz/plugins/main/schemas/marketplace.schema.json",
-  "title": "plugin marketplace manifest",
+  "title": "agent extension marketplace catalog",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schemaVersion", "id", "displayName", "description", "repository", "owner", "pluginRoot", "plugins"],
+  "required": [
+    "schemaVersion",
+    "id",
+    "displayName",
+    "description",
+    "repository",
+    "owner",
+    "plugins",
+    "skills"
+  ],
   "properties": {
-    "$schema": { "type": "string" },
-    "schemaVersion": { "const": 1 },
-    "id": { "$ref": "#/$defs/id" },
-    "displayName": { "type": "string", "minLength": 1 },
-    "description": { "type": "string", "minLength": 1 },
-    "repository": { "type": "string", "format": "uri" },
+    "$schema": {
+      "type": "string"
+    },
+    "schemaVersion": {
+      "const": 2
+    },
+    "id": {
+      "$ref": "#/$defs/id"
+    },
+    "displayName": {
+      "type": "string",
+      "minLength": 1
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1
+    },
+    "repository": {
+      "type": "string",
+      "format": "uri"
+    },
     "owner": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["name", "url"],
+      "required": [
+        "name",
+        "url"
+      ],
       "properties": {
-        "name": { "type": "string", "minLength": 1 },
-        "url": { "type": "string", "format": "uri" }
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "url": {
+          "type": "string",
+          "format": "uri"
+        }
       }
     },
-    "pluginRoot": { "type": "string", "pattern": "^[^/\\\\]+$" },
     "plugins": {
       "type": "array",
-      "minItems": 1,
+      "uniqueItems": true,
       "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": ["id", "path"],
-        "properties": {
-          "id": { "$ref": "#/$defs/id" },
-          "path": { "type": "string", "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\).+$" }
-        }
+        "$ref": "#/$defs/id"
+      }
+    },
+    "skills": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/id"
       }
     }
   },
+  "anyOf": [
+    {
+      "properties": {
+        "plugins": {
+          "minItems": 1
+        }
+      }
+    },
+    {
+      "properties": {
+        "skills": {
+          "minItems": 1
+        }
+      }
+    }
+  ],
   "$defs": {
-    "id": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" }
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+    }
   }
 }

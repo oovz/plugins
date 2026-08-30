@@ -1,6 +1,6 @@
 {
   "$schema": "./schemas/marketplace.schema.json",
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "otto-plugins",
   "displayName": "Otto's plugins",
   "description": "My plugin store for portable agentic coding workflows.",
@@ -9,19 +9,15 @@
     "name": "Otto",
     "url": "https://github.com/oovz/plugins"
   },
-  "pluginRoot": "plugins",
   "plugins": [
-    {
-      "id": "senior-engineering-workflow",
-      "path": "plugins/senior-engineering-workflow"
-    },
-    {
-      "id": "tauri-v2-desktop",
-      "path": "plugins/tauri-v2-desktop"
-    },
-    {
-      "id": "chrome-extension-tester",
-      "path": "plugins/chrome-extension-tester"
-    }
+    "senior-engineering-workflow",
+    "tauri-v2-desktop",
+    "chrome-extension-tester"
+  ],
+  "skills": [
+    "senior-engineering-workflow",
+    "tauri-v2-desktop",
+    "chrome-extension-test",
+    "wxt-extension-test"
   ]
 }

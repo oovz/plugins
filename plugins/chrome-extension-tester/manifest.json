@@ -1,6 +1,6 @@
 {
-  "$schema": "../../schemas/plugin.schema.json",
-  "schemaVersion": 1,
+  "$schema": "../../schemas/plugin-manifest.schema.json",
+  "schemaVersion": 2,
   "id": "chrome-extension-tester",
   "version": "0.1.0",
   "displayName": "Chrome Extension Tester",
@@ -23,14 +23,8 @@
   "category": "Developer Tools",
   "components": {
     "skills": [
-      {
-        "id": "chrome-extension-test",
-        "path": "skills/chrome-extension-test/SKILL.md"
-      },
-      {
-        "id": "wxt-extension-test",
-        "path": "skills/wxt-extension-test/SKILL.md"
-      }
+      "chrome-extension-test",
+      "wxt-extension-test"
     ],
     "agents": [],
     "commands": [],

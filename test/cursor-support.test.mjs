@@ -136,7 +136,7 @@ test("repository installer writes Cursor skill files without copying the native 
 });
 
 test("migration documentation provides manual schema-1 cleanup paths", async () => {
-  const readme = await readFile(path.join(ROOT, "packages", "sew", "README.md"), "utf8");
+  const readme = await readFile(path.join(ROOT, "tools", "sew", "README.md"), "utf8");
   assert.match(readme, /Migrate a 0.9.x static installation to 0.10.0 or later/u);
   assert.match(readme, /%LOCALAPPDATA%\\oovz\\sew/u);
   assert.match(readme, /\.oovz\/sew\/<host>\.json/u);

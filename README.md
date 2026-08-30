@@ -2,7 +2,7 @@
 
 # Otto's plugins
 
-My plugins for agentic coding harnesses.
+Plugins, Agent Skills, and command-line tools for agentic coding harnesses.
 
 [![Validate marketplace](https://github.com/oovz/plugins/actions/workflows/validate.yml/badge.svg)](https://github.com/oovz/plugins/actions/workflows/validate.yml)
 ![Node.js 20+](https://img.shields.io/badge/Node.js-20%2B-339933?logo=node.js&logoColor=white)
@@ -17,6 +17,17 @@ My plugins for agentic coding harnesses.
 | [Senior Engineering Workflow](plugins/senior-engineering-workflow/) | 0.12.1 | Keeps coding decisions in the capable main agent while bounded Researcher, Engineer, Verifier, and Worker roles isolate implementation and noisy evidence when useful. |
 | [Tauri v2 Desktop](plugins/tauri-v2-desktop/) | 1.2.0 | Secure, evidence-driven guidance for building, testing, upgrading, and distributing Tauri v2 desktop applications on Windows, macOS, and Linux. |
 | [Chrome Extension Tester](plugins/chrome-extension-tester/) | 0.1.0 | Test and debug Chrome extensions in real Chrome-managed extension contexts with Chrome DevTools MCP, with WXT-aware workflows. |
+
+## Available skills
+
+Canonical skills are independently valid [Agent Skills](https://agentskills.io/specification). Plugins reference these skill IDs and package them for their enabled harnesses.
+
+| Skill | Bundled by | What it does |
+|---|---|---|
+| [Senior Engineering Workflow](skills/senior-engineering-workflow/) | `senior-engineering-workflow` | Routes non-trivial engineering work with proportional evidence, implementation, and verification. |
+| [Tauri v2 Desktop](skills/tauri-v2-desktop/) | `tauri-v2-desktop` | Guides secure Tauri v2 architecture, upgrades, testing, and delivery. |
+| [Chrome Extension Test](skills/chrome-extension-test/) | `chrome-extension-tester` | Tests Chrome extensions in Chrome-managed extension contexts. |
+| [WXT Extension Test](skills/wxt-extension-test/) | `chrome-extension-tester` | Adds WXT-specific build discovery and debugging guidance. |
 
 ## Compatibility
 
@@ -189,7 +200,7 @@ Three-model routing is available through `--preset three-model`. Use `--preset i
 
 ## Migrate from @oovz/sew 0.9.x
 
-Version 0.10.0 and later use installation-state schema 2 and intentionally do not migrate schema-1 state. Close the affected harness, manually delete the old managed payload and its state file, then reinstall. The exact per-host paths and commands are in [the @oovz/sew migration guide](packages/sew/README.md#migrate-a-09x-static-installation-to-0100-or-later).
+Version 0.10.0 and later use installation-state schema 2 and intentionally do not migrate schema-1 state. Close the affected harness, manually delete the old managed payload and its state file, then reinstall. The exact per-host paths and commands are in [the @oovz/sew migration guide](tools/sew/README.md#migrate-a-09x-static-installation-to-0100-or-later).
 
 ## Build from source
 
@@ -208,33 +219,36 @@ npm run build -- --plugin <plugin-id> --host <host>
 npm run test:sew
 ```
 
-Add a plugin per [Adding a marketplace plugin](docs/adding-a-plugin.md), regenerate, and open a pull request with the refreshed files. The npm release process lives in [packages/sew/README.md](packages/sew/README.md).
+Add a [skill](docs/adding-a-skill.md) or [plugin](docs/adding-a-plugin.md), regenerate affected plugin projections, and open a pull request with the refreshed files. The npm release process lives in [tools/sew/README.md](tools/sew/README.md).
 
 ## Repository layout
 
 ```text
-marketplace.json                  canonical marketplace catalog
-schemas/                          canonical manifest and ownership schemas
-plugins/<plugin-id>/              canonical plugin source
+marketplace.json                  canonical plugin and skill catalog
+skills/<skill-id>/                canonical, portable Agent Skills
+plugins/<plugin-id>/              plugin bundle definitions and plugin-only assets
+tools/<tool-id>/                  publishable command-line tool workspaces
+schemas/                          catalog, bundle-manifest, and ownership schemas
 adapters/                         generated, checked-in host projections
 .claude-plugin/marketplace.json   generated Claude Code catalog
 .agents/plugins/marketplace.json  generated Codex catalog
 .omp-plugin/marketplace.json      generated Oh My Pi catalog
 .cursor-plugin/marketplace.json   generated Cursor catalog
-packages/sew/                     source for the @oovz/sew installation CLI
 scripts/                          generation, installation, and validation tools
 test/                             marketplace, workflow, installer, and CLI tests
 dist/                             disposable host bundles
 ```
 
-Generated catalogs and adapters are checked in. Change canonical plugin source and run `npm run generate`; never edit generated files by hand.
+Generated catalogs and adapters are checked in. Change canonical skills or plugin bundle definitions and run `npm run generate`; never edit generated files by hand.
 
 ## Documentation
 
 - [Senior Engineering Workflow](plugins/senior-engineering-workflow/README.md)
 - [Tauri v2 Desktop](plugins/tauri-v2-desktop/README.md)
 - [Chrome Extension Tester](plugins/chrome-extension-tester/README.md)
+- [Adding a standalone skill](docs/adding-a-skill.md)
 - [Adding a marketplace plugin](docs/adding-a-plugin.md)
+- [Migrating to catalog schema 2](docs/migrating-to-catalog-v2.md)
 
 > [!IMPORTANT]
 > Effective access always remains subject to the selected host, session configuration, sandbox, workspace trust, approval mode, and organization policy. Review generated or release-bundled payloads before installing them in a sensitive environment.

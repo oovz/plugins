@@ -18,13 +18,13 @@ async function exists(file) {
 
 export async function checkSewRelease(tag, options = {}) {
   const root = path.resolve(options.root ?? ROOT);
-  const sourceRoot = path.join(root, "packages", "sew");
+  const sourceRoot = path.join(root, "tools", "sew");
   const stageRoot = path.join(root, "release-build", "sew", "package");
   const releaseRoot = path.join(root, "release-build", "sew", "artifacts");
   const source = JSON.parse(await readFile(path.join(sourceRoot, "package.json"), "utf8"));
   const expectedTag = `sew-v${source.version}`;
   if (tag !== expectedTag) throw new Error(`Release tag ${tag} does not match package version ${source.version}; expected ${expectedTag}.`);
-  if (source.private !== true) throw new Error("packages/sew must remain a private source workspace.");
+  if (source.private !== true) throw new Error("tools/sew must remain a private source workspace.");
   for (const generated of ["payloads", "templates"]) {
     if (await exists(path.join(sourceRoot, generated))) throw new Error(`Committed package source must not contain ${generated}/.`);
   }

@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://raw.githubusercontent.com/oovz/plugins/main/schemas/plugin.schema.json",
-  "title": "canonical plugin manifest",
+  "$id": "https://raw.githubusercontent.com/oovz/plugins/main/schemas/plugin-manifest.schema.json",
+  "title": "canonical plugin bundle manifest",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -20,7 +20,7 @@
       "type": "string"
     },
     "schemaVersion": {
-      "const": 1
+      "const": 2
     },
     "id": {
       "$ref": "#/$defs/id"
@@ -86,8 +86,9 @@
       "properties": {
         "skills": {
           "type": "array",
+          "uniqueItems": true,
           "items": {
-            "$ref": "#/$defs/fileComponent"
+            "$ref": "#/$defs/id"
           }
         },
         "agents": {
@@ -236,22 +237,6 @@
     "relativePath": {
       "type": "string",
       "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\).+$"
-    },
-    "fileComponent": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "id",
-        "path"
-      ],
-      "properties": {
-        "id": {
-          "$ref": "#/$defs/id"
-        },
-        "path": {
-          "$ref": "#/$defs/relativePath"
-        }
-      }
     },
     "agent": {
       "type": "object",

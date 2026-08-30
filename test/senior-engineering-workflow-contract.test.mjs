@@ -8,7 +8,7 @@ import { validateRepository } from "../scripts/validate.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const PLUGIN_ROOT = path.join(ROOT, "plugins", "senior-engineering-workflow");
-const SKILL_ROOT = path.join(PLUGIN_ROOT, "skills", "senior-engineering-workflow");
+const SKILL_ROOT = path.join(ROOT, "skills", "senior-engineering-workflow");
 const ROLE_IDS = ["researcher", "engineer", "verifier", "worker"];
 
 async function listFiles(root, current = root) {
@@ -22,7 +22,7 @@ async function listFiles(root, current = root) {
 }
 
 test("engineering-delivery-v2 uses canonical reference filenames", async () => {
-  const manifest = JSON.parse(await readFile(path.join(PLUGIN_ROOT, "plugin.json"), "utf8"));
+  const manifest = JSON.parse(await readFile(path.join(PLUGIN_ROOT, "manifest.json"), "utf8"));
   assert.equal(manifest.validation.profile, "engineering-delivery-v2");
   assert.equal(
     manifest.validation.contract,
@@ -30,7 +30,7 @@ test("engineering-delivery-v2 uses canonical reference filenames", async () => {
   );
   assert.equal(manifest.validation.evals, "evals/workflow-routing.yaml");
 
-  const sourceFiles = await listFiles(PLUGIN_ROOT);
+  const sourceFiles = [...await listFiles(PLUGIN_ROOT), ...await listFiles(SKILL_ROOT)];
   assert.equal(
     sourceFiles.some((file) =>
       /(?:workflow-contract|workflow-routing|task-routing|delegation-and-state|verification)-v2\./u.test(file)),
@@ -46,7 +46,7 @@ test("engineering-delivery-v2 contract and eval suite are coherent", async () =>
   const suite = YAML.parse(
     await readFile(path.join(PLUGIN_ROOT, "evals", "workflow-routing.yaml"), "utf8"),
   );
-  const manifest = JSON.parse(await readFile(path.join(PLUGIN_ROOT, "plugin.json"), "utf8"));
+  const manifest = JSON.parse(await readFile(path.join(PLUGIN_ROOT, "manifest.json"), "utf8"));
 
   assert.equal(contract.schema_version, "2.0.0");
   assert.equal(contract.contract_version, "2.0.0");
@@ -69,7 +69,7 @@ test("engineering-delivery-v2 contract and eval suite are coherent", async () =>
   assert.equal(suite.profile, contract.profile);
   assert.equal(
     suite.contract_ref,
-    "../skills/senior-engineering-workflow/references/workflow-contract.yaml",
+    "../../../skills/senior-engineering-workflow/references/workflow-contract.yaml",
   );
   assert.equal(
     suite.cases.some((item) => item.capability === "model_profile_portability"),

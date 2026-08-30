@@ -1,6 +1,6 @@
 {
-  "$schema": "../../schemas/plugin.schema.json",
-  "schemaVersion": 1,
+  "$schema": "../../schemas/plugin-manifest.schema.json",
+  "schemaVersion": 2,
   "id": "tauri-v2-desktop",
   "version": "1.2.0",
   "displayName": "Tauri v2 Desktop",
@@ -24,10 +24,7 @@
   "category": "Developer Tools",
   "components": {
     "skills": [
-      {
-        "id": "tauri-v2-desktop",
-        "path": "skills/tauri-v2-desktop/SKILL.md"
-      }
+      "tauri-v2-desktop"
     ],
     "agents": [],
     "commands": []

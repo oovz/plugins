@@ -208,7 +208,7 @@ It reports managed-install drift, explicit role model/thinking settings, duplica
 
 ## Development and release
 
-`packages/sew/` is a private source workspace. It intentionally contains no host payloads and no duplicated role templates. Do not publish it directly.
+`tools/sew/` is a private source workspace. It contains no host payloads or duplicated role templates. Do not publish it directly.
 
 Local validation:
 

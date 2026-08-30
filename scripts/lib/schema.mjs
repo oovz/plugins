@@ -13,7 +13,7 @@ export function assertMatchesSchema(validate, value, label) {
 
 export async function loadManifestSchemaValidators(root) {
   const marketplaceSchemaFile = path.join(root, "schemas/marketplace.schema.json");
-  const pluginSchemaFile = path.join(root, "schemas/plugin.schema.json");
+  const pluginSchemaFile = path.join(root, "schemas/plugin-manifest.schema.json");
   await assertSecureSourcePath(root, marketplaceSchemaFile, "marketplace schema");
   await assertSecureSourcePath(root, pluginSchemaFile, "plugin schema");
 
@@ -29,7 +29,7 @@ export async function assertCatalogMatchesSchemas(catalog) {
   const validators = await loadManifestSchemaValidators(catalog.root);
   assertMatchesSchema(validators.marketplace, catalog.marketplace, "marketplace.json");
   for (const plugin of catalog.plugins) {
-    assertMatchesSchema(validators.plugin, plugin.manifest, `${plugin.manifest.id}/plugin.json`);
+    assertMatchesSchema(validators.plugin, plugin.manifest, `${plugin.manifest.id}/manifest.json`);
   }
   return catalog;
 }
