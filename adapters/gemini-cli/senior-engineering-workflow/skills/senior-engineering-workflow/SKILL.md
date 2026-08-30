@@ -1,11 +1,11 @@
 ---
 name: senior-engineering-workflow
-description: "Use for coding tasks that benefit from an explicit engineering contract, bounded context-isolating subagents, implementation, verification, or a viable supplied-plan fast path. The capable main agent owns decisions, planning, integration, loop control, and completion."
+description: "Use for coding tasks that need a clear engineering contract, focused research, isolated implementation, independent verification, or noisy tool work. The main agent keeps ownership of decisions, integration, and completion."
 ---
 
 # Senior Engineering Workflow
 
-Own the engineering outcome and the user conversation. The main agent is the decision, planning, orchestration, integration, iteration-control, and completion owner. Use the lightest sufficient route. This skill is a routing and evidence protocol, not a mandatory multi-agent pipeline.
+Own the engineering outcome and the user conversation. The main agent is the decision, planning, orchestration, integration, iteration-control, and completion owner. Use the skill to route work and collect evidence, selecting the lightest sufficient direct or delegated path.
 
 Do not load every reference. Start with `references/task-routing.md`; then load only the references required by the selected work.
 
@@ -52,7 +52,7 @@ A user-supplied or explicitly accepted plan is viable when it contains enough cu
 
 When viable, preserve the plan and execute it directly. Perform only the smallest repository, safety, and compatibility preflight needed. Do not rewrite the plan, compare settled alternatives, or add speculative requirements. Interrupt only for contradictory repository/runtime evidence, material risk, missing authority, or a concrete gap that prevents responsible execution.
 
-The main agent may implement the plan itself or delegate bounded implementation work. Independent verification is selected by risk or user request; it is not an automatic ceremony after every local edit.
+The main agent may implement the plan itself or delegate bounded implementation work. Select independent verification when risk or a user request calls for it.
 
 ## 4. Select direct work or a bounded specialist
 
@@ -68,10 +68,10 @@ Delegate only when one or more apply:
 
 Available specialists:
 
-- **Researcher** — bounded repository, runtime, dependency, or authoritative external evidence synthesis;
-- **Engineer** — one bounded production-code or test-only implementation slice;
-- **Verifier** — independent acceptance verification, adversarial review, failure classification, or finding closure;
-- **Worker** — one bounded shell, repository-search, documentation, MCP, build, test, log-processing, or other tool-heavy operation whose raw output should remain outside the main context.
+- Researcher: synthesizes bounded repository, runtime, dependency, or authoritative external evidence.
+- Engineer: implements one bounded production-code or test-only slice.
+- Verifier: provides independent acceptance checks, adversarial review, failure classification, or finding closure.
+- Worker: runs one bounded shell, search, documentation, build, test, log-processing, or MCP operation whose raw output should remain outside the main context.
 
 Do not delegate a trivial lookup, one obvious command, or a tightly coupled implementation step merely because an agent is available.
 
@@ -79,7 +79,7 @@ Do not delegate a trivial lookup, one obvious command, or a tightly coupled impl
 
 For a required specialist, resolve the installed role whose description and contract match the logical role. Hosts may namespace or prefix installed role IDs; do not depend on one exact rendered name. If no dedicated role is available, use a generic subagent with the complete applicable role contract and work order, or perform the capability inline with the same evidence standard.
 
-Inline execution is a normal proportional route, not degraded operation. State only capability losses that materially affect confidence, such as losing an explicitly required independent context or unavailable external access.
+Inline execution is a normal route. State only capability losses that materially affect confidence, such as losing an explicitly required independent context or unavailable external access.
 
 ## 6. Use bounded work orders
 
@@ -94,7 +94,7 @@ Every specialist invocation must conform to `references/delegation-and-state.md`
 - exact validation or evidence standard;
 - a compact return schema addressed to the main agent.
 
-“Expected result” means the required deliverable and evidence form, not a predetermined conclusion. Ask a worker to determine whether a hypothesis is supported, not to confirm it.
+"Expected result" means the required deliverable and evidence form, not a predetermined conclusion. Ask a worker to determine whether a hypothesis is supported, not to confirm it.
 
 Each return separates:
 
@@ -105,7 +105,7 @@ Each return separates:
 - exact commands or tool calls and observed results;
 - requested next work, without dispatching it.
 
-Never send a bare role name, “implement this,” “review this,” or raw prior conversation as the work order.
+Never send a bare role name, "implement this," "review this," or raw prior conversation as the work order.
 
 ## 7. Isolate noisy tool work with Worker
 
@@ -115,7 +115,9 @@ Prefer Worker when command or tool output is large and only a compact result is 
 
 Specialists do not depend on nested-agent support. When a Researcher, Engineer, or Verifier needs one or more Worker operations, it returns structured `worker_requests` to the main agent. The main agent launches them, integrates their results, and resumes or replaces the specialist only when useful. A host may optimize this with native nesting, but the logical protocol and main-agent decision ownership do not change.
 
-For long-running non-interactive operations, avoid repeated short polls that only report that work is still running. Prefer one completion-aware wait appropriate to the expected duration and host limits. Match the wait mechanism to the operation: shell-session waiting or polling for a shell process, code-cell waiting for a yielded code cell, and agent waiting for an agent. Do not infer that a nested process exited merely because its wrapper or outer cell completed; require terminal status or continue the correct session. Use shorter waits when intermediate output, confirmation, credentials, conflicts, or other interactive input may require attention.
+For long-running non-interactive operations, use one completion-aware wait suited to the expected duration and host limits. Repeated short polls add status-only turns. Match the wait mechanism to the operation: shell-session polling for a shell process, code-cell waiting for a yielded cell, and agent waiting for an agent.
+
+A completed wrapper or outer cell is insufficient evidence that its nested process exited. Require terminal status or continue the correct session. Use shorter waits when intermediate output, confirmation, credentials, conflicts, or other interactive input may require attention.
 
 On Codex specifically, `wait_agent` waits for agents, `functions.wait` waits for yielded Code Mode cells, and an empty `write_stdin` poll waits on a shell session. Minute-scale values such as 180000-300000 ms can reduce status-only turns for known non-interactive work, but they are operational choices rather than universal requirements. Keep non-empty `write_stdin` calls responsive because they send interactive input.
 
@@ -127,10 +129,10 @@ Before handoff, Engineer returns a candidate-ready result with changed files, re
 
 Verifier does not modify production or test files. It may operate in one mode:
 
-- `acceptance` — independently derive and assess checks from accepted behavior and material risk;
-- `review` — seek disconfirming correctness, security, data-integrity, scope, test, and maintainability evidence;
-- `closure` — determine whether a named prior finding is fixed, still open, or superseded by an explicit user decision;
-- `design-challenge` — challenge a consequential proposed design before implementation.
+- `acceptance`: independently derive and assess checks from accepted behavior and material risk;
+- `review`: seek disconfirming correctness, security, data-integrity, scope, test, and maintainability evidence;
+- `closure`: determine whether a named prior finding is fixed, still open, or superseded by an explicit user decision;
+- `design-challenge`: challenge a consequential proposed design before implementation.
 
 When Verifier identifies missing or defective tests, it reports the exact gap. The main agent may issue a test-only Engineer work item. Verifier does not silently edit tests or production code.
 

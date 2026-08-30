@@ -85,14 +85,14 @@ test("Native-only harnesses reject model configuration without invoking a discov
     ], { env: {}, spawnSync: () => { throw new Error(`${host} should not be queried`); } });
 
     assert.equal(result.code, 2);
-    assert.match(result.stderr, /Model configuration is not supported/u);
+    assert.match(result.stderr, /roles use native model inheritance/u);
 
     const explicit = await capture([
       "models", "configure", "--host", host, "--scope", "project", "--project", project,
       "--preset", "two-model", "--worker-model", "example-model", "--worker-thinking", "high",
     ], { env: {}, spawnSync: () => { throw new Error(`${host} should not be queried`); } });
     assert.equal(explicit.code, 2);
-    assert.match(explicit.stderr, /Model configuration is not supported/u);
+    assert.match(explicit.stderr, /roles use native model inheritance/u);
   }
 });
 
@@ -158,7 +158,7 @@ test("Gemini CLI rejects thinking settings because its agent format does not sup
   ], { env, spawnSync: runner });
 
   assert.equal(invalidThinking.code, 2);
-  assert.match(invalidThinking.stderr, /Gemini CLI agent files do not expose a supported thinking-level field/u);
+  assert.match(invalidThinking.stderr, /Gemini CLI agent files have no supported thinking-level field/u);
 });
 
 test("Disabled models from the Codex catalog are excluded and explicitly rejected", async () => {
@@ -270,7 +270,7 @@ test("Gemini CLI accepts an unvalidated model with an explicit warning", async (
 
   assert.equal(result.code, 0, result.stderr);
   const output = JSON.parse(result.stdout);
-  assert.ok(output.warnings?.some((warning) => /model IDs will not be validated/u.test(warning)));
+  assert.ok(output.warnings?.some((warning) => /Model IDs remain unvalidated/u.test(warning)));
 });
 
 test("Inheritance reset does not query the target harness", async () => {
@@ -367,7 +367,7 @@ test("Codex accepts an unvalidated reasoning level with an explicit warning", ()
   const result = internals.isReasoningSupported("codex", "high", capabilities, "gpt-live");
   assert.equal(result.supported, true);
   assert.equal(result.validated, false);
-  assert.match(result.warning, /was not validated/u);
+  assert.match(result.warning, /remains unvalidated/u);
 });
 
 test("Overlay functions handle CRLF line endings without duplicating or failing", () => {
@@ -492,7 +492,7 @@ test("Codex and OpenCode reject inherit and default model and reasoning values w
 
   const codexThinkingCheck = internals.isReasoningSupported("codex", "inherit", codexCaps, "gpt-5.6-luna");
   assert.equal(codexThinkingCheck.supported, false);
-  assert.match(codexThinkingCheck.reason, /do not support a "inherit" reasoning-effort keyword/u);
+  assert.match(codexThinkingCheck.reason, /cannot use "inherit" as a reasoning-effort keyword/u);
 
   const opencodeCaps = { ...internals.HARNESS_METADATA.opencode, models: ["openai/gpt-4o"] };
   const opencodeModelCheck = internals.isModelSupported("opencode", "inherit", opencodeCaps);
@@ -520,4 +520,3 @@ test("Cursor capability discovery degrades to warning when agent CLI is missing 
   const worker = path.join(project, ".cursor", "agents", "senior-engineering-workflow-worker.md");
   assert.match(await readFile(worker, "utf8"), /model:\s*"composer-1\.5"/u);
 });
-

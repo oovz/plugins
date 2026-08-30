@@ -2,9 +2,9 @@
   "$schema": "../../schemas/plugin-manifest.schema.json",
   "schemaVersion": 2,
   "id": "senior-engineering-workflow",
-  "version": "0.12.1",
+  "version": "0.12.2",
   "displayName": "Senior Engineering Workflow",
-  "description": "A proportional engineering workflow in which the capable main agent owns decisions and bounded specialists isolate research, implementation, verification, and noisy tool work.",
+  "description": "An engineering workflow where the main agent owns decisions and bounded specialists handle focused research, implementation, verification, and tool work.",
   "license": "MIT",
   "author": {
     "name": "Otto",

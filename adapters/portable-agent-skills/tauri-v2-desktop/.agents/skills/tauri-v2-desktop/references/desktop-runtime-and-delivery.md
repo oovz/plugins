@@ -27,7 +27,7 @@ For every shipped target:
 - preserve Unix executable permissions;
 - constrain allowed programs and arguments through shell-plugin permissions;
 - validate input, stdout/stderr handling, exit status, cancellation, and orphan cleanup;
-- test the bundled copy, not only the development binary;
+- test the bundled copy, with development-binary tests as supporting evidence;
 - include the sidecar in OS signing/notarization and updater verification.
 
 Do not derive a cross-build sidecar name from the host triple.

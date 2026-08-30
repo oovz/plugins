@@ -5,14 +5,14 @@
     "name": "Otto",
     "url": "https://github.com/oovz/plugins"
   },
-  "description": "My plugin store for portable agentic coding workflows.",
+  "description": "Personal plugins, skills, and tools for agentic coding harnesses.",
   "plugins": [
     {
       "name": "senior-engineering-workflow",
       "source": "./adapters/claude-code/senior-engineering-workflow",
-      "description": "A proportional engineering workflow in which the capable main agent owns decisions and bounded specialists isolate research, implementation, verification, and noisy tool work.",
+      "description": "An engineering workflow where the main agent owns decisions and bounded specialists handle focused research, implementation, verification, and tool work.",
       "displayName": "Senior Engineering Workflow",
-      "version": "0.12.1",
+      "version": "0.12.2",
       "author": {
         "name": "Otto",
         "url": "https://github.com/oovz/plugins"
@@ -35,9 +35,9 @@
     {
       "name": "tauri-v2-desktop",
       "source": "./adapters/claude-code/tauri-v2-desktop",
-      "description": "Secure, evidence-driven guidance for building, testing, upgrading, and distributing Tauri v2 desktop applications on Windows, macOS, and Linux.",
+      "description": "Guidance for building, securing, testing, upgrading, and shipping Tauri v2 desktop applications on Windows, macOS, and Linux.",
       "displayName": "Tauri v2 Desktop",
-      "version": "1.2.0",
+      "version": "1.2.1",
       "author": {
         "name": "Otto",
         "url": "https://github.com/oovz/plugins"
@@ -61,9 +61,9 @@
     {
       "name": "chrome-extension-tester",
       "source": "./adapters/claude-code/chrome-extension-tester",
-      "description": "Test and debug Chrome extensions in real Chrome-managed extension contexts with Chrome DevTools MCP, with WXT-aware workflows.",
+      "description": "Test and debug Chrome extensions in Chrome-managed contexts through Chrome DevTools MCP, with extra guidance for WXT projects.",
       "displayName": "Chrome Extension Tester",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "author": {
         "name": "Otto",
         "url": "https://github.com/oovz/plugins"

@@ -1,7 +1,7 @@
 {
   "name": "senior-engineering-workflow",
-  "version": "0.12.1",
-  "description": "A proportional engineering workflow in which the capable main agent owns decisions and bounded specialists isolate research, implementation, verification, and noisy tool work.",
+  "version": "0.12.2",
+  "description": "An engineering workflow where the main agent owns decisions and bounded specialists handle focused research, implementation, verification, and tool work.",
   "author": {
     "name": "Otto",
     "url": "https://github.com/oovz/plugins"
@@ -22,8 +22,8 @@
   "skills": "./skills/",
   "interface": {
     "displayName": "Senior Engineering Workflow",
-    "shortDescription": "A proportional engineering...",
-    "longDescription": "A proportional engineering workflow in which the capable main agent owns decisions and bounded specialists isolate research, implementation, verification, and noisy tool work.",
+    "shortDescription": "An engineering workflow whe...",
+    "longDescription": "An engineering workflow where the main agent owns decisions and bounded specialists handle focused research, implementation, verification, and tool work.",
     "developerName": "Otto",
     "category": "Productivity",
     "capabilities": [

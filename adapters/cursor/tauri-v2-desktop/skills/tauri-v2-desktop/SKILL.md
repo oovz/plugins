@@ -1,11 +1,11 @@
 ---
 name: tauri-v2-desktop
-description: Build, review, secure, test, upgrade, and distribute Tauri v2 desktop applications for Windows, macOS, and Linux. Use for Rust commands, JavaScript IPC, capabilities, official plugins, windows, tray, sidecars, deep links, updater, signing, packaging, OS or architecture test matrices, and visual validation. Do not use for Android or iOS work.
+description: Build and maintain Tauri v2 desktop applications for Windows, macOS, and Linux. Use for Rust commands and frontend IPC, capabilities, native integrations, updates, packaging, cross-platform test matrices, and visual validation. Use a mobile-specific skill for Android or iOS.
 ---
 
 # Tauri v2 desktop
 
-Use this skill for desktop targets only: Windows, macOS, and Linux. Do not add mobile setup, permissions, plugins, commands, or CI unless the user separately requests a mobile skill.
+Use this skill for Windows, macOS, and Linux desktop targets. Route mobile setup, permissions, plugins, commands, and CI to a separately requested mobile skill.
 
 ## Inspect before editing
 
@@ -28,7 +28,7 @@ Identify the installed Tauri core, CLI, API, build, and plugin versions before r
 
 Use the official documentation links in those references for uncommon details. Verify any unstable API, schema, artifact name, platform requirement, or version claim against current official documentation before implementation.
 
-## Non-negotiable boundaries
+## Security and implementation boundaries
 
 - Register application commands once with `invoke_handler(tauri::generate_handler![...])`; use the command's defining module path when it is not at crate root.
 - Treat every frontend argument as untrusted. Validate shape, length, ranges, paths, URLs, identifiers, authorization, and resource ownership in Rust.

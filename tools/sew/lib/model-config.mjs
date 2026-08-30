@@ -60,7 +60,7 @@ export function slotConfiguration(slot, options) {
 
 export function validateModelConfiguration(host, preset, mapping, options, capabilities = HARNESS_METADATA[host]) {
   if (!MODEL_EDIT_HOSTS.has(host)) {
-    throw new CliError(`Model configuration is not supported for ${host}; canonical roles already use the host's inheritance behavior.`);
+    throw new CliError(`${host} roles use native model inheritance, so sew cannot configure them.`);
   }
   if (preset === "inherit") {
     for (const key of ["worker-model", "worker-thinking", "balanced-model", "balanced-thinking", "map"]) {
@@ -152,7 +152,7 @@ function modelOverlayLines(host, config) {
   if (config.thinking) {
     if (host === "codex") lines.push(`model_reasoning_effort = ${tomlScalar(config.thinking)}`);
     else if (host === "opencode") lines.push(`variant: ${yamlScalar(config.thinking)}`);
-    else throw new CliError(`${host} agent files do not expose a supported thinking-level field; omit thinking setting.`);
+    else throw new CliError(`${host} agent files have no supported thinking-level field. Omit the thinking setting.`);
   }
   return lines;
 }
@@ -165,15 +165,15 @@ function applyTomlModelOverlay(content, config) {
   if (pattern.test(content)) return content.replace(pattern, `${block}\n`);
   const anchor = "developer_instructions = ";
   const index = content.indexOf(anchor);
-  if (index < 0) throw new CliError("The installed Codex agent file has no developer_instructions field; unable to insert model configuration.", 1);
+  if (index < 0) throw new CliError("The installed Codex agent file has no developer_instructions field. Model configuration cannot be inserted.", 1);
   return `${content.slice(0, index)}${block}\n${content.slice(index)}`;
 }
 
 function applyMarkdownModelOverlay(host, content, config) {
   const normalized = String(content).replaceAll("\r\n", "\n");
-  if (!normalized.startsWith("---\n")) throw new CliError(`The installed ${host} agent file has no YAML frontmatter; unable to configure its model.`, 1);
+  if (!normalized.startsWith("---\n")) throw new CliError(`The installed ${host} agent file has no YAML frontmatter. Its model cannot be configured.`, 1);
   const close = normalized.indexOf("\n---\n", 4);
-  if (close < 0) throw new CliError(`The installed ${host} agent file has unterminated YAML frontmatter; unable to configure its model.`, 1);
+  if (close < 0) throw new CliError(`The installed ${host} agent file has unterminated YAML frontmatter. Its model cannot be configured.`, 1);
   const frontmatter = normalized.slice(4, close);
   const after = normalized.slice(close + 5);
   const marker = `<!-- ${MODEL_MARKER} -->`;
@@ -194,7 +194,7 @@ function applyMarkdownModelOverlay(host, content, config) {
     return next;
   };
   if (config.thinking && host !== "opencode") {
-    throw new CliError(`${host} agent files do not expose a supported thinking-level field; omit thinking setting.`);
+    throw new CliError(`${host} agent files have no supported thinking-level field. Omit the thinking setting.`);
   }
   const lines = frontmatter.split("\n").filter(Boolean);
   let nextLines;
@@ -215,5 +215,5 @@ function applyMarkdownModelOverlay(host, content, config) {
 export function applyModelOverlay(host, content, config) {
   if (host === "codex") return applyTomlModelOverlay(content, config);
   if (MODEL_EDIT_HOSTS.has(host)) return applyMarkdownModelOverlay(host, content, config);
-  throw new CliError(`${host} does not support in-place model configuration.`, 1);
+  throw new CliError(`sew cannot configure models in place for ${host}.`, 1);
 }

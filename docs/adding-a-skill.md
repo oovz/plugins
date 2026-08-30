@@ -1,6 +1,6 @@
 # Adding a standalone skill
 
-Canonical skills live at `skills/<skill-id>/` and follow the [Agent Skills specification](https://agentskills.io/specification). A skill is authored once, validated independently, and referenced by any plugin that bundles it for a coding harness.
+Canonical skills live at `skills/<skill-id>/` and follow the [Agent Skills specification](https://agentskills.io/specification). Author each skill once, validate it independently, and reference it from any plugin that bundles it for a coding harness.
 
 ## 1. Create the skill directory
 
@@ -42,7 +42,7 @@ Add its ID to `marketplace.json`:
 }
 ```
 
-Catalog entries are IDs rather than paths. The fixed location is `skills/<skill-id>/`, which keeps discovery deterministic and removes path configuration.
+Catalog entries contain IDs. Every skill has the fixed location `skills/<skill-id>/`, which gives discovery a single path.
 
 ## 3. Bundle it in a plugin when needed
 
@@ -60,7 +60,7 @@ A plugin references canonical skill IDs from `plugins/<plugin-id>/manifest.json`
 }
 ```
 
-The generator copies the canonical skill and its license into each enabled host projection. A cataloged skill may remain standalone when no plugin bundle is needed.
+The generator copies the canonical skill and its license into each enabled host projection. A skill can remain standalone when no plugin bundle is needed.
 
 ## 4. Validate the repository
 

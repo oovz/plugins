@@ -100,16 +100,16 @@ stop_when:
   - permission or environment block occurs
 ```
 
-“Expected deliverable” must not prescribe a factual conclusion. Use “determine whether X violates Y” rather than “confirm X is the cause.”
+"Expected deliverable" must not prescribe a factual conclusion. Use "determine whether X violates Y" rather than "confirm X is the cause."
 
 ## Result discipline
 
 Every result separates:
 
-- **observations** — directly seen paths, code, exit statuses, tool responses, source text, or artifacts;
-- **inferences** — conclusions linked to observations and confidence;
-- **unknowns** — unresolved facts and the smallest decisive next check;
-- **authority** — changes or decisions the work order did and did not authorize.
+- Observations: directly seen paths, code, exit statuses, tool responses, source text, or artifacts.
+- Inferences: conclusions linked to observations and confidence.
+- Unknowns: unresolved facts and the smallest decisive next check.
+- Authority: changes or decisions the work order authorized or prohibited.
 
 A missing source is unknown, not false. An unrun command has no result. A success-looking line cannot override a failing exit status.
 

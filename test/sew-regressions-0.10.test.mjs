@@ -77,7 +77,7 @@ test("model configuration rejects hosts without sew-owned editable agents", asyn
       "models", "configure", "--host", host, "--scope", "project", "--project", project, "--preset", "inherit",
     ], { env: {}, spawnSync: runner });
     assert.equal(result.code, 2);
-    assert.match(result.stderr, /Model configuration is not supported/u);
+    assert.match(result.stderr, /roles use native model inheritance/u);
   }
 
   const invalidHostResult = await capture([
@@ -117,7 +117,7 @@ test("a generated marker does not authorize subsequent external edits", async ()
   await writeFile(worker, `${await readFile(worker, "utf8")}user-edit = true\n`);
   const refused = await capture(configure, { env, spawnSync });
   assert.equal(refused.code, 1);
-  assert.match(refused.stderr, /modified outside/u);
+  assert.match(refused.stderr, /changed outside/u);
 });
 
 test("OpenCode removes a stale variant and emits valid YAML", async () => {
@@ -200,7 +200,7 @@ test("OpenCode installation is verified as a skill plus four subagents, not a JS
   assert.equal(install.code, 0, install.stderr);
   const result = JSON.parse(install.stdout);
   assert.equal(result.discovery.status, "verified");
-  assert.match(result.discovery.message, /does not register a JavaScript\/TypeScript plugin/u);
+  assert.match(result.discovery.message, /Inspect them with opencode agent list/u);
   for (const role of ROLES) assert.equal(await exists(path.join(project, ".opencode", "agents", `senior-engineering-workflow-${role}.md`)), true);
   assert.equal(await exists(path.join(project, ".opencode", "skills", "senior-engineering-workflow", "SKILL.md")), true);
 });

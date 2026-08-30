@@ -2,8 +2,8 @@
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "tauri-v2-desktop",
   "displayName": "Tauri v2 Desktop",
-  "version": "1.2.0",
-  "description": "Secure, evidence-driven guidance for building, testing, upgrading, and distributing Tauri v2 desktop applications on Windows, macOS, and Linux.",
+  "version": "1.2.1",
+  "description": "Guidance for building, securing, testing, upgrading, and shipping Tauri v2 desktop applications on Windows, macOS, and Linux.",
   "author": {
     "name": "Otto",
     "url": "https://github.com/oovz/plugins"

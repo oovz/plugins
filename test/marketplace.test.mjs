@@ -94,7 +94,7 @@ test("Tauri v2 desktop is a skill-only all-host plugin", async () => {
   assert.deepEqual(plugin.manifest.components.commands, []);
   assert.equal(plugin.skills.length, 1);
   assert.equal(plugin.skills[0].id, "tauri-v2-desktop");
-  assert.equal(plugin.manifest.version, "1.2.0");
+  assert.equal(plugin.manifest.version, "1.2.1");
   for (const host of ["claude-code", "codex", "cursor", "gemini-cli", "antigravity", "oh-my-pi", "opencode", "portable"]) {
     assert.equal(plugin.manifest.hosts[host].enabled, true, `${host} should be enabled`);
   }
@@ -118,7 +118,7 @@ test("Chrome Extension Tester is a multi-skill plugin with Codex MCP host integr
   assert.deepEqual(plugin.manifest.components.commands, []);
   assert.equal(plugin.skills.length, 2);
   assert.deepEqual(plugin.skills.map((s) => s.id).sort(), ["chrome-extension-test", "wxt-extension-test"]);
-  assert.equal(plugin.manifest.version, "0.1.0");
+  assert.equal(plugin.manifest.version, "0.1.1");
   for (const host of ["claude-code", "codex", "cursor", "gemini-cli", "antigravity", "oh-my-pi", "opencode", "portable"]) {
     assert.equal(plugin.manifest.hosts[host].enabled, true, `${host} should be enabled`);
   }

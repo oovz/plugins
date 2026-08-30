@@ -1,23 +1,21 @@
-# Chrome DevTools MCP Extension Troubleshooting & Harness Setup
-
-This document provides setup, configuration, update, and debugging instructions for Chrome DevTools MCP across all supported agentic coding harnesses.
+# Chrome DevTools MCP extension troubleshooting and harness setup
 
 ---
 
-## 1. Required MCP Server Specification
+## 1. Required MCP server configuration
 
 Extension testing requires Chrome DevTools MCP configured with:
 1. `--categoryExtensions`: Enables extension-specific tools (`list_extensions`, `install_extension`, `reload_extension`, `trigger_extension_action`, `uninstall_extension`).
 2. `--allowUnrestrictedPaths`: Allows Chrome DevTools MCP to load extensions from local project directories when the roots capability is not negotiated.
 
-### Canonical Command
+### Canonical command
 ```bash
 npx -y chrome-devtools-mcp@latest --categoryExtensions --allowUnrestrictedPaths
 ```
 
 ---
 
-## 2. Check First, Then Configure
+## 2. Check first, then configure
 
 Before configuring anything, check whether a Chrome DevTools MCP server is already set up for your harness. It is commonly installed under the name `chrome-devtools` or `chrome-devtools-mcp`, with or without the flags above. Follow these rules:
 
@@ -58,14 +56,18 @@ If it is missing, add it:
 codex mcp add chrome-devtools -- npx -y chrome-devtools-mcp@latest --categoryExtensions --allowUnrestrictedPaths
 ```
 
-**Plugin-bundled server:** Installing the `chrome-extension-tester` Codex plugin bundles a plugin-scoped server from `.mcp.json` under the same name. If you already run your own Chrome DevTools MCP server, disable the bundled copy instead of running two instances:
+#### Plugin-bundled server
+
+Installing the `chrome-extension-tester` Codex plugin bundles a plugin-scoped server from `.mcp.json` under the same name. If you already run your own Chrome DevTools MCP server, disable the bundled copy instead of running two instances:
 
 ```toml
 [plugins."chrome-extension-tester@otto-plugins".mcp_servers.chrome-devtools]
 enabled = false
 ```
 
-**Windows 11:** inside the Codex sandbox, the `npx` command shim may fail to start the server, and the default 10s startup timeout is too short for the first `npx -y` download. Use the `cmd /c` form and raise the timeout (mirrors the upstream chrome-devtools-mcp guidance):
+#### Windows 11
+
+Inside the Codex sandbox, the `npx` command shim may fail to start the server, and the default 10-second startup timeout is too short for the first `npx -y` download. Use the `cmd /c` form and raise the timeout, as recommended by the upstream chrome-devtools-mcp guidance:
 
 ```toml
 [mcp_servers.chrome-devtools]
@@ -203,19 +205,19 @@ Restart the CLI session or use the interactive `/mcp` manager to reload server c
 
 ---
 
-## 3. Updating an Existing MCP Server
+## 3. Update an existing MCP server
 
 If `chrome-devtools` or `chrome-devtools-mcp` is already installed in your harness without `--categoryExtensions`:
 
-1. **Avoid Duplicate Instances:** Do not register a second server under a different name (such as `chrome-devtools-2`). Multiple instances contend for the same Chrome resources: the default profile can only be used by one browser at a time, and `--browserUrl` setups contend for the same debugging port, causing connection errors.
-2. **Update the Existing Server:**
+1. Keep one server instance. A second server under another name, such as `chrome-devtools-2`, competes for the default Chrome profile and any shared debugging port.
+2. Update the existing server:
    - Locate the existing entry in your harness configuration (use the check command or file for your harness in §2).
-   - Ensure the `args` list contains both `--categoryExtensions` and `--allowUnrestrictedPaths`.
+   - Add both `--categoryExtensions` and `--allowUnrestrictedPaths` to the `args` list.
    - Save the file and restart/reload the harness session.
 
 ---
 
-## 4. Common Diagnostics & Troubleshooting
+## 4. Common diagnostics
 
 ### Extension tools are missing
 If `install_extension`, `list_extensions`, `reload_extension`, and `trigger_extension_action` are absent:

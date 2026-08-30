@@ -1,13 +1,15 @@
 ---
 name: chrome-extension-test
-description: Test, reproduce, verify, or debug a Chrome extension in a real Chrome extension context using Chrome DevTools MCP. Use for side panels, action popups, extension pages, MV3 service workers, content scripts, browser-action flows, and extension integration bugs. Prefer the real browser-managed surface; do not substitute direct chrome-extension:// navigation when the browser-managed lifecycle is part of the test.
+description: Test or debug a Chrome extension in a browser-managed extension context through Chrome DevTools MCP. Use for side panels, popups, extension pages, MV3 service workers, content scripts, action flows, and integration bugs. Direct chrome-extension:// navigation is suitable only for explicitly labeled UI diagnostics.
 ---
 
 # Chrome Extension Test
 
 Use Chrome DevTools MCP as the browser control plane. It must be started with extension tools enabled via `--categoryExtensions` and `--allowUnrestrictedPaths`.
 
-Before using extension tools, verify the server: if `list_extensions`, `install_extension`, `reload_extension`, `trigger_extension_action`, or `uninstall_extension` are absent from the session, the Chrome DevTools MCP server is missing or lacks the required flags. Check whether a server is already configured for your harness (check commands and file locations in `references/troubleshooting.md`, section 2), add it only if none exists, and update an existing entry in place so both flags are present. Never register a second server under a different name: two Chrome DevTools MCP instances contend for the same Chrome profile and debugging port.
+Before using extension tools, verify the server. If `list_extensions`, `install_extension`, `reload_extension`, `trigger_extension_action`, or `uninstall_extension` are absent from the session, the Chrome DevTools MCP server is missing or lacks the required flags.
+
+Check whether your harness already has a server, using the commands and file locations in `references/troubleshooting.md`, section 2. Update that entry so both flags are present, or add one if none exists. Keep a single server instance because two instances contend for the same Chrome profile and debugging port.
 
 ## Non-negotiable test provenance
 
@@ -38,7 +40,7 @@ If build output is unclear, run the bundled helper:
 node scripts/find-extension-build.mjs .
 ```
 
-The helper orders candidates newest-first by modification time, so `recommended` is the most recently produced build — normally the one you just built. Then inspect the selected build:
+The helper orders candidates newest-first by modification time, so `recommended` is the most recently produced build. It is normally the one you just built. Then inspect the selected build:
 
 ```bash
 node scripts/inspect-extension.mjs /absolute/path/to/unpacked-extension

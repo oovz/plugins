@@ -4,7 +4,7 @@ Use this reference when auditing, selecting, or upgrading Tauri v2 dependencies.
 
 ## Inventory first
 
-Collect the versions actually resolved, not just loose manifest ranges:
+Collect the versions resolved in lockfiles; loose manifest ranges are insufficient:
 
 ```bash
 cargo tree -p tauri -p tauri-build
@@ -27,10 +27,10 @@ Use the newest compatible stable patch unless the repository has a tested pin. N
 
 When reviewing a project below these releases, call out the reason and verify whether newer advisories supersede them:
 
-- Tauri core `2.11.1` corrected command ACL enforcement for remote-origin requests and a Windows `.localhost` origin classification issue. Prefer the newest stable `2.11.x` or later compatible release, not merely the floor. See the [2.11.1 release](https://v2.tauri.app/release/tauri/v2.11.1/).
+- Tauri core `2.11.1` corrected command ACL enforcement for remote-origin requests and a Windows `.localhost` origin classification issue. Treat `2.11.1` as a minimum and prefer the newest compatible stable release. See the [2.11.1 release](https://v2.tauri.app/release/tauri/v2.11.1/).
 - Tauri CLI `2.10.1` fixed updater signing keys generated with empty passwords by CLI `2.9.3` through `2.10.0`. Projects affected by that window must rotate/recreate keys and verify their release process; upgrading the CLI alone does not repair an already exposed or unusable key. See the [2.10.1 release](https://v2.tauri.app/release/tauri-cli/v2.10.1/).
 
-These are historical review markers, not permanent claims that those versions remain current.
+Recheck the official release index because these review markers will age.
 
 ## Upgrade procedure
 

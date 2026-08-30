@@ -54,7 +54,7 @@ Browser mode with mocked `invoke()` is useful renderer-only coverage, not a nati
 
 ### 3. Architecture and artifact smoke tests
 
-Every marketed OS/architecture pair must eventually be installed and launched on its native architecture. A virtual machine using the same CPU instruction set is virtualized runtime evidence; CPU emulation is emulated evidence and never counts as native coverage. If only emulation is available, report its result and keep native-target coverage explicitly unverified unless the release policy knowingly accepts that residual risk. Test the packaged artifact, not only `tauri dev` or an unpackaged executable.
+Every marketed OS/architecture pair must eventually be installed and launched on its native architecture. A virtual machine using the same CPU instruction set is virtualized runtime evidence; CPU emulation is emulated evidence and never counts as native coverage. If only emulation is available, report its result and keep native-target coverage explicitly unverified unless the release policy knowingly accepts that residual risk. Test the packaged artifact. Checks against `tauri dev` or an unpackaged executable are supporting evidence.
 
 For each shipped artifact:
 
@@ -112,7 +112,7 @@ Use a full-desktop or appropriate system-UI capture for tray icons, native menus
 
 Prefer structural assertions for dimensions, overflow, visibility, focus, and semantics. Use image diffs for appearance with documented tolerances and narrowly justified masks. Review a changed baseline before accepting it.
 
-Screenshots prove visible appearance at a moment in time. They do not prove keyboard operation, hit targets, focus order, semantic roles, accessible names, screen-reader output, hover behavior, or successful interaction. Pair images with input-driven tests, accessibility-tree/platform accessibility inspection, DOM/layout assertions, and application logs.
+Screenshots capture visible appearance at a moment in time. Pair them with input-driven tests, accessibility inspection, DOM or layout assertions, and application logs to cover interaction and semantics.
 
 ## Completion evidence
 

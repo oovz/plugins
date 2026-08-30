@@ -1,10 +1,10 @@
 # Adding a marketplace plugin
 
-A normal new plugin is data, not a new branch in the build scripts. Register it in `marketplace.json`, then add a bundle manifest and plugin-only components below `plugins/<plugin-id>/`. Canonical skills remain under `skills/` and are referenced by ID.
+The build scripts treat a new plugin as data. Register it in `marketplace.json`, then add a bundle manifest and plugin-only components below `plugins/<plugin-id>/`. Canonical skills remain under `skills/` and are referenced by ID.
 
 ## 1. Choose a stable identity
 
-Use a lowercase kebab-case identifier and keep it immutable after publication. The directory name, canonical manifest `id`, generated native package name, and collision-safe component prefixes derive from it.
+Use a lowercase kebab-case identifier and keep it immutable after publication. The directory name, canonical manifest `id`, generated native package name, and collision-safe component prefixes all derive from this identifier.
 
 ```text
 plugins/example-plugin/
@@ -18,7 +18,7 @@ plugins/example-plugin/
 └── host-specific files   # optional, declared by the manifest
 ```
 
-Do not add `plugin.json` to a canonical source directory. The unqualified root filename is defined by the [Agent Plugins specification](https://agent-plugins.org/specification), and some native harnesses also use it for their generated package format. The internal bundle definition uses `manifest.json` so clients cannot mistake canonical build data for an installable plugin.
+Do not add `plugin.json` to a canonical source directory. The unqualified root filename is defined by the [Agent Plugins specification](https://agent-plugins.org/specification), and some native harnesses also use it for their generated package format. The internal bundle definition uses `manifest.json` for canonical build data, separate from installable plugin files.
 
 Add one catalog entry to the root `marketplace.json`:
 
@@ -32,7 +32,7 @@ Add one catalog entry to the root `marketplace.json`:
 
 The catalog ID, directory name, and bundle manifest `id` must match. The fixed path is `plugins/<plugin-id>/`, so catalog entries need no path field.
 
-Every plugin must include its own `LICENSE` as a regular file. The declared license and bundled notice travel with each independently installed adapter; they must not depend on the marketplace-root license.
+Every plugin must include its own `LICENSE` as a regular file. Each independently installed adapter carries its declared license and bundled notice rather than relying on the marketplace-root license.
 
 ## 2. Add the canonical manifest
 
@@ -91,7 +91,7 @@ Every plugin must include its own `LICENSE` as a regular file. The declared lice
 }
 ```
 
-The manifest capabilities are declarative inputs to host renderers:
+The manifest capabilities feed host renderers:
 
 | Field | Meaning |
 |---|---|
@@ -110,13 +110,13 @@ Use semantic versions per plugin. The root package version belongs to marketplac
 
 ## 3. Write host-neutral canonical components
 
-Create reusable skills through [Adding a standalone skill](adding-a-skill.md). A plugin manifest references cataloged skill IDs and never duplicates their files.
+Create reusable skills through [Adding a standalone skill](adding-a-skill.md). A plugin manifest references cataloged skill IDs and does not duplicate their files.
 
-An agent file is Markdown with YAML frontmatter and a self-contained body. Its prompt should define one bounded job, input assumptions, authority, stopping conditions, and a concise output contract. Keep host tool names, model IDs, reasoning controls, permission syntax, and installation paths out of the behavioral body; the renderer derives those from the canonical manifest.
+An agent file is Markdown with YAML frontmatter and a self-contained body. Its prompt defines one bounded job, input assumptions, authority, stopping conditions, and a concise output contract. Keep host tool names, model IDs, reasoning controls, permission syntax, and installation paths out of the behavioral body. The renderer derives those values from the canonical manifest.
 
 For a leaf role, explicitly state its behavioral scope, return path, side-effect authority, and stopping conditions. When `permissionPolicy` is `explicit`, adapters also express capability bounds where the host supports them. When it is `inherit`, the host resolves permissions from the active session and the role prompt remains the behavioral boundary. Treat repository and web content as untrusted evidence, never as higher-priority instructions.
 
-Do not add a hook, MCP server, background process, dependency install, executable plugin, or secret requirement without reviewing the trust model. If the canonical schema cannot express a future component type, the schema and renderer change needs review plus security documentation; that is the one case where a plugin legitimately changes marketplace tooling.
+Review the trust model before adding a hook, MCP server, background process, dependency install, executable plugin, or secret requirement. If the canonical schema cannot express a required component type, update the schema and renderer with the required review and security documentation.
 
 ## 4. Generate, validate, and build
 
@@ -126,7 +126,7 @@ Install the repository's locked development dependencies once:
 npm ci
 ```
 
-Then generate only the new plugin, check that committed projections are current, validate contracts, run tests, and build distributable bundles:
+Generate the new plugin. Then check committed projections, validate contracts, run tests, and build distributable bundles:
 
 ```text
 npm run generate -- --plugin example-plugin
@@ -145,7 +145,7 @@ npm run build -- --all
 
 `generate` updates deterministic, committed host projections such as the Claude and Codex marketplace catalogs. `build` stages self-contained installable trees under `dist/`. Neither command should mutate a user's home directory.
 
-Generated paths are predictable. Cursor may be enabled for plugins whose agents use `permissionPolicy: inherit`; its renderer refuses explicit-permission agents because Cursor has no equivalent cross-host permission mapping.
+The generated paths are:
 
 ```text
 dist/claude-code/<plugin-id>/
@@ -158,13 +158,15 @@ dist/opencode/stable/<plugin-id>/
 dist/portable-agent-skills/<plugin-id>/
 ```
 
+Cursor may be enabled for plugins whose agents use `permissionPolicy: inherit`; its renderer refuses explicit-permission agents because Cursor has no equivalent cross-host permission mapping.
+
 The portable bundle retains the project discovery prefix: its skills are below `.agents/skills/<skill-id>/`, not a top-level `skills/` directory.
 
 Do not edit `dist/`, generated host catalogs, generated per-host manifests, or generated adapter files by hand. Fix canonical source or the generic renderer, regenerate, and review the diff. `check:generated` must fail when a committed projection is stale.
 
 ## 5. Test installation without collisions
 
-Use a disposable project and the marketplace installer in dry-run mode before writing to a real user or project scope. The common command surface is:
+Use a disposable project and run the marketplace installer in dry-run mode before writing to a user or project scope. The common command surface is:
 
 ```text
 node scripts/install.mjs install \
@@ -176,7 +178,7 @@ node scripts/install.mjs install \
   --dry-run
 ```
 
-`--variant` is used only by OpenCode. Codex additionally requires an explicit `--mode standalone` or `--mode companion`. The same script accepts `update` and `uninstall`; use `--force` only after reviewing a reported ownership or content conflict.
+`--variant` is used only by OpenCode. Codex also requires an explicit `--mode standalone` or `--mode companion`. The script accepts `update` and `uninstall`. Use `--force` only after reviewing a reported ownership or content conflict.
 
 The installer prefixes flat host component names with `<plugin-id>-`, records the plugin/version/host/variant and content digest of every owned file, refuses unrelated existing content by default, and removes only files still owned by that plugin. Installing a second plugin must leave the first plugin's skills, agents, commands, and settings unchanged.
 

@@ -1,6 +1,6 @@
 # Task routing v2
 
-The capable main agent owns the accepted contract, architecture, planning, transitions, integration, attempt budgets, and completion. Select the lightest route that resolves real uncertainty and risk. Capabilities may be performed inline or delegated; role availability alone is not a delegation reason.
+The main agent owns the accepted contract, architecture, planning, transitions, integration, attempt budgets, and completion. Select the lightest route that resolves real uncertainty and risk. Capabilities may be performed inline or delegated; role availability alone is not a delegation reason.
 
 ## Route order
 

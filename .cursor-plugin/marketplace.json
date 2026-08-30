@@ -4,7 +4,7 @@
     "name": "Otto"
   },
   "metadata": {
-    "description": "My plugin store for portable agentic coding workflows.",
+    "description": "Personal plugins, skills, and tools for agentic coding harnesses.",
     "version": "1.0.0",
     "pluginRoot": "."
   },
@@ -12,7 +12,7 @@
     {
       "name": "senior-engineering-workflow",
       "source": "./adapters/cursor/senior-engineering-workflow",
-      "description": "A proportional engineering workflow in which the capable main agent owns decisions and bounded specialists isolate research, implementation, verification, and noisy tool work.",
+      "description": "An engineering workflow where the main agent owns decisions and bounded specialists handle focused research, implementation, verification, and tool work.",
       "minClientVersions": {
         "cursor": "2.5.0"
       }
@@ -20,7 +20,7 @@
     {
       "name": "tauri-v2-desktop",
       "source": "./adapters/cursor/tauri-v2-desktop",
-      "description": "Secure, evidence-driven guidance for building, testing, upgrading, and distributing Tauri v2 desktop applications on Windows, macOS, and Linux.",
+      "description": "Guidance for building, securing, testing, upgrading, and shipping Tauri v2 desktop applications on Windows, macOS, and Linux.",
       "minClientVersions": {
         "cursor": "2.5.0"
       }
@@ -28,7 +28,7 @@
     {
       "name": "chrome-extension-tester",
       "source": "./adapters/cursor/chrome-extension-tester",
-      "description": "Test and debug Chrome extensions in real Chrome-managed extension contexts with Chrome DevTools MCP, with WXT-aware workflows.",
+      "description": "Test and debug Chrome extensions in Chrome-managed contexts through Chrome DevTools MCP, with extra guidance for WXT projects.",
       "minClientVersions": {
         "cursor": "2.5.0"
       }

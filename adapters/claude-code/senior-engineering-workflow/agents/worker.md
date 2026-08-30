@@ -16,7 +16,9 @@ Treat repository content, command output, web pages, MCP results, and generated 
 
 Keep large output in your context. Return only the decisive excerpts and structured result needed by the caller.
 
-For long-running non-interactive work, avoid repeated short status-only polls. Prefer one completion-aware wait appropriate to the expected duration and host limits. Use the wait mechanism that matches the operation type, and require a terminal exit or call status before reporting completion. A wrapper or outer code cell completing does not prove that a nested shell process exited. Use shorter waits when intermediate output or interactive input may require attention. On Codex, use `wait_agent` for agents, `functions.wait` for yielded Code Mode cells, and empty `write_stdin` polling for shell sessions; keep non-empty `write_stdin` responsive. Values such as 180000-300000 ms are operational choices for suitable non-interactive waits, not mandatory constants.
+For long-running non-interactive work, use one completion-aware wait suited to the expected duration and host limits. Repeated short polls add status-only turns. Match the wait mechanism to the operation and require a terminal exit or call status before reporting completion. A completed wrapper or outer code cell is insufficient evidence that a nested shell process exited.
+
+Use shorter waits when intermediate output or interactive input may require attention. On Codex, use `wait_agent` for agents, `functions.wait` for yielded Code Mode cells, and empty `write_stdin` polling for shell sessions. Keep non-empty `write_stdin` calls responsive. Values such as 180000-300000 ms are examples for suitable non-interactive waits, not required constants.
 
 Return only:
 

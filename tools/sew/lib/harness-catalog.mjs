@@ -150,7 +150,7 @@ export function parseCliModelsOutput(stdout, format = "generic") {
 }
 
 function unavailableCapabilities(meta, reason = null) {
-  const modelWarning = reason ?? `${meta.displayName} does not expose a documented machine-readable model catalog; model IDs will not be validated.`;
+  const modelWarning = reason ?? `${meta.displayName} has no documented machine-readable model catalog. Model IDs remain unvalidated.`;
   return {
     ...meta,
     models: null,
@@ -171,13 +171,13 @@ export function fetchHarnessCapabilities(host, { project = process.cwd(), env = 
   let result = spawnHost(meta.executable, meta.queryArgs, { env, cwd: project, spawnSync });
   if (result?.error?.code === "ENOENT") {
     if (meta.optionalQuery) {
-      return unavailableCapabilities(meta, `Could not find the ${meta.executable} CLI on PATH; ${meta.displayName} model IDs will not be validated.`);
+      return unavailableCapabilities(meta, `Could not find the ${meta.executable} CLI on PATH. ${meta.displayName} model IDs remain unvalidated.`);
     }
     throw new CliError(`Could not find the ${meta.executable} CLI on PATH. Ensure ${meta.displayName} is installed and available to fetch supported models.`, 1);
   }
   if (result?.status !== 0 || !result?.stdout) {
     if (meta.optionalQuery) {
-      return unavailableCapabilities(meta, `Failed to fetch supported models from ${meta.displayName} (${meta.executable}); model IDs will not be validated.`);
+      return unavailableCapabilities(meta, `Could not read supported models from ${meta.displayName} (${meta.executable}). Model IDs remain unvalidated.`);
     }
     const detail = result?.stderr || result?.stdout || result?.error?.message || `exit code ${result?.status}`;
     throw new CliError(`Failed to fetch supported models from ${meta.displayName} (${meta.executable}): ${detail}`, 1);
@@ -186,7 +186,7 @@ export function fetchHarnessCapabilities(host, { project = process.cwd(), env = 
   const parsed = parseCliModelsOutput(String(result.stdout), meta.modelOutput);
   if (parsed.models.length === 0 && parsed.disabledModels.length === 0) {
     if (meta.optionalQuery) {
-      return unavailableCapabilities(meta, `No available models returned by the ${meta.displayName} harness (${meta.executable}); model IDs will not be validated.`);
+      return unavailableCapabilities(meta, `${meta.displayName} (${meta.executable}) returned no available models. Model IDs remain unvalidated.`);
     }
     throw new CliError(`No available models returned by the ${meta.displayName} harness (${meta.executable}).`, 1);
   }
@@ -201,7 +201,7 @@ export function fetchHarnessCapabilities(host, { project = process.cwd(), env = 
 }
 
 function warningForModelValidation(caps) {
-  return caps.warnings?.find((warning) => warning.includes("model IDs will not be validated"))
+  return caps.warnings?.find((warning) => warning.includes("Model IDs remain unvalidated"))
     ?? `${caps.displayName} model availability could not be validated.`;
 }
 
@@ -262,13 +262,13 @@ export function isReasoningSupported(host, reasoning, capabilities, model) {
   if (!caps.supportsThinking) {
     return {
       supported: false,
-      reason: `${caps.displayName} agent files do not expose a supported thinking-level field; omit thinking setting.`,
+      reason: `${caps.displayName} agent files have no supported thinking-level field. Omit the thinking setting.`,
     };
   }
   if (normalized === "inherit" || normalized === "default") {
     return {
       supported: false,
-      reason: `${caps.displayName} agent files do not support a "${normalized}" reasoning-effort keyword; omit the thinking setting or use --preset inherit.`,
+      reason: `${caps.displayName} agent files cannot use "${normalized}" as a reasoning-effort keyword. Omit the thinking setting or use --preset inherit.`,
     };
   }
 
@@ -278,7 +278,7 @@ export function isReasoningSupported(host, reasoning, capabilities, model) {
       supported: true,
       normalizedReasoning: normalized,
       validated: false,
-      warning: `${caps.displayName} does not expose a machine-readable reasoning-level list for ${model ?? "the selected model"}; "${reasoning}" was not validated.`,
+      warning: `${caps.displayName} has no machine-readable reasoning-level list for ${model ?? "the selected model"}. "${reasoning}" remains unvalidated.`,
     };
   }
   const levels = caps.reasoningLevelsByModel[modelKey];
@@ -289,4 +289,3 @@ export function isReasoningSupported(host, reasoning, capabilities, model) {
     reason: `Reasoning level "${reasoning}" is not supported by ${caps.displayName} model ${modelKey}. Supported levels: ${levels.join(", ")}`,
   };
 }
-

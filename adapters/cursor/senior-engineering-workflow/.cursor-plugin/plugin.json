@@ -1,8 +1,8 @@
 {
   "name": "senior-engineering-workflow",
   "displayName": "Senior Engineering Workflow",
-  "version": "0.12.1",
-  "description": "A proportional engineering workflow in which the capable main agent owns decisions and bounded specialists isolate research, implementation, verification, and noisy tool work.",
+  "version": "0.12.2",
+  "description": "An engineering workflow where the main agent owns decisions and bounded specialists handle focused research, implementation, verification, and tool work.",
   "author": {
     "name": "Otto"
   },

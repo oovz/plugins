@@ -1,6 +1,6 @@
 ---
 name: wxt-extension-test
-description: Build, test, reproduce, verify, or debug a WXT-based Chrome extension using Chrome DevTools MCP in the actual extension runtime. Use when package.json depends on wxt or the repository contains wxt.config.* / WXT entrypoints. Handles WXT output discovery, generated manifests, sidepanel entrypoints, extension reloads, content-script reinjection, and real Chrome side-panel/popup testing.
+description: Test or debug a WXT-based Chrome extension in its built Chrome runtime through Chrome DevTools MCP. Use when package.json depends on wxt or the repository contains wxt.config.* or WXT entrypoints. Covers output discovery, generated manifests, extension reloads, content-script reinjection, and browser-managed side-panel or popup flows.
 ---
 
 # WXT Chrome Extension Test
@@ -56,11 +56,11 @@ Locate these helper scripts in the `scripts/` directory relative to this `SKILL.
 
 Prefer package scripts such as `build`, `build:chrome`, or an equivalent existing command. If none exists, use the installed WXT CLI in the repository rather than a global install.
 
-For acceptance testing, a normal Chrome build is the simplest reliable artifact to load through Chrome DevTools MCP.
+For acceptance testing, load a normal Chrome build through Chrome DevTools MCP.
 
 Do not automatically rewrite `web-ext.config.ts` or WXT browser-startup settings. WXT may open its own browser during dev mode; the Chrome DevTools MCP instance used by this plugin is the authoritative browser for these tests.
 
-If the user explicitly wants WXT dev/HMR plus MCP testing, keep WXT's build/dev watcher and MCP's Chrome as separate responsibilities. Ensure the unpacked directory loaded by MCP is the directory WXT is updating.
+If the user explicitly wants WXT dev/HMR plus MCP testing, keep WXT's build/dev watcher and MCP's Chrome as separate responsibilities. Load the unpacked directory that WXT is updating.
 
 ## 4. Install and test the generated extension
 
@@ -102,7 +102,7 @@ Add these to the general extension smoke suite when applicable:
 
 - generated manifest contains the intended WXT entrypoints and permissions;
 - sidepanel entrypoint produces `side_panel.default_path` in the generated Chrome manifest;
-- WXT aliases/env-dependent code behaves in the built extension, not only in unit tests;
+- WXT aliases and environment-dependent code behave in the built extension, with unit tests as supporting coverage;
 - content script injects on the configured match patterns;
 - background entrypoint/service worker survives the tested message flow;
 - extension reload does not leave the tested page in an invalidated content-script state;

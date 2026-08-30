@@ -84,7 +84,7 @@ test("@oovz/sew installs and configures Cursor user and project agents", async (
     "--preset", "two-model", "--worker-model", "composer-1.5", "--worker-thinking", "high"
   ], env);
   assert.equal(invalidThinking.code, 2);
-  assert.match(invalidThinking.stderr, /Cursor agent files do not expose a supported thinking-level field/u);
+  assert.match(invalidThinking.stderr, /Cursor agent files have no supported thinking-level field/u);
 
   const unsupportedConfig = await capture([
     "models", "configure", "--host", "cursor", "--scope", "project", "--project", project,

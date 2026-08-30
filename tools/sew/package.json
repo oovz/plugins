@@ -1,7 +1,7 @@
 {
   "name": "@oovz/sew",
-  "version": "0.12.1",
-  "description": "Command-line installer for the Senior Engineering Workflow plugin.",
+  "version": "0.12.2",
+  "description": "Install and configure Senior Engineering Workflow across supported coding harnesses.",
   "type": "module",
   "bin": {
     "sew": "./bin/sew.mjs"

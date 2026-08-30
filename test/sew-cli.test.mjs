@@ -213,7 +213,7 @@ test("models configure requires an installed static host and refuses modified ag
   await writeFile(worker, `${await readFile(worker, "utf8")}user-edit = true\n`);
   const refused = await capture(["models", "configure", "--host", "codex", "--scope", "project", "--project", project, "--preset", "two-model", "--worker-model", "gpt-5.6-luna"], { env, spawnSync: codexRunner().spawnSync });
   assert.equal(refused.code, 1);
-  assert.match(refused.stderr, /modified outside/u);
+  assert.match(refused.stderr, /changed outside/u);
   const forced = await capture(["models", "configure", "--host", "codex", "--scope", "project", "--project", project, "--preset", "two-model", "--worker-model", "gpt-5.6-luna", "--force"], { env, spawnSync: codexRunner().spawnSync });
   assert.equal(forced.code, 0, forced.stderr);
   assert.match(await readFile(worker, "utf8"), /model = "gpt-5.6-luna"/u);

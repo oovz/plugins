@@ -14,9 +14,9 @@ Plugins, Agent Skills, and command-line tools for agentic coding harnesses.
 
 | Plugin | Version | What it does |
 |---|---:|---|
-| [Senior Engineering Workflow](plugins/senior-engineering-workflow/) | 0.12.1 | Keeps coding decisions in the capable main agent while bounded Researcher, Engineer, Verifier, and Worker roles isolate implementation and noisy evidence when useful. |
-| [Tauri v2 Desktop](plugins/tauri-v2-desktop/) | 1.2.0 | Secure, evidence-driven guidance for building, testing, upgrading, and distributing Tauri v2 desktop applications on Windows, macOS, and Linux. |
-| [Chrome Extension Tester](plugins/chrome-extension-tester/) | 0.1.0 | Test and debug Chrome extensions in real Chrome-managed extension contexts with Chrome DevTools MCP, with WXT-aware workflows. |
+| [Senior Engineering Workflow](plugins/senior-engineering-workflow/) | 0.12.2 | Keeps engineering decisions in the main agent while bounded specialists handle focused work. |
+| [Tauri v2 Desktop](plugins/tauri-v2-desktop/) | 1.2.1 | Guides Tauri v2 development, security, testing, upgrades, and distribution on Windows, macOS, and Linux. |
+| [Chrome Extension Tester](plugins/chrome-extension-tester/) | 0.1.1 | Tests and debugs Chrome extensions in browser-managed contexts through Chrome DevTools MCP, including WXT projects. |
 
 ## Available skills
 
@@ -24,8 +24,8 @@ Canonical skills are independently valid [Agent Skills](https://agentskills.io/s
 
 | Skill | Bundled by | What it does |
 |---|---|---|
-| [Senior Engineering Workflow](skills/senior-engineering-workflow/) | `senior-engineering-workflow` | Routes non-trivial engineering work with proportional evidence, implementation, and verification. |
-| [Tauri v2 Desktop](skills/tauri-v2-desktop/) | `tauri-v2-desktop` | Guides secure Tauri v2 architecture, upgrades, testing, and delivery. |
+| [Senior Engineering Workflow](skills/senior-engineering-workflow/) | `senior-engineering-workflow` | Routes engineering work through bounded research, implementation, and verification. |
+| [Tauri v2 Desktop](skills/tauri-v2-desktop/) | `tauri-v2-desktop` | Guides Tauri v2 architecture, upgrades, testing, and delivery. |
 | [Chrome Extension Test](skills/chrome-extension-test/) | `chrome-extension-tester` | Tests Chrome extensions in Chrome-managed extension contexts. |
 | [WXT Extension Test](skills/wxt-extension-test/) | `chrome-extension-tester` | Adds WXT-specific build discovery and debugging guidance. |
 
@@ -43,10 +43,11 @@ The validated coding-harness targets are:
 | Antigravity | Skill; bounded roles use inherited generic/dynamic subagents | Skill | Skills | Native Antigravity plugin payload |
 | Oh My Pi (`omp`) | Skill + four task agents | Skill | Skills | Native OMP marketplace |
 
-Tauri v2 Desktop and Chrome Extension Tester also ship a portable Agent Skills export. That format carries skills only (no harness, no subagents), which is why Senior Engineering Workflow does not target it.
+Tauri v2 Desktop and Chrome Extension Tester also ship a portable Agent Skills export. Senior Engineering Workflow requires subagent support, so it targets coding harnesses instead.
+
 ## Install
 
-`@oovz/sew` installs the host-native Senior Engineering Workflow components on every supported host. Tauri v2 Desktop and Chrome Extension Tester are skill-only and install through each host's native marketplace where one exists. Pick your harness below.
+`@oovz/sew` installs the host-native Senior Engineering Workflow components on every supported host. Tauri v2 Desktop and Chrome Extension Tester are skill-only and install through each host's native marketplace where available. Choose a harness below.
 
 <details>
 <summary>Claude Code</summary>
@@ -72,7 +73,7 @@ claude plugin install chrome-extension-tester@otto-plugins --scope user
 <details>
 <summary>Codex</summary>
 
-Using `@oovz/sew` (recommended):
+Using `@oovz/sew`:
 
 `@oovz/sew` checks the Codex plugin inventory and manages the four companion agents:
 
@@ -106,7 +107,7 @@ codex plugin add chrome-extension-tester@otto-plugins
 npx @oovz/sew install --host opencode --scope user
 ```
 
-This installs one Agent Skill and four `mode: subagent` Markdown agents. It is not an OpenCode JavaScript/TypeScript plugin, so it does not appear in the plugin list or the primary-agent switcher. The CLI verifies a fresh OpenCode process with `opencode agent list` when that command is available; restart any OpenCode session that was already running.
+This installs one Agent Skill and four `mode: subagent` Markdown agents. Inspect them with `opencode agent list`. The CLI verifies them in a fresh OpenCode process when that command is available; restart any OpenCode session that was already running.
 
 Add `--scope project --project /absolute/path/to/project` for a single project. Tauri v2 Desktop and Chrome Extension Tester have no CLI install; from a clone of this repository:
 
@@ -123,7 +124,9 @@ node scripts/install.mjs install --plugin chrome-extension-tester --host opencod
 npx @oovz/sew install --host cursor --scope user
 ```
 
-Add `--scope project --project /absolute/path/to/project` for one workspace. The command installs the Agent Skill and four custom subagents under the standard `.cursor/skills` and `.cursor/agents` paths, which are available to the local editor and Cursor CLI. The generated `.cursor-plugin` adapter is for Cursor Marketplace or team-marketplace installation in Cursor 2.5 and later. Use either the direct CLI installation or a native Cursor plugin installation, not both, to avoid duplicate role definitions. Cloud-agent delegation is not part of this validated target. Cursor roles keep the parent model by omitting `model` until `sew models configure` applies a live-listed model override.
+Add `--scope project --project /absolute/path/to/project` for one workspace. The command installs the Agent Skill and four custom subagents under `.cursor/skills` and `.cursor/agents` for the local editor and Cursor CLI.
+
+The generated `.cursor-plugin` adapter supports Cursor Marketplace and team-marketplace installation in Cursor 2.5 or later. Choose the direct CLI or native plugin installation; using both creates duplicate role definitions. Cloud-agent delegation is outside this validated target. Cursor roles inherit the parent model by omitting `model` until `sew models configure` applies a live-listed model override.
 </details>
 
 <details>
@@ -181,11 +184,11 @@ omp plugin install --scope user chrome-extension-tester@otto-plugins
 ```
 </details>
 
-`update` and `uninstall` mirror `install` for the same host and scope. `npx @oovz/sew doctor` checks all seven hosts, and `--dry-run` previews any operation.
+The `update` and `uninstall` commands use the same host and scope options as `install`. `npx @oovz/sew doctor` checks all seven hosts, and `--dry-run` previews an operation.
 
 ### Configure subagent models
 
-By default the four roles run on your main agent's model, with its thinking level, tools, and permissions. On Codex, OpenCode, Cursor, and Gemini CLI you can route some roles to another model; `models configure` edits the installed role agents in place, changing only supported model and thinking fields. It uses live harness values when available, rejects a listed model or Codex reasoning effort that is unavailable, and warns when the target harness cannot expose a machine-readable capability list:
+By default, the four roles use the main agent's model, thinking level, tools, and permissions. On Codex, OpenCode, Cursor, and Gemini CLI, you can route selected roles to another model. `models configure` edits installed role agents in place and changes only supported model and thinking fields. It uses live harness values when available. It rejects a listed model or Codex reasoning effort that is unavailable and warns when the target harness cannot expose a machine-readable capability list:
 
 ```text
 npx @oovz/sew models configure \
@@ -204,7 +207,7 @@ Version 0.10.0 and later use installation-state schema 2 and intentionally do no
 
 ## Build from source
 
-For contributors who want to develop or test plugins locally:
+To develop or test plugins locally:
 
 ```text
 npm ci

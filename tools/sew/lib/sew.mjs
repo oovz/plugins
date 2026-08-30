@@ -74,8 +74,8 @@ Hosts:
 Install/update/uninstall options:
   --scope <user|project>          Target scope (default: user)
   --project <path>               Project root (default: current directory)
-  --dry-run                      Show the operation without changing files or invoking a host CLI
-  --force                        Replace conflicts; for Codex, reinstall the marketplace skill and companion agents
+  --dry-run                      Preview the operation without changing files or invoking a host CLI
+  --force                        Replace reviewed conflicts (Codex: reinstall the skill and companion agents)
   --json                         Emit JSON
 
 Model options:
@@ -84,8 +84,8 @@ Model options:
   --balanced-model <id>          Model for the balanced slot
   --balanced-thinking <value>    Host-native effort/variant/thinking value
   --map <role=slot,...>          Slots: inherit, balanced, worker
-  --dry-run                      Show changes without writing
-  --force                        Edit installed agents even when modified outside the package
+  --dry-run                      Preview model changes without writing files
+  --force                        Replace reviewed external changes to installed agent files
   --json                         Emit JSON
 Doctor options:
   --host <all|comma-list>        Inspect all seven hosts by default
@@ -94,10 +94,10 @@ Doctor options:
 
 Notes:
   Canonical plugin agents inherit the host session's model, thinking level, tools, and permissions.
-  models configure validates live harness model catalogs when available; unsupported discovery is reported as a warning.
-  models configure --preset inherit restores the CI payload by removing the model/thinking fields.
-  model configuration is supported for Codex, OpenCode, Cursor, and Gemini CLI; native or inherited-only hosts are rejected.
-  doctor is read-only and never calls a model API.
+  models configure checks live harness model catalogs when available and warns when discovery is unavailable.
+  models configure --preset inherit removes model/thinking fields and restores the CI payload.
+  Configure models for Codex, OpenCode, Cursor, and Gemini CLI. Other hosts use native inheritance.
+  doctor inspects local configuration without calling a model API.
 `;
 }
 
@@ -134,7 +134,7 @@ function parseArgs(argv) {
     }
     const value = equal >= 0 ? raw.slice(equal + 1) : args.shift();
     if (value === undefined || value.startsWith("--")) throw new CliError(`Option --${key} requires a value.`);
-    if (!value.trim()) throw new CliError(`Option --${key} must not be empty.`);
+    if (!value.trim()) throw new CliError(`Option --${key} requires a non-empty value.`);
     options[key] = value;
   }
   return { command, options };
@@ -260,7 +260,7 @@ async function payloadManifest() {
     value = JSON.parse(await readFile(path.join(PAYLOAD_ROOT, "manifest.json"), "utf8"));
   } catch (error) {
     if (error?.code === "ENOENT") {
-      throw new CliError("This source checkout does not contain release payloads. Use the published @oovz/sew package, or run npm run bundle:sew and execute release-build/sew/package/bin/sew.mjs.", 1);
+      throw new CliError("This source checkout has no release payloads. Use the published @oovz/sew package. For local testing, run npm run bundle:sew, then execute release-build/sew/package/bin/sew.mjs.", 1);
     }
     throw error;
   }
@@ -318,7 +318,7 @@ function validateInstallState(value, expected) {
   const unknownKey = Object.keys(value).find((key) => !allowedKeys.has(key));
   if (unknownKey) throw new CliError(`The installation state contains an unknown field: ${unknownKey}.`, 1);
   if (value.package !== PACKAGE_NAME || value.plugin !== PLUGIN_ID) throw new CliError("The Senior Engineering Workflow installation state is invalid.", 1);
-  if (value.schemaVersion !== INSTALL_STATE_SCHEMA) throw new CliError(`Unsupported Senior Engineering Workflow installation-state schema ${value.schemaVersion ?? "missing"}; manually delete the 0.9.x payload and state file as documented in the @oovz/sew README, then install again.`, 1);
+  if (value.schemaVersion !== INSTALL_STATE_SCHEMA) throw new CliError(`Senior Engineering Workflow installation-state schema ${value.schemaVersion ?? "missing"} is unsupported. Delete the 0.9.x payload and state file as documented in the @oovz/sew README, then install again.`, 1);
   if (value.host !== expected.host || value.scope !== expected.scope) throw new CliError("The Senior Engineering Workflow installation state belongs to another host or scope.", 1);
   if (typeof value.packageVersion !== "string" || !value.packageVersion || typeof value.pluginVersion !== "string" || !value.pluginVersion) throw new CliError("The installation state has invalid version metadata.", 1);
   if (!value.roots || typeof value.roots !== "object" || Array.isArray(value.roots)) throw new CliError("The installation state has invalid roots.", 1);
@@ -364,8 +364,8 @@ async function planStaticOperation(operation, host, scope, project, options, env
   const expectedRoots = Object.fromEntries(Object.entries(staticInstallRoots(host, scope, project, env)).map(([key, value]) => [key, path.resolve(value)]));
   const currentState = await readInstallState(statePath, { host, scope, roots: expectedRoots });
   const plan = operation === "uninstall" ? { roots: currentState?.roots ?? expectedRoots, files: [] } : await staticPlan(host, scope, project, env);
-  if (operation === "install" && currentState && !options.force) throw new CliError(`Senior Engineering Workflow is already installed for ${host}/${scope}; use sew update or reinstall with --force.`, 1);
-  if (operation !== "install" && !currentState) throw new CliError(`No managed Senior Engineering Workflow installation exists for ${host}/${scope}.`, 1);
+  if (operation === "install" && currentState && !options.force) throw new CliError(`Senior Engineering Workflow is already installed for ${host}/${scope}. Run sew update, or use --force to reinstall.`, 1);
+  if (operation !== "install" && !currentState) throw new CliError(`No managed Senior Engineering Workflow installation was found for ${host}/${scope}.`, 1);
 
   let modelWarnings = [];
   if (operation !== "uninstall" && currentState?.models && Object.keys(currentState.models).length > 0) {
@@ -381,7 +381,7 @@ async function planStaticOperation(operation, host, scope, project, options, env
       await assertSafePath(root, destination);
       owned.set(path.resolve(destination), { ...entry, destination, rootPath: root });
       const actual = await hashFile(destination);
-      if (actual !== null && actual !== entry.sha256 && !options.force) throw new CliError(`Managed file was modified; refusing to overwrite or remove: ${destination}`, 1);
+      if (actual !== null && actual !== entry.sha256 && !options.force) throw new CliError(`Managed file changed outside ${PACKAGE_NAME}: ${destination}. Review it, then rerun with --force to replace or remove it.`, 1);
     }
   }
 
@@ -390,7 +390,7 @@ async function planStaticOperation(operation, host, scope, project, options, env
     for (const file of plan.files) {
       const key = path.resolve(file.destination);
       const currentHash = await hashFile(file.destination);
-      if (currentHash !== null && !owned.has(key) && !options.force) throw new CliError(`Destination exists and is not managed by ${PACKAGE_NAME}: ${file.destination}`, 1);
+      if (currentHash !== null && !owned.has(key) && !options.force) throw new CliError(`Destination is occupied by a file ${PACKAGE_NAME} does not manage: ${file.destination}. Review it, then rerun with --force to replace it.`, 1);
       writes.push(file);
     }
     const models = currentState?.models;
@@ -426,7 +426,7 @@ async function planStaticOperation(operation, host, scope, project, options, env
 function nativeCommands(operation, host, scope, project, force = false) {
   const plugin = `${PLUGIN_ID}@${MARKETPLACE_ID}`;
   if (host === "claude-code") {
-    if (force) throw new CliError("--force is not supported for Claude Code native plugin operations.");
+    if (force) throw new CliError("Claude Code native plugin operations do not accept --force.");
     if (operation === "install") return [
       { argv: ["claude", "plugin", "marketplace", "add", MARKETPLACE_SOURCE, "--scope", scope], tolerateAlreadyExists: true, cwd: project },
       { argv: ["claude", "plugin", "install", plugin, "--scope", scope], cwd: project },
@@ -546,12 +546,12 @@ function inspectOpenCodeDiscovery(project, env = process.env, runner = defaultSp
   const base = {
     command: "opencode agent list",
     expected,
-    message: "OpenCode installs one Agent Skill and four Markdown subagents; it does not register a JavaScript/TypeScript plugin.",
+    message: "OpenCode installs one Agent Skill and four Markdown subagents. Inspect them with opencode agent list.",
   };
   const result = spawnHost("opencode", ["agent", "list"], { cwd: project, env, stdio: "pipe", spawnSync: runner });
   if (result.error) {
     const detail = result.error.code === "ENOENT"
-      ? "OpenCode CLI was not found on PATH; restart OpenCode and run opencode agent list to verify discovery."
+      ? "OpenCode CLI was not found on PATH. Restart OpenCode and run opencode agent list to verify discovery."
       : result.error.message;
     return { ...base, status: "not-checked", found: [], missing: expected, detail };
   }
@@ -562,9 +562,9 @@ function inspectOpenCodeDiscovery(project, env = process.env, runner = defaultSp
   const found = parseOpenCodeAgentList(result.stdout);
   const missing = expected.filter((name) => !found.includes(name));
   if (missing.length > 0) {
-    return { ...base, status: "not-discovered", found, missing, detail: `OpenCode did not discover: ${missing.join(", ")}. Check the reported installation paths and OpenCode version.` };
+    return { ...base, status: "not-discovered", found, missing, detail: `OpenCode did not discover these agents: ${missing.join(", ")}. Check the reported installation paths and OpenCode version.` };
   }
-  return { ...base, status: "verified", found, missing: [], detail: "Restart any already-running OpenCode session so it loads the newly installed agents and skill." };
+  return { ...base, status: "verified", found, missing: [], detail: "Restart OpenCode sessions that were running during installation so they load the new agents and skill." };
 }
 
 function printOperation(result, json) {
@@ -596,7 +596,7 @@ async function runCodexOperation(operation, options, runtime, scope, project) {
     plugin = {
       status: "preserved",
       managedBy: "codex",
-      detail: "The Codex marketplace skill is not owned or removed by @oovz/sew.",
+      detail: "The Codex marketplace keeps ownership of the skill. @oovz/sew manages only the companion agents.",
     };
   } else if (options["dry-run"]) {
     if (options.force) {
@@ -660,7 +660,7 @@ async function runInstallOperation(operation, options, runtime = {}) {
   if (!options["dry-run"]) await commitManagedOperation(operation, plan);
   const discovery = host === "opencode" && operation !== "uninstall"
     ? options["dry-run"]
-      ? { status: "would-verify", expected: ROLES.map((role) => `${PLUGIN_ID}-${role}`), command: "opencode agent list", message: "OpenCode installs one Agent Skill and four Markdown subagents; it does not register a JavaScript/TypeScript plugin." }
+      ? { status: "would-verify", expected: ROLES.map((role) => `${PLUGIN_ID}-${role}`), command: "opencode agent list", message: "OpenCode installs one Agent Skill and four Markdown subagents. Inspect them with opencode agent list." }
       : inspectOpenCodeDiscovery(project, runtime.env ?? process.env, runtime.spawnSync ?? defaultSpawnSync)
     : undefined;
   const completedStatus = { install: "installed", update: "updated", uninstall: "uninstalled" }[operation];
@@ -688,14 +688,14 @@ async function configureModels(options, runtime = {}, capabilities = null) {
   const project = projectRoot(options);
   const env = runtime.env ?? process.env;
   if (options.project !== undefined && scope !== "project") throw new CliError("--project is valid only with --scope project.");
-  if (!MODEL_EDIT_HOSTS.has(host)) throw new CliError(`Model configuration is not supported for ${host}; canonical roles already use the host's inheritance behavior.`);
+  if (!MODEL_EDIT_HOSTS.has(host)) throw new CliError(`${host} roles use native model inheritance, so sew cannot configure them.`);
 
   const mapping = parseRoleMap(options.map, PRESETS[preset]);
   const statePath = stateFile(host, scope, project, env);
   await assertSafePath(path.dirname(statePath), statePath);
   const expectedRoots = Object.fromEntries(Object.entries(staticInstallRoots(host, scope, project, env)).map(([key, value]) => [key, path.resolve(value)]));
   const state = await readInstallState(statePath, { host, scope, roots: expectedRoots });
-  if (!state) throw new CliError(`No managed ${host}/${scope} installation exists. Run sew install --host ${host} --scope ${scope} first, then configure models.`, 1);
+  if (!state) throw new CliError(`No managed ${host}/${scope} installation was found. Run sew install --host ${host} --scope ${scope}, then configure models.`, 1);
 
   const resolvedCaps = capabilities || (preset === "inherit" ? null : fetchHarnessCapabilities(host, { project, env, spawnSync: runtime.spawnSync }));
   const validationWarnings = validateModelConfiguration(host, preset, mapping, options, resolvedCaps ?? HARNESS_METADATA[host]);
@@ -712,7 +712,7 @@ async function configureModels(options, runtime = {}, capabilities = null) {
     const current = await readFile(destination, "utf8");
     const currentHash = await hashFile(destination);
     const managed = currentHash === entry.sha256;
-    if (!managed && !options.force) throw new CliError(`Refusing to edit ${destination} because it was modified outside ${PACKAGE_NAME}. Use --force only after reviewing it.`, 1);
+    if (!managed && !options.force) throw new CliError(`Installed agent changed outside ${PACKAGE_NAME}: ${destination}. Review it, then rerun with --force to replace it.`, 1);
     const slot = mapping[role];
     const config = slot === "inherit" ? {} : slotConfiguration(slot, options);
     const next = applyModelOverlay(host, current, config);
@@ -850,7 +850,7 @@ function duplicateFindings(definitions) {
     if (!byName.has(key)) byName.set(key, []);
     byName.get(key).push(definition);
   }
-  return [...byName.entries()].filter(([, items]) => items.length > 1).map(([name, items]) => finding("warning", "duplicate-agent", `Multiple model definitions were found for agent ${name}; host precedence determines the effective one.`, items));
+  return [...byName.entries()].filter(([, items]) => items.length > 1).map(([name, items]) => finding("warning", "duplicate-agent", `Agent ${name} has multiple model definitions. Host precedence selects the active one.`, items));
 }
 
 async function inspectStaticState(host, project, env) {
@@ -894,7 +894,7 @@ async function inspectNativeState(host, project, env) {
       } catch (error) { if (error?.code !== "ENOENT") findings.push(finding("warning", "installation-state", `Could not parse ${candidate.path}: ${error.message}`)); }
     }
   } else {
-    findings.push(finding("information", "native-install", "Claude Code plugin installation is managed by the host; doctor inspects model configuration and environment overrides but does not parse the host's private plugin cache."));
+    findings.push(finding("information", "native-install", "Claude Code manages plugin installation. Doctor inspects model configuration and environment overrides. The host's private plugin cache is outside its scope."));
   }
   return { installations, findings };
 }
@@ -940,10 +940,10 @@ async function inspectHost(host, project, env) {
   else installation = await inspectNativeState(host, project, env);
   findings.push(...installation.findings);
   if (host === "opencode") {
-    findings.push(finding("information", "opencode-install-shape", "Senior Engineering Workflow is installed as one Agent Skill and four Markdown subagents, not as an OpenCode JavaScript/TypeScript plugin. Restart OpenCode after installation and verify with opencode agent list."));
+    findings.push(finding("information", "opencode-install-shape", "Senior Engineering Workflow installs one Agent Skill and four Markdown subagents. Restart OpenCode after installation and verify them with opencode agent list."));
   }
   if (host === "antigravity") {
-    findings.push(finding("information", "antigravity-model-aliases", "Antigravity has no editable agents; model routing is inherit-only and the workflow uses inherited generic or dynamically defined subagents."));
+    findings.push(finding("information", "antigravity-model-aliases", "Antigravity uses native model inheritance and inherited generic or dynamically defined subagents."));
   } else if (definitions.length === 0) {
     findings.push(finding("information", "no-model-aliases", "No explicit Senior Engineering Workflow model configuration was found."));
   }

@@ -1,6 +1,6 @@
 # Verification and remediation v2
 
-Verification is an evidence capability, not an automatic role ceremony. The main agent selects direct validation or an independent Verifier according to accepted risk and user request.
+The main agent selects direct validation or an independent Verifier according to accepted risk and user request.
 
 ## Candidate readiness
 
@@ -26,10 +26,10 @@ Verifier does not edit production or test files. Missing or defective tests beco
 
 Every observed failure is one of:
 
-- **production defect** — candidate violates accepted behavior or invariant;
-- **test defect** — test or fixture does not correctly represent the accepted contract;
-- **environment issue** — failure is caused by unavailable or untrustworthy environment state;
-- **contract or architecture ambiguity** — accepted behavior is insufficient to decide correctness.
+- Production defect: the candidate violates accepted behavior or an invariant.
+- Test defect: the test or fixture misrepresents the accepted contract.
+- Environment issue: unavailable or untrustworthy environment state causes the failure.
+- Contract or architecture ambiguity: accepted behavior is insufficient to decide correctness.
 
 ## Repair gate
 

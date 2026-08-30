@@ -2,7 +2,7 @@
 
 Install, update, diagnose, and optionally configure models for [Senior Engineering Workflow](https://github.com/oovz/plugins/tree/main/plugins/senior-engineering-workflow).
 
-The canonical plugin adds no host-level thinking, tool, permission, sandbox, hook, or turn-limit overrides. It requests or relies on normal parent-model inheritance according to each host. Model configuration created by this package changes only model and host-native thinking fields.
+Canonical plugin roles use each host's normal parent-model inheritance. They add no host-level thinking, tool, permission, sandbox, hook, or turn-limit overrides. Model configuration from this package changes only model and host-native thinking fields.
 
 ## Requirements
 
@@ -37,7 +37,7 @@ Use project scope with an explicit project root:
 npx @oovz/sew install --host opencode --scope project --project /absolute/path/to/project
 ```
 
-`--dry-run` previews an operation. `--force` is accepted only where the selected host operation supports a safe forced replacement.
+`--dry-run` previews an operation. Supported host operations accept `--force` for reviewed replacements.
 
 Installation methods:
 
@@ -51,15 +51,15 @@ Installation methods:
 | Gemini CLI | CI-built user/project skill and custom-agent payload bundled in the published npm tarball |
 | Antigravity | CI-built plugin payload bundled in the published npm tarball; user scope targets Antigravity CLI and project scope targets `.agents/plugins` |
 
-The package records ownership only for static installations from its CI-built release payloads. It refuses unmanaged destination files and refuses to overwrite or remove modified managed files unless `--force` is explicitly supplied. Installation-state roots are validated against the selected host and scope before any managed file is read, changed, or removed.
+The package records ownership for static installations from its CI-built release payloads. Unmanaged destination files and modified managed files cause the operation to stop. Use `--force` after reviewing the conflict. Before reading or changing a managed file, the CLI validates its installation-state root against the selected host and scope.
 
-OpenCode receives one Agent Skill and four Markdown subagents. This is not an OpenCode JavaScript/TypeScript plugin, so it does not appear in the plugin list or the primary-agent switcher. The roles are `mode: subagent` and appear in `opencode agent list`.
+OpenCode receives one Agent Skill and four `mode: subagent` Markdown agents. Inspect them with `opencode agent list`.
 
 After `install` or `update`, `@oovz/sew` runs `opencode agent list` when the OpenCode CLI is available on `PATH`. It reports `verified` only when all four roles are discovered. A fresh OpenCode process that cannot discover the files produces a nonzero result with the missing role names. When the CLI is unavailable, file installation succeeds with a `not-checked` discovery result and an explicit verification command. Restart any OpenCode session that was already running before installation.
 
 ### Cursor installation
 
-`sew install --host cursor` copies the skill and four custom subagents directly to `~/.cursor/skills` and `~/.cursor/agents`, or to `<project>/.cursor/` for project scope. This direct layout is available to the local Cursor editor and Cursor CLI. CI also generates a native `.cursor-plugin` adapter and root marketplace catalog for Cursor 2.5 and later. Use either the direct CLI installation or a native plugin installation, not both, to avoid duplicate role definitions.
+`sew install --host cursor` copies the skill and four custom subagents directly to `~/.cursor/skills` and `~/.cursor/agents`, or to `<project>/.cursor/` for project scope. This direct layout is available to the local Cursor editor and Cursor CLI. CI also generates a native `.cursor-plugin` adapter and root marketplace catalog for Cursor 2.5 and later. Choose the direct CLI or native plugin installation; using both creates duplicate role definitions.
 
 Canonical Cursor agents omit `model`, `readonly`, and `tools`. The adapter therefore does not pin a model or add plugin-level restrictions. Subagent model routing can be configured with `sew models configure --host cursor`, which validates model IDs against `agent models`. Cloud-agent delegation is outside this target.
 
@@ -72,7 +72,7 @@ For Codex, the marketplace owns the skill and `@oovz/sew` owns only the four com
 - `--force` skips the inventory check, reinstalls the marketplace plugin, and replaces conflicting companion-agent files; and
 - `uninstall` removes only the companion agents and leaves the marketplace plugin intact.
 
-Host CLIs must be available on `PATH`. The package uses `cross-spawn` for `PATHEXT`, npm command shims, shebangs, paths with spaces, and Windows argument quoting. It does not search private desktop-application bundle directories. Missing executables and missing or invalid working directories fail explicitly.
+Host CLIs must be available on `PATH`; private desktop-application bundles are outside the search path. The package uses `cross-spawn` for `PATHEXT`, npm command shims, shebangs, paths with spaces, and Windows argument quoting. Missing executables or working directories produce an explicit error.
 
 The complete Codex projection remains in the CI-built payload for release verification, but the static installer copies and claims ownership only for `companion/agents/*`. `--dry-run` does not invoke Codex; it reports the inventory check and conditional plugin-install commands it would perform.
 
@@ -80,7 +80,7 @@ The complete Codex projection remains in the CI-built payload for release verifi
 
 `install` and `update` deploy the CI-built role agents unchanged; every role inherits the parent session's model, thinking level, tools, and permissions.
 
-`models configure` customizes subagent model routing using CLI flags. It queries live host capabilities when the target harness documents a machine-readable source and never maintains its own model-ID catalog.
+`models configure` customizes subagent model routing using CLI flags. It reads live host capabilities when the target harness documents a machine-readable source.
 
 - Codex uses `codex debug models` and validates both the model ID and the selected model's supported reasoning efforts.
 - OpenCode uses `opencode models` and validates the exact `provider/model` ID. OpenCode variants are model-specific but do not have a documented machine-readable list, so a supplied variant is applied with a warning.
@@ -141,11 +141,11 @@ Restore canonical inheritance by removing the model/thinking fields:
 npx @oovz/sew models configure --host codex --scope user --preset inherit
 ```
 
-On editable hosts the edited files remain byte-identical to the CI payload apart from the model block, so `doctor` reports them as current and `update` re-applies the stored configuration after revalidating any available live catalog. A listed model or Codex reasoning effort that is no longer available blocks the update; unverifiable values produce a warning. The CLI authorizes edits only when the current file hash matches its recorded state; a generated marker is not treated as ownership. The role edits and the state update are committed as one rollback-capable transaction.
+On editable hosts, the model block is the only difference from the CI payload. `doctor` therefore reports the files as current, and `update` reapplies the stored configuration after checking any available live catalog. A listed model or Codex reasoning effort that has disappeared blocks the update; unverifiable values produce a warning. The CLI authorizes edits only when the current file hash matches its recorded state. A generated marker conveys no ownership. Role edits and the state update commit as one rollback-capable transaction.
 
 ## Migrate a 0.9.x static installation to 0.10.0 or later
 
-Version 0.10 introduced installation-state schema 2 and deliberately does not read or migrate schema-1 state. Manually delete the files owned by the old static installation, delete its state file, and reinstall. Claude Code and Oh My Pi marketplace installations are host-owned and do not use this cleanup.
+Version 0.10 introduced installation-state schema 2. Upgrading a schema-1 static installation requires manual removal of its managed files and state file before reinstalling. Claude Code and Oh My Pi marketplace installations are host-owned and use their native update path.
 
 First close the affected coding harness. Back up any role or skill file that you edited manually. Delete only the paths for the host and scope you previously installed:
 
@@ -204,11 +204,11 @@ npx @oovz/sew doctor --host claude-code,codex --project /absolute/path/to/projec
 npx @oovz/sew doctor --json
 ```
 
-It reports managed-install drift, explicit role model/thinking settings, duplicate definitions, known host-wide model overrides, malformed generated files, and standard user/project configuration locations. It does not invoke a model, run repository commands, or modify a file.
+Doctor reports managed-install drift, explicit role model/thinking settings, duplicate definitions, known host-wide model overrides, malformed generated files, and standard user/project configuration locations. Its checks stay local: they invoke no model or repository command and change no files.
 
 ## Development and release
 
-`tools/sew/` is a private source workspace. It contains no host payloads or duplicated role templates. Do not publish it directly.
+`tools/sew/` is a private source workspace. Host payloads are added during release staging, so publish only the staged package produced by `bundle:sew`.
 
 Local validation:
 
@@ -221,7 +221,7 @@ npm run pack:sew
 
 `bundle:sew` builds current Senior Engineering Workflow host projections under `dist/` and stages the publishable package under `release-build/sew/package/`. `pack:sew` creates the npm tarball and checksum under `release-build/sew/artifacts/`.
 
-Release staging is outside `dist/`, so `npm run build -- --all` can replace the complete host-output tree without deleting the staged package or release artifacts. After changing canonical plugin or adapter source, run `bundle:sew` again before invoking `node release-build/sew/package/bin/sew.mjs` so the staged package is current.
+Release staging lives outside `dist/`, so `npm run build -- --all` can replace the host-output tree while leaving staged artifacts intact. After changing canonical plugin or adapter source, run `bundle:sew` again before invoking `node release-build/sew/package/bin/sew.mjs`.
 
 Production publication is performed by `.github/workflows/release-sew.yml` from a `sew-v<version>` tag. The workflow:
 

@@ -1,8 +1,12 @@
 # Tauri v2 Desktop
 
-Version 1.2.0 is a host-neutral Agent Skill for building, reviewing, securing, testing, upgrading, and distributing Tauri v2 desktop applications on Windows, macOS, and Linux.
+Version 1.2.1 is a host-neutral Agent Skill for Tauri v2 desktop development on Windows, macOS, and Linux.
 
 ## Release notes
+
+### 1.2.1
+
+- Rewrites skill and reference guidance for clearer, more direct instructions while preserving the supported desktop scope and security boundaries.
 
 ### 1.2.0
 
@@ -38,7 +42,7 @@ Per-harness steps are in the [root README](../../README.md#install).
 
 ## Scope
 
-The skill covers desktop targets only: Windows, macOS, and Linux. No Android or iOS guidance. It does not install dependencies, run a background process, or require a subagent; any supported host can use it directly.
+The skill covers Windows, macOS, and Linux. It runs directly on every supported host and requires no dependency installation, background process, or subagent.
 
 ## Layout
 
