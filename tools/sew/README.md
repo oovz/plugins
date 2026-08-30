@@ -23,6 +23,8 @@ npm install --global @oovz/sew
 sew --help
 ```
 
+Human-readable output uses terminal colors when supported. Set `NO_COLOR=1` to disable them or `FORCE_COLOR=1` to enable them for redirected output. JSON output remains ANSI-free.
+
 ## Install, update, and uninstall
 
 ```bash
@@ -72,7 +74,7 @@ For Codex, the marketplace owns the skill and `@oovz/sew` owns only the four com
 - `--force` skips the inventory check, reinstalls the marketplace plugin, and replaces conflicting companion-agent files; and
 - `uninstall` removes only the companion agents and leaves the marketplace plugin intact.
 
-Host CLIs must be available on `PATH`; private desktop-application bundles are outside the search path. The package uses `cross-spawn` for `PATHEXT`, npm command shims, shebangs, paths with spaces, and Windows argument quoting. Missing executables or working directories produce an explicit error.
+Host CLIs are resolved from `PATH`. For Codex, the CLI also detects the binary bundled with the current ChatGPT desktop application in `/Applications/ChatGPT.app` or `~/Applications/ChatGPT.app` on macOS and the newest staged build under `%LOCALAPPDATA%\OpenAI\Codex\bin` on Windows. The package uses `cross-spawn` for `PATHEXT`, npm command shims, shebangs, paths with spaces, and Windows argument quoting. Missing executables or working directories produce an explicit error.
 
 The complete Codex projection remains in the CI-built payload for release verification, but the static installer copies and claims ownership only for `companion/agents/*`. `--dry-run` does not invoke Codex; it reports the inventory check and conditional plugin-install commands it would perform.
 

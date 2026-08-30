@@ -1,5 +1,5 @@
 import { CliError } from "./errors.mjs";
-import { defaultSpawnSync, spawnHost } from "./process.mjs";
+import { defaultSpawnSync, spawnCodex, spawnHost } from "./process.mjs";
 
 export const HARNESS_METADATA = Object.freeze({
   "claude-code": Object.freeze({
@@ -163,17 +163,21 @@ function unavailableCapabilities(meta, reason = null) {
   };
 }
 
-export function fetchHarnessCapabilities(host, { project = process.cwd(), env = process.env, spawnSync = defaultSpawnSync } = {}) {
+export function fetchHarnessCapabilities(host, { project = process.cwd(), env = process.env, platform = process.platform, spawnSync = defaultSpawnSync } = {}) {
   const meta = HARNESS_METADATA[host];
   if (!meta) throw new CliError(`Unsupported host for capability discovery: ${host}`);
   if (!meta.queryArgs) return unavailableCapabilities(meta);
 
-  let result = spawnHost(meta.executable, meta.queryArgs, { env, cwd: project, spawnSync });
+  const spawnOptions = { env, platform, cwd: project, spawnSync };
+  const result = host === "codex"
+    ? spawnCodex(meta.queryArgs, spawnOptions)
+    : spawnHost(meta.executable, meta.queryArgs, spawnOptions);
   if (result?.error?.code === "ENOENT") {
     if (meta.optionalQuery) {
       return unavailableCapabilities(meta, `Could not find the ${meta.executable} CLI on PATH. ${meta.displayName} model IDs remain unvalidated.`);
     }
-    throw new CliError(`Could not find the ${meta.executable} CLI on PATH. Ensure ${meta.displayName} is installed and available to fetch supported models.`, 1);
+    const location = host === "codex" ? "on PATH or in the ChatGPT desktop application" : "on PATH";
+    throw new CliError(`Could not find the ${meta.executable} CLI ${location}. Ensure ${meta.displayName} is installed and available to fetch supported models.`, 1);
   }
   if (result?.status !== 0 || !result?.stdout) {
     if (meta.optionalQuery) {

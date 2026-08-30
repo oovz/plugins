@@ -24,7 +24,8 @@ import {
   validateScalar,
   validateStoredModels,
 } from "./model-config.mjs";
-import { defaultSpawnSync, spawnHost } from "./process.mjs";
+import { defaultSpawnSync, spawnCodex, spawnHost } from "./process.mjs";
+import * as terminal from "./terminal-styles.mjs";
 import os from "node:os";
 import path from "node:path";
 import process from "node:process";
@@ -57,28 +58,28 @@ const COMMAND_OPTIONS = Object.freeze({
 });
 
 function usage() {
-  return `${PACKAGE_NAME} ${PACKAGE_VERSION}
+  return `${terminal.heading(`${PACKAGE_NAME} ${PACKAGE_VERSION}`)}
 
 Install and configure Senior Engineering Workflow.
 
-Usage:
+${terminal.heading("Usage:")}
   sew install --host <host> [--scope <user|project>] [options]
   sew update --host <host> [--scope <user|project>] [options]
   sew uninstall --host <host> [--scope <user|project>] [options]
   sew models configure --host <host> --preset <inherit|two-model|three-model> [options]
   sew doctor [--host <all|comma-list>] [options]
 
-Hosts:
+${terminal.heading("Hosts:")}
   ${HOSTS.join(", ")}
 
-Install/update/uninstall options:
+${terminal.heading("Install/update/uninstall options:")}
   --scope <user|project>          Target scope (default: user)
   --project <path>               Project root (default: current directory)
   --dry-run                      Preview the operation without changing files or invoking a host CLI
   --force                        Replace reviewed conflicts (Codex: reinstall the skill and companion agents)
   --json                         Emit JSON
 
-Model options:
+${terminal.heading("Model options:")}
   --worker-model <id>            Model for the worker slot
   --worker-thinking <value>      Host-native effort/variant/thinking value
   --balanced-model <id>          Model for the balanced slot
@@ -87,12 +88,12 @@ Model options:
   --dry-run                      Preview model changes without writing files
   --force                        Replace reviewed external changes to installed agent files
   --json                         Emit JSON
-Doctor options:
+${terminal.heading("Doctor options:")}
   --host <all|comma-list>        Inspect all seven hosts by default
   --project <path>               Project root (default: current directory)
   --json                         Emit JSON
 
-Notes:
+${terminal.heading("Notes:")}
   Canonical plugin agents inherit the host session's model, thinking level, tools, and permissions.
   models configure checks live harness model catalogs when available and warns when discovery is unavailable.
   models configure --preset inherit removes model/thinking fields and restores the CI payload.
@@ -369,7 +370,7 @@ async function planStaticOperation(operation, host, scope, project, options, env
 
   let modelWarnings = [];
   if (operation !== "uninstall" && currentState?.models && Object.keys(currentState.models).length > 0) {
-    const capabilities = fetchHarnessCapabilities(host, { project, env, spawnSync: runtime.spawnSync });
+    const capabilities = fetchHarnessCapabilities(host, { project, env, platform: runtime.platform ?? process.platform, spawnSync: runtime.spawnSync });
     modelWarnings = validateStoredModels(currentState.models, host, capabilities);
   }
 
@@ -479,11 +480,11 @@ function parseCodexPluginStatus(stdout) {
   };
 }
 
-function inspectCodexPlugin(project, runner = defaultSpawnSync, env = process.env) {
-  const result = spawnHost("codex", ["plugin", "list", "--json"], { cwd: project, stdio: "pipe", spawnSync: runner, env });
+function inspectCodexPlugin(project, runner = defaultSpawnSync, env = process.env, platform = process.platform) {
+  const result = spawnCodex(["plugin", "list", "--json"], { cwd: project, stdio: "pipe", spawnSync: runner, env, platform });
   if (result.error) {
     if (result.error.code === "SEW_INVALID_CWD") throw new CliError(result.error.message, 1);
-    if (result.error.code === "ENOENT") throw new CliError("Could not find the codex CLI on PATH. Install the Codex CLI (curl -fsSL https://chatgpt.com/codex/install.sh | sh) or add it to PATH, then re-run.", 1);
+    if (result.error.code === "ENOENT") throw new CliError("Could not find the codex CLI on PATH or in the ChatGPT desktop application. Install Codex, then re-run.", 1);
     throw new CliError(`Could not inspect Codex plugins: ${result.error.message}. Re-run with --force to reinstall the marketplace skill and companion agents.`, 1);
   }
   if ((result.status ?? 1) !== 0) {
@@ -512,13 +513,17 @@ function executeNative(commands, options = {}) {
     if (options.dryRun) { results.push({ command: display, status: "would-run" }); continue; }
     const [executable, ...args] = command.argv;
     const captureOutput = options.json || command.tolerateAlreadyExists;
-    const result = spawnHost(executable, args, { cwd: command.cwd, stdio: captureOutput ? "pipe" : "inherit", spawnSync: runner, env: options.env ?? process.env });
+    const spawnOptions = { cwd: command.cwd, stdio: captureOutput ? "pipe" : "inherit", spawnSync: runner, env: options.env ?? process.env, platform: options.platform ?? process.platform };
+    const result = executable === "codex" ? spawnCodex(args, spawnOptions) : spawnHost(executable, args, spawnOptions);
     const stderr = captureOutput ? String(result.stderr ?? "") : "";
     const stdout = captureOutput ? String(result.stdout ?? "") : "";
     const alreadyExists = command.tolerateAlreadyExists && /already|exists|configured|duplicate/iu.test(`${stdout}\n${stderr}`);
     if (result.error) {
       if (result.error.code === "SEW_INVALID_CWD") throw new CliError(result.error.message, 1);
-      if (result.error.code === "ENOENT") throw new CliError(`Could not find the ${executable} CLI on PATH. Install it or add it to PATH, then re-run.`, 1);
+      if (result.error.code === "ENOENT") {
+        const location = executable === "codex" ? "on PATH or in the ChatGPT desktop application" : "on PATH";
+        throw new CliError(`Could not find the ${executable} CLI ${location}. Install it, then re-run.`, 1);
+      }
       throw new CliError(`Could not execute ${executable}: ${result.error.message}`, 1);
     }
     if (!options.json && captureOutput) {
@@ -569,11 +574,11 @@ function inspectOpenCodeDiscovery(project, env = process.env, runner = defaultSp
 
 function printOperation(result, json) {
   if (json) { process.stdout.write(`${JSON.stringify(result, null, 2)}\n`); return; }
-  process.stdout.write(`${result.status}: ${result.host}/${result.scope}\n`);
-  for (const warning of result.warnings ?? []) process.stderr.write(`sew: warning: ${warning}\n`);
-  for (const item of result.actions ?? []) process.stdout.write(`- ${item.action ?? item.status} ${item.path ?? item.command}\n`);
+  process.stdout.write(`${terminal.status(result.status)}: ${result.host}/${result.scope}\n`);
+  for (const warning of result.warnings ?? []) process.stderr.write(`${terminal.warning(`sew: warning: ${warning}`)}\n`);
+  for (const item of result.actions ?? []) process.stdout.write(`- ${terminal.action(item.action ?? item.status)} ${item.path ?? item.command}\n`);
   if (result.discovery) {
-    process.stdout.write(`- ${result.discovery.status} ${result.discovery.message}\n`);
+    process.stdout.write(`- ${terminal.status(result.discovery.status)} ${result.discovery.message}\n`);
     if (result.discovery.detail) process.stdout.write(`  ${result.discovery.detail}\n`);
   }
 }
@@ -600,7 +605,7 @@ async function runCodexOperation(operation, options, runtime, scope, project) {
     };
   } else if (options["dry-run"]) {
     if (options.force) {
-      pluginActions = executeNative(codexPluginInstallCommands(project), { dryRun: true, json: options.json === true, spawnSync: runtime.spawnSync });
+      pluginActions = executeNative(codexPluginInstallCommands(project), { dryRun: true, json: options.json === true, spawnSync: runtime.spawnSync, env: runtime.env ?? process.env, platform: runtime.platform ?? process.platform });
       plugin = { status: "would-reinstall", inspected: false };
     } else {
       pluginActions = [
@@ -610,10 +615,10 @@ async function runCodexOperation(operation, options, runtime, scope, project) {
       plugin = { status: "conditional", inspected: false };
     }
   } else {
-    const inspected = options.force ? null : inspectCodexPlugin(project, runtime.spawnSync ?? defaultSpawnSync, runtime.env ?? process.env);
+    const inspected = options.force ? null : inspectCodexPlugin(project, runtime.spawnSync ?? defaultSpawnSync, runtime.env ?? process.env, runtime.platform ?? process.platform);
     const installPlugin = options.force === true || !inspected.installed || !inspected.enabled;
     if (installPlugin) {
-      pluginActions = executeNative(codexPluginInstallCommands(project), { json: options.json === true, spawnSync: runtime.spawnSync, env: runtime.env ?? process.env });
+      pluginActions = executeNative(codexPluginInstallCommands(project), { json: options.json === true, spawnSync: runtime.spawnSync, env: runtime.env ?? process.env, platform: runtime.platform ?? process.platform });
     }
     plugin = {
       status: options.force ? "reinstalled" : installPlugin ? "installed" : "already-installed",
@@ -648,7 +653,7 @@ async function runInstallOperation(operation, options, runtime = {}) {
   if (host === "codex") return runCodexOperation(operation, options, runtime, scope, project);
   if (NATIVE_INSTALL_HOSTS.has(host)) {
     const commands = nativeCommands(operation, host, scope, project, options.force === true);
-    const actions = executeNative(commands, { dryRun: options["dry-run"] === true, json: options.json === true, spawnSync: runtime.spawnSync, env: runtime.env ?? process.env });
+    const actions = executeNative(commands, { dryRun: options["dry-run"] === true, json: options.json === true, spawnSync: runtime.spawnSync, env: runtime.env ?? process.env, platform: runtime.platform ?? process.platform });
     const completedStatus = { install: "installed", update: "updated", uninstall: "uninstalled" }[operation];
     const result = { command: operation, status: options["dry-run"] ? "dry-run" : completedStatus, host, scope, method: "native", actions };
     printOperation(result, options.json);
@@ -697,7 +702,7 @@ async function configureModels(options, runtime = {}, capabilities = null) {
   const state = await readInstallState(statePath, { host, scope, roots: expectedRoots });
   if (!state) throw new CliError(`No managed ${host}/${scope} installation was found. Run sew install --host ${host} --scope ${scope}, then configure models.`, 1);
 
-  const resolvedCaps = capabilities || (preset === "inherit" ? null : fetchHarnessCapabilities(host, { project, env, spawnSync: runtime.spawnSync }));
+  const resolvedCaps = capabilities || (preset === "inherit" ? null : fetchHarnessCapabilities(host, { project, env, platform: runtime.platform ?? process.platform, spawnSync: runtime.spawnSync }));
   const validationWarnings = validateModelConfiguration(host, preset, mapping, options, resolvedCaps ?? HARNESS_METADATA[host]);
   const warnings = [...new Set([...(resolvedCaps?.warnings ?? []), ...validationWarnings])];
   const edits = [];
@@ -754,9 +759,12 @@ async function configureModels(options, runtime = {}, capabilities = null) {
   };
   if (options.json) process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
   else {
-    process.stdout.write(`${result.status}: ${host}/${scope}\n`);
-    for (const warning of warnings) process.stderr.write(`sew: warning: ${warning}\n`);
-    for (const item of result.files) process.stdout.write(`- ${item.action.padEnd(18)} ${item.path}\n`);
+    process.stdout.write(`${terminal.status(result.status)}: ${host}/${scope}\n`);
+    for (const warning of warnings) process.stderr.write(`${terminal.warning(`sew: warning: ${warning}`)}\n`);
+    for (const item of result.files) {
+      const padding = " ".repeat(Math.max(1, 18 - item.action.length));
+      process.stdout.write(`- ${terminal.action(item.action)}${padding} ${item.path}\n`);
+    }
   }
   return 0;
 }
@@ -965,10 +973,10 @@ async function doctor(options, runtime = {}) {
   const result = { command: "doctor", status: summary.errors ? "errors" : summary.warnings ? "warnings" : "healthy", packageVersion: PACKAGE_VERSION, projectRoot: project, hosts: reports, summary };
   if (options.json) process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
   else {
-    process.stdout.write(`Senior Engineering Workflow doctor: ${result.status}\n`);
+    process.stdout.write(`${terminal.heading("Senior Engineering Workflow doctor:")} ${terminal.status(result.status)}\n`);
     for (const report of reports) {
-      process.stdout.write(`\n${report.host}\n`);
-      for (const item of report.findings) process.stdout.write(`- [${item.level.toUpperCase()}] ${item.message}\n`);
+      process.stdout.write(`\n${terminal.heading(report.host)}\n`);
+      for (const item of report.findings) process.stdout.write(`- [${terminal.findingLevel(item.level)}] ${item.message}\n`);
     }
     process.stdout.write(`\nSummary: ${summary.information} information, ${summary.warnings} warnings, ${summary.errors} errors.\n`);
   }
@@ -986,8 +994,8 @@ export async function main(argv = process.argv.slice(2), runtime = {}) {
     if (command === "doctor") return await doctor(options, runtime);
     throw new CliError(`Unknown command: ${command}`);
   } catch (error) {
-    if (error instanceof CliError) { process.stderr.write(`sew: ${error.message}\n`); return error.exitCode; }
-    process.stderr.write(`sew: unexpected error: ${error.stack ?? error.message}\n`);
+    if (error instanceof CliError) { process.stderr.write(`${terminal.error(`sew: ${error.message}`)}\n`); return error.exitCode; }
+    process.stderr.write(`${terminal.error(`sew: unexpected error: ${error.stack ?? error.message}`)}\n`);
     return 1;
   }
 }
@@ -1019,6 +1027,7 @@ export const internals = Object.freeze({
   staticPlan,
   nativeCommands,
   spawnHost,
+  spawnCodex,
   inspectOpenCodeDiscovery,
   parseOpenCodeAgentList,
   commitManagedOperation,
