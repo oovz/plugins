@@ -176,9 +176,11 @@ gemini mcp add -s project chrome-devtools npx -y chrome-devtools-mcp@latest --ca
 
 For a user-global server, use `-s user`. If an existing entry lacks the flags, remove and re-add it (`gemini mcp remove chrome-devtools`).
 
-### G. Antigravity
+### G. Antigravity CLI and IDE
 
-Antigravity has no MCP management CLI. Check the MCP configuration files instead:
+The CLI and IDE share the MCP configuration paths below. CLI plugin packages are staged separately under `~/.gemini/antigravity-cli/plugins/`.
+
+Use the CLI session’s interactive `/mcp` manager or edit the MCP configuration files:
 
 - Project/workspace: `.agents/mcp_config.json`
 - User/global: `~/.gemini/config/mcp_config.json`

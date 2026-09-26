@@ -2,7 +2,31 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-const root = path.resolve(process.argv[2] || process.cwd());
+function parseArgs(argv) {
+  let root = null;
+  let output = null;
+  while (argv.length > 0) {
+    const token = argv.shift();
+    if (token === "--output") {
+      if (!argv[0] || argv[0].startsWith("--")) throw new Error("--output requires a directory");
+      output = argv.shift();
+    } else if (token.startsWith("--")) {
+      throw new Error(`Unknown option: ${token}`);
+    } else if (root === null) {
+      root = token;
+    } else {
+      throw new Error(`Unexpected argument: ${token}`);
+    }
+  }
+  return { root: path.resolve(root || process.cwd()), output };
+}
+
+const args = parseArgs(process.argv.slice(2));
+const root = args.root;
+const explicitOutput = args.output ? path.resolve(root, args.output) : null;
+const explicitManifest = explicitOutput && (statSafe(explicitOutput)?.isDirectory()
+  ? path.join(explicitOutput, 'manifest.json')
+  : explicitOutput);
 const maxDepth = 4;
 const ignored = new Set(['node_modules', '.git', '.hg', '.svn', '.cache', '.next', 'coverage']);
 
@@ -61,6 +85,13 @@ function statSafe(file) {
   }
 }
 
+function browserFor(manifest, relativePath) {
+  const lower = relativePath.toLowerCase();
+  if (lower.includes("firefox") || lower.includes("mozilla")) return "firefox";
+  if (manifest.chrome_settings_overrides || manifest.chrome_url_overrides || lower.includes("chrome") || lower.includes("chromium")) return "chrome";
+  return "unknown";
+}
+
 const pkg = readJson(path.join(root, 'package.json')) || {};
 const deps = { ...(pkg.dependencies || {}), ...(pkg.devDependencies || {}) };
 const isWxt = Object.prototype.hasOwnProperty.call(deps, 'wxt') ||
@@ -78,6 +109,7 @@ function considerManifest(file) {
   const dir = path.dirname(abs);
   const st = statSafe(abs);
   const rel = (path.relative(root, dir) || '.').split(path.sep).join('/');
+  const browser = browserFor(manifest, rel);
   let score = 0;
   const lower = rel.toLowerCase();
   if (lower.startsWith('.output') || lower.includes('/.output')) score += 60;
@@ -102,6 +134,10 @@ function considerManifest(file) {
     hasServiceWorker: Boolean(manifest.background?.service_worker),
     modifiedMs: st?.mtimeMs || 0,
     score,
+    browser,
+    manifestCompatibility: manifest.manifest_version === 3 ? "mv3" : manifest.manifest_version === 2 ? "mv2" : "unsupported",
+    compatible: browser !== "firefox" && manifest.manifest_version === 3,
+    explicitlySelected: abs === explicitManifest,
   });
 }
 
@@ -109,6 +145,7 @@ function considerManifest(file) {
 considerManifest(path.join(root, 'manifest.json'));
 
 const preferredRoots = ['.output', 'dist', 'build', 'out', 'extension', '.wxt'];
+if (explicitManifest) considerManifest(explicitManifest);
 for (const name of preferredRoots) {
   const start = path.join(root, name);
   if (!statSafe(start)?.isDirectory()) continue;
@@ -149,17 +186,41 @@ function walk(dir, depth) {
   }
 }
 
-// Order candidates newest-first so `recommended` is the most recently produced
-// build (normally the one the user just built). The heuristic score only breaks
-// ties between builds with the same modification time.
-manifests.sort((a, b) => (b.modifiedMs - a.modifiedMs) || (b.score - a.score));
+// Explicit output selection wins and must resolve to a valid manifest. When
+// omitted, compatibility is considered before recency, so a newer Firefox
+// build cannot displace a Chrome-compatible build.
+const explicitCandidates = manifests.filter((candidate) => candidate.explicitlySelected);
+if (explicitOutput && explicitCandidates.length === 0) {
+  console.log(JSON.stringify({
+    root,
+    framework: isWxt ? 'wxt' : 'generic-or-unknown',
+    recommendation: "requested-output-not-found",
+    requestedOutput: explicitOutput,
+    recommended: null,
+    candidates: manifests,
+  }, null, 2));
+  process.exitCode = 2;
+} else {
+  manifests.sort((a, b) =>
+    Number(b.explicitlySelected) - Number(a.explicitlySelected)
+    || Number(b.compatible) - Number(a.compatible)
+    || (b.manifestCompatibility === "mv3" ? 1 : 0) - (a.manifestCompatibility === "mv3" ? 1 : 0)
+    || (b.modifiedMs - a.modifiedMs)
+    || (b.score - a.score)
+    || a.relativePath.localeCompare(b.relativePath));
 
-const result = {
-  root,
-  framework: isWxt ? 'wxt' : 'generic-or-unknown',
-  recommended: manifests[0] || null,
-  candidates: manifests,
-};
+  const recommended = manifests[0] || null;
+  const recommendation = recommended
+    ? recommended.explicitlySelected ? "explicit-output" : recommended.compatible ? "compatible-build" : "no-compatible-chrome-build"
+    : "no-builds";
 
-console.log(JSON.stringify(result, null, 2));
-process.exitCode = manifests.length ? 0 : 2;
+  console.log(JSON.stringify({
+    root,
+    framework: isWxt ? 'wxt' : 'generic-or-unknown',
+    recommendation,
+    requestedOutput: explicitOutput,
+    recommended,
+    candidates: manifests,
+  }, null, 2));
+  process.exitCode = manifests.length ? 0 : 2;
+}

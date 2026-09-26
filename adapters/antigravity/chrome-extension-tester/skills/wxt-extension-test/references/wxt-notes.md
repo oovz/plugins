@@ -4,7 +4,7 @@
 
 WXT's default output root is `.output`, but `outDir` is configurable. The target directory name is also templated from browser, manifest version, and mode, so discover the generated manifest instead of assuming a fixed path.
 
-`find-extension-build.mjs` orders candidates newest-first by modification time, so `recommended` is the most recently modified build. Confirm it is the build produced by the command you just ran before loading it.
+`find-extension-build.mjs` prefers an explicitly selected output (`--output <directory>`), then a Chrome-compatible generated manifest, and uses recency only among compatible candidates. Require `compatible: true` and Manifest V3 before loading the selected candidate in current Chrome, including explicitly selected output.
 
 ## Generated manifest
 

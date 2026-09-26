@@ -5,7 +5,7 @@ description: Test or debug a WXT-based Chrome extension in its built Chrome runt
 
 # WXT Chrome Extension Test
 
-Use this skill for WXT repositories. Apply the same real-surface rule as the general Chrome extension skill: a side panel or popup is not integration-tested if its HTML was merely opened as a normal tab.
+Use this skill for WXT repositories. Apply the real-surface rule directly: a side panel or popup is not integration-tested if its HTML was merely opened as a normal tab.
 
 ## 1. Detect the WXT layout
 
@@ -31,17 +31,17 @@ Useful source indicators include:
 
 Do not hardcode `.output/chrome-mv3`. WXT defaults to `.output`, but `outDir`, target browser, manifest version, and mode suffix are configurable.
 
-Run:
+Run from this skill directory (the directory containing `SKILL.md`) and pass the WXT project path:
 
 ```bash
-node scripts/find-extension-build.mjs .
+node scripts/find-extension-build.mjs /absolute/path/to/project
 ```
 
 Prefer a candidate that:
 
 - contains a valid generated `manifest.json`;
 - targets Chrome/Chromium;
-- matches the intended manifest version;
+- uses Manifest V3, required by current Chrome;
 - is the build produced by the command you just ran.
 
 Then inspect it:
@@ -64,7 +64,7 @@ If the user explicitly wants WXT dev/HMR plus MCP testing, keep WXT's build/dev 
 
 ## 4. Install and test the generated extension
 
-If the extension tools are unavailable in the session, configure the Chrome DevTools MCP server first: check whether one is already configured for your harness and update it in place (see the general `chrome-extension-test` skill's `references/troubleshooting.md`, section 2) instead of adding a duplicate server.
+If the extension tools are unavailable in the session, configure the Chrome DevTools MCP server first: check whether one is already configured for your harness and update it in place (see this skill's `references/chrome-devtools-mcp.md`) instead of adding a duplicate server.
 
 Use Chrome DevTools MCP:
 
@@ -98,7 +98,8 @@ WXT content-script contexts can become invalid when an extension is reloaded. Tr
 
 ## 6. WXT-specific acceptance checks
 
-Add these to the general extension smoke suite when applicable:
+Run this local checklist for the WXT build (skip only items that are not
+applicable to the extension, and report skipped items):
 
 - generated manifest contains the intended WXT entrypoints and permissions;
 - sidepanel entrypoint produces `side_panel.default_path` in the generated Chrome manifest;

@@ -29,18 +29,18 @@ Determine:
 - whether this is a WXT project;
 - the package manager and existing build/test scripts;
 - the unpacked extension output directory containing `manifest.json`;
-- Manifest V2 or V3;
+- the manifest version; current Chrome requires Manifest V3;
 - configured surfaces: `action`, `side_panel`, `options_ui`, background service worker, and content scripts.
 
 Prefer existing project scripts. Do not add dependencies or rewrite project configuration merely to run a smoke test.
 
-If build output is unclear, run the bundled helper:
+If build output is unclear, run the bundled helper from this skill directory (the directory containing `SKILL.md`) and pass the extension project path:
 
 ```bash
-node scripts/find-extension-build.mjs .
+node scripts/find-extension-build.mjs /absolute/path/to/project
 ```
 
-The helper orders candidates newest-first by modification time, so `recommended` is the most recently produced build. It is normally the one you just built. Then inspect the selected build:
+The helper prefers an explicitly selected output (`--output <directory>`), then a Chrome-compatible generated manifest, and uses recency only among compatible candidates. Require `compatible: true` before loading the selected build. Inspect `recommended` and its `browser`/`manifestCompatibility` fields:
 
 ```bash
 node scripts/inspect-extension.mjs /absolute/path/to/unpacked-extension
