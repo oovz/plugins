@@ -30,6 +30,36 @@ export async function assertNoSymlinkAncestors(target, containmentRoot) {
   }
 }
 
+export async function replaceTree(staging, target, backup, io = {}) {
+  const move = io.rename ?? rename;
+  const remove = io.rm ?? rm;
+  let backedUp = false;
+  try {
+    await move(target, backup);
+    backedUp = true;
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+  }
+
+  try {
+    await move(staging, target);
+  } catch (promotionError) {
+    if (backedUp) {
+      try {
+        await move(backup, target);
+      } catch (restoreError) {
+        throw new Error(
+          `Could not promote generated tree to ${target}: ${promotionError.message}. Could not restore the previous tree: ${restoreError.message}. The previous tree is retained at ${backup}.`,
+          { cause: promotionError },
+        );
+      }
+    }
+    throw promotionError;
+  }
+
+  if (backedUp) await remove(backup, { recursive: true, force: true }).catch(() => {});
+}
+
 export async function atomicWriteTree(target, artifacts, containmentRoot) {
   const absoluteTarget = within(containmentRoot, target, "generated target");
   await assertNoSymlinkAncestors(absoluteTarget, containmentRoot);
@@ -46,23 +76,9 @@ export async function atomicWriteTree(target, artifacts, containmentRoot) {
       await mkdir(path.dirname(destination), { recursive: true });
       await writeFile(destination, artifact.content, { mode: artifact.executable ? 0o755 : 0o644 });
     }
-    let backedUp = false;
-    try {
-      await rename(absoluteTarget, backup);
-      backedUp = true;
-    } catch (error) {
-      if (error.code !== "ENOENT") throw error;
-    }
-    try {
-      await rename(staging, absoluteTarget);
-    } catch (error) {
-      if (backedUp) await rename(backup, absoluteTarget);
-      throw error;
-    }
-    if (backedUp) await rm(backup, { recursive: true, force: true }).catch(() => {});
+    await replaceTree(staging, absoluteTarget, backup);
   } catch (error) {
-    await rm(staging, { recursive: true, force: true });
-    await rm(backup, { recursive: true, force: true });
+    await rm(staging, { recursive: true, force: true }).catch(() => {});
     throw error;
   }
 }
