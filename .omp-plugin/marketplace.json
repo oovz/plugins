@@ -14,7 +14,7 @@
       "name": "senior-engineering-workflow",
       "source": "./adapters/oh-my-pi/senior-engineering-workflow",
       "description": "An engineering workflow where the main agent owns decisions and bounded specialists handle focused research, implementation, verification, and tool work.",
-      "version": "0.12.2",
+      "version": "0.13.0",
       "author": {
         "name": "Otto",
         "url": "https://github.com/oovz/plugins"
@@ -63,7 +63,7 @@
       "name": "chrome-extension-tester",
       "source": "./adapters/oh-my-pi/chrome-extension-tester",
       "description": "Test and debug Chrome extensions in Chrome-managed contexts through Chrome DevTools MCP, with extra guidance for WXT projects.",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "author": {
         "name": "Otto",
         "url": "https://github.com/oovz/plugins"

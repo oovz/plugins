@@ -104,17 +104,17 @@ function validateRenderedAgent(plugin, agent, target, artifacts) {
     if (!agent.shell) assert(!parsed.frontmatter.tools.includes("run_shell_command"), `Gemini shell-denied agent ${agent.id} exposes shell`);
     if (agent.question) assert(parsed.frontmatter.tools.includes("ask_user"), `Gemini question-capable agent ${agent.id} must expose ask_user`);
   } else if (target.id === "antigravity") {
-    if (inheritsPermissions) {
-      assert(!artifacts.has(`agents/${flat}.md`), `Antigravity permission-inheriting agent ${agent.id} must use the skill's generic inherited subagent route instead of a tool-empty static definition`);
-      return;
-    }
     const parsed = parseMarkdownArtifact(artifacts.get(`agents/${flat}.md`), `Antigravity agent ${agent.id}`);
     const fm = parsed.frontmatter;
     assert(fm.name === flat && fm.mainAgent === false && fm.subagent === true && fm.model === "inherit" && fm.commandExecutionPolicy === "sandbox", `Antigravity agent ${agent.id} has invalid required frontmatter`);
+    assert(Array.isArray(fm.tools), `Antigravity agent ${agent.id} must declare its allowed tools`);
     for (const tool of fm.tools) assert(ANTIGRAVITY_TOOLS.has(tool), `Antigravity agent ${agent.id} has unknown tool ${tool}`);
     if (agent.workspace === "read-only") for (const tool of ["write_to_file", "replace_file_content", "multi_replace_file_content"]) assert(!fm.tools.includes(tool), `Antigravity read-only agent ${agent.id} exposes ${tool}`);
     if (!agent.shell) assert(!fm.tools.includes("run_command"), `Antigravity shell-denied agent ${agent.id} exposes shell`);
+    if (!agent.external) for (const tool of ["search_web", "read_url_content"]) assert(!fm.tools.includes(tool), `Antigravity external-denied agent ${agent.id} exposes ${tool}`);
+    if (!agent.delegates) assert(!fm.tools.includes("invoke_subagent"), `Antigravity leaf agent ${agent.id} exposes subagent invocation`);
     if (agent.delegates) assert(fm.tools.includes("invoke_subagent"), `Antigravity delegating agent ${agent.id} must expose invoke_subagent`);
+    if (!agent.question) assert(!fm.tools.includes("ask_question"), `Antigravity agent ${agent.id} exposes user questions without question capability`);
     if (agent.question) assert(fm.tools.includes("ask_question"), `Antigravity question-capable agent ${agent.id} must expose ask_question`);
   } else if (target.id === "cursor") {
     const parsed = parseMarkdownArtifact(artifacts.get(`agents/${flat}.md`), `Cursor agent ${agent.id}`);
@@ -144,49 +144,20 @@ function validateRenderedAgent(plugin, agent, target, artifacts) {
     if (agent.question) assert(fm.tools.includes("ask"), `Oh My Pi question-capable agent ${agent.id} must expose ask`);
     else assert(!fm.tools.includes("ask"), `Oh My Pi agent ${agent.id} exposes ask without question capability`);
   } else if (target.id === "opencode") {
-    const parsed = parseMarkdownArtifact(artifacts.get(`.opencode/agents/${flat}.md`), `OpenCode ${target.variant} agent ${agent.id}`);
+    const parsed = parseMarkdownArtifact(artifacts.get(`.opencode/agents/${flat}.md`), `OpenCode agent ${agent.id}`);
     const fm = parsed.frontmatter;
-    assert(fm.mode === "subagent" && fm.model === undefined && fm.steps === undefined, `OpenCode ${target.variant} agent ${agent.id} must be a model-inheriting subagent without step cap`);
+    assert(fm.mode === "subagent" && fm.model === undefined && fm.steps === undefined, `OpenCode agent ${agent.id} must be a model-inheriting subagent without step cap`);
     if (inheritsPermissions) {
       assert(fm.permission === undefined && fm.permissions === undefined, `OpenCode permission-inheriting agent ${agent.id} must not set permission rules`);
       return;
     }
-    assert(target.variant === "stable", `unsupported OpenCode variant ${target.variant}`);
-    assert(fm.permission && fm.permissions === undefined, `OpenCode stable agent ${agent.id} must use permission`);
-    if (!agent.delegates) assert(fm.permission.task?.["*"] === "deny", `OpenCode stable leaf agent ${agent.id} must deny task`);
-    assert(fm.permission.external_directory === "deny", `OpenCode stable agent ${agent.id} must deny external_directory`);
-    if (agent.workspace === "read-only") assert(fm.permission.edit === "deny", `OpenCode stable read-only agent ${agent.id} must deny edit`);
-    if (!agent.shell) assert(fm.permission.bash === "deny", `OpenCode stable agent ${agent.id} must deny bash`);
-    if (!agent.external) for (const action of ["webfetch", "websearch"]) assert(fm.permission[action] === "deny", `OpenCode stable agent ${agent.id} must deny ${action}`);
+    assert(fm.permission && fm.permissions === undefined, `OpenCode agent ${agent.id} must use permission`);
+    if (!agent.delegates) assert(fm.permission.task?.["*"] === "deny", `OpenCode leaf agent ${agent.id} must deny task`);
+    assert(fm.permission.external_directory === "deny", `OpenCode agent ${agent.id} must deny external_directory`);
+    if (agent.workspace === "read-only") assert(fm.permission.edit === "deny", `OpenCode read-only agent ${agent.id} must deny edit`);
+    if (!agent.shell) assert(fm.permission.bash === "deny", `OpenCode agent ${agent.id} must deny bash`);
+    if (!agent.external) for (const action of ["webfetch", "websearch"]) assert(fm.permission[action] === "deny", `OpenCode agent ${agent.id} must deny ${action}`);
   }
-}
-
-function validateContract(plugin, contract, label) {
-  assert(contract.schema_version && contract.contract_id, `${label} must identify its schema and contract`);
-  assert(contract.leaf_roles && Number.isInteger(contract.leaf_role_count), `${label} must declare leaf roles and count`);
-  const roles = Object.values(contract.leaf_roles);
-  assert(roles.length === contract.leaf_role_count, `${label} leaf_role_count does not match leaf_roles`);
-  const manifestIds = new Set(plugin.agents.map((agent) => agent.id));
-  const contractIds = new Set(roles.map((role) => role.logical_agent_id));
-  assert(manifestIds.size === contractIds.size && [...manifestIds].every((id) => contractIds.has(id)), `${label} roles do not match manifest agents`);
-  for (const role of roles) assert(role.is_leaf === true && role.delegates === false, `${label} role ${role.logical_agent_id} must be a non-delegating leaf`);
-  const fast = contract.routes?.supplied_plan_fast_path;
-  assert(fast && fast.required_roles?.includes("engineer") && fast.required_roles?.includes("tester"), `${label} supplied-plan route must hand directly to engineer and tester`);
-  for (const role of fast.forbidden_roles_unless_gate_is_invalidated ?? []) assert(!fast.required_roles.includes(role), `${label} supplied-plan route has conflicting required/forbidden role ${role}`);
-  const testFast = contract.routes?.supplied_test_plan_fast_path;
-  assert(testFast && testFast.production_changes_allowed === false && testFast.required_roles?.includes("tester") && !testFast.required_roles?.includes("engineer"), `${label} supplied-test-plan route must hand directly to Tester without production changes`);
-  for (const role of ["manager", "researcher", "architect", "planner", "engineer"]) assert(testFast.forbidden_roles_unless_gate_is_invalidated?.includes(role), `${label} supplied-test-plan route must bypass ${role}`);
-  assert(String(contract.supplied_plan_fast_path?.evaluation_order).includes("before"), `${label} must evaluate the supplied-plan fast path before redundant discovery`);
-  const cycle = contract.failure_loop?.cycle;
-  assert(Array.isArray(cycle) && cycle.length >= 4, `${label} must define the remediation cycle`);
-  const firstTester = cycle.findIndex((item) => item.startsWith("Tester"));
-  const owner = cycle.findIndex((item) => item.includes("owning role"));
-  const rerun = cycle.findIndex((item, index) => index > owner && item.startsWith("Tester") && item.includes("rerun"));
-  const reviewer = cycle.findIndex((item, index) => index > rerun && item.startsWith("Reviewer"));
-  assert(firstTester === 0 && owner > firstTester && rerun > owner && reviewer > rerun, `${label} remediation sequence must be tester -> owner root cause/fix -> tester rerun -> reviewer closure`);
-  const breaker = contract.failure_loop?.no_progress_circuit_breaker;
-  assert(Number.isInteger(breaker?.maximum_evidence_backed_no_progress_attempts) && breaker.maximum_evidence_backed_no_progress_attempts > 0, `${label} must bound no-progress attempts`);
-  assert(breaker.on_limit?.some((item) => item.includes("stop further mutation")), `${label} circuit breaker must stop further mutation`);
 }
 
 function sourceFiles(plugin) {
@@ -194,7 +165,7 @@ function sourceFiles(plugin) {
   for (const skill of plugin.skills) {
     for (const file of skill.files) {
       const relative = path.posix.join("skills", skill.id, file.relative);
-      files.set(relative, decodeUtf8(file.content, `${plugin.manifest.id}/${relative}`));
+      files.set(relative, file.content);
     }
   }
   return files;
@@ -339,8 +310,9 @@ function validateSemanticProfile(plugin, suite, label) {
     ids.add(item.id);
     assert(typeof item.file === "string" && item.file.trim(), `${label}/${item.id} file is required`);
     assert(item.historical_scope === undefined || item.historical_scope === "remote-ipc", `${label}/${item.id} has an unsupported historical scope`);
-    const source = files.get(item.file);
-    assert(source !== undefined, `${label}/${item.id} references missing skill file ${item.file}`);
+    const content = files.get(item.file);
+    assert(content !== undefined, `${label}/${item.id} references missing skill file ${item.file}`);
+    const source = decodeUtf8(content, `${plugin.manifest.id}/${item.file}`);
     validateSemanticCase(source, item, `${label}/${item.id}`);
     const corpus = item.corpus;
     assert(corpus && Array.isArray(corpus.unsafe) && corpus.unsafe.length >= 3, `${label}/${item.id} must declare at least three unsafe corpus examples`);
@@ -355,14 +327,6 @@ function validateSemanticProfile(plugin, suite, label) {
       validateSemanticCase(`${source}\n${mutation}`, item, `${label}/${item.id}`);
     }
   }
-}
-
-function validateEngineeringProfile(plugin, contract, suite, label) {
-  assert(contract, `${label} declared contract is missing from its skill tree`);
-  validateContract(plugin, contract, label);
-  assert(Array.isArray(suite?.cases) && suite.cases.length > 0, `${label} must contain cases`);
-  const capabilities = new Set(suite.cases.map((item) => item.capability));
-  for (const capability of ["supplied_plan_fast_path", "evidence_backed_remediation", "bounded_failure_loop"]) assert(capabilities.has(capability), `${label} lacks ${capability} coverage`);
 }
 
 // BEGIN senior-engineering-workflow engineering-delivery-v2 validator r3
@@ -425,10 +389,16 @@ function validateEngineeringContractV2(plugin, contract, label) {
     `${label} delegation policy is incomplete or references a version-suffixed work-order file`,
   );
   assert(
+    contract.delegation.minimum_specialist_packet?.includes("authorized_instruction_sources"),
+    `${label} specialist packets must name authorized instruction sources`,
+  );
+  assert(
     contract.runtime_permissions?.canonical_policy === "inherit" &&
-      contract.runtime_permissions.host_level_restrictions_emitted_by_plugin === false &&
+      contract.runtime_permissions.plugin_emitted_host_restrictions?.default === "none" &&
+      contract.runtime_permissions.plugin_emitted_host_restrictions?.antigravity?.tools === "explicit_allowlist" &&
+      contract.runtime_permissions.plugin_emitted_host_restrictions?.antigravity?.command_execution_policy === "sandbox" &&
       contract.runtime_permissions.behavioral_scope_remains_work_order_bound === true,
-    `${label} must inherit host permissions without weakening bounded work-order behavior`,
+    `${label} must document inherited host permissions and the Antigravity role restrictions without weakening bounded work-order behavior`,
   );
   for (const agent of plugin.agents) {
     assert(
@@ -571,7 +541,6 @@ function validateEngineeringProfileV2(plugin, contract, suite, label) {
 // END senior-engineering-workflow engineering-delivery-v2 validator r3
 
 const VALIDATION_PROFILES = new Map([
-  ["engineering-delivery-v1", validateEngineeringProfile],
   ["engineering-delivery-v2", validateEngineeringProfileV2],
   ["semantic-guidance-v1", (plugin, _contract, suite, label) => validateSemanticProfile(plugin, suite, label)]
 ]);
@@ -592,17 +561,17 @@ async function validatePlugin(plugin) {
   }
 
   for (const target of allHostTargets()) {
-    const resolvedTarget = resolveHost(target.id, target.variant);
+    const resolvedTarget = resolveHost(target.id);
     if (!supportsHost(plugin, resolvedTarget)) {
       const codex = target.id === "codex" ? classifyCodexComponents(plugin.manifest.components) : null;
       if (target.id === "codex" && plugin.manifest.hosts?.codex?.enabled === true && codex?.companionAgents.length > 0 && !codex.hasNativeComponents) continue;
-      const manifestKey = typeof resolvedTarget.manifestKey === "function" ? resolvedTarget.manifestKey(resolvedTarget.variant) : resolvedTarget.manifestKey;
+      const manifestKey = resolvedTarget.manifestKey;
       if (plugin.manifest.hosts?.[manifestKey]?.enabled === true) {
-        throw new Error(`${plugin.manifest.id} enables ${target.id}${target.variant ? `/${target.variant}` : ""} without a functional host component`);
+        throw new Error(`${plugin.manifest.id} enables ${target.id} without a functional host component`);
       }
       continue;
     }
-    const rendered = renderHost(plugin, target.id, target.variant);
+    const rendered = renderHost(plugin, target.id);
     const artifacts = artifactMap(rendered.artifacts);
     assert(artifacts.get("LICENSE")?.toString("utf8") === localLicense, `${target.id} bundle for ${plugin.manifest.id} is missing its exact license`);
     for (const agent of plugin.agents) validateRenderedAgent(plugin, agent, target, artifacts);
@@ -614,9 +583,14 @@ async function validatePlugin(plugin) {
     }
     if (target.id === "claude-code") {
       const manifest = JSON.parse(artifacts.get(".claude-plugin/plugin.json"));
-      const agents = plugin.agents.length > 0 ? "./agents/" : undefined;
       const skills = plugin.skills.length > 0 ? "./skills/" : undefined;
-      assert(manifest.name === plugin.manifest.id && manifest.skills === skills && manifest.agents === agents, `Claude manifest for ${plugin.manifest.id} is not native`);
+      assert(manifest.name === plugin.manifest.id && manifest.skills === skills, `Claude manifest for ${plugin.manifest.id} is not native`);
+      if (plugin.agents.length > 0) {
+        assert(Array.isArray(manifest.agents) && manifest.agents.length === plugin.agents.length && new Set(manifest.agents).size === manifest.agents.length, `Claude manifest for ${plugin.manifest.id} must list each agent file`);
+        for (const agentPath of manifest.agents) {
+          assert(typeof agentPath === "string" && /^\.\/agents\/[^/]+\.md$/u.test(agentPath) && artifacts.has(agentPath.slice(2)), `Claude agent path must name a packaged Markdown file: ${agentPath}`);
+        }
+      } else assert(manifest.agents === undefined, `Claude manifest for ${plugin.manifest.id} declares agents without agent files`);
     }
     if (target.id === "codex") {
       const manifest = JSON.parse(artifacts.get(".codex-plugin/plugin.json"));

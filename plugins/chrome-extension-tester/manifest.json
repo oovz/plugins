@@ -2,7 +2,7 @@
   "$schema": "../../schemas/plugin-manifest.schema.json",
   "schemaVersion": 2,
   "id": "chrome-extension-tester",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "displayName": "Chrome Extension Tester",
   "shortDescription": "Test and debug Chrome extensions with Chrome DevTools MCP.",
   "description": "Test and debug Chrome extensions in Chrome-managed contexts through Chrome DevTools MCP, with extra guidance for WXT projects.",

@@ -213,6 +213,7 @@ delegation:
     - bounded_objective
     - acceptance_or_evidence_requirements
     - scope_and_authority
+    - authorized_instruction_sources
     - evidence_references_and_unknowns
     - stop_conditions
     - remaining_attempt_budget
@@ -220,7 +221,11 @@ delegation:
 
 runtime_permissions:
   canonical_policy: inherit
-  host_level_restrictions_emitted_by_plugin: false
+  plugin_emitted_host_restrictions:
+    default: none
+    antigravity:
+      tools: explicit_allowlist
+      command_execution_policy: sandbox
   behavioral_scope_remains_work_order_bound: true
 
 iteration:

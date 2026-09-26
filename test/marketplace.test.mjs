@@ -7,12 +7,27 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { runGenerator } from "../scripts/generate.mjs";
 import { discoverMarketplace, inspectPlugin, parseFrontmatter } from "../scripts/lib/marketplace.mjs";
-import { codexPluginManifest } from "../scripts/lib/hosts.mjs";
+import { codexPluginManifest, renderHost } from "../scripts/lib/hosts.mjs";
 import { assertKnownOhMyPiTools, validateRepository } from "../scripts/validate.mjs";
 import { createFixtureMarketplace, execFileAsync, readJson } from "./helpers.mjs";
 
 const silent = { write() {} };
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+
+test("Claude plugin agents resolve to Markdown files inside the plugin", async () => {
+  const catalog = await discoverMarketplace(ROOT);
+  const plugin = await inspectPlugin(catalog.plugins.find((item) => item.manifest.id === "senior-engineering-workflow"));
+  const { artifacts } = renderHost(plugin, "claude-code");
+  const manifest = JSON.parse(artifacts.find((item) => item.path === ".claude-plugin/plugin.json").content);
+  assert.deepEqual(manifest.agents, [
+    "./agents/researcher.md", "./agents/engineer.md", "./agents/verifier.md", "./agents/worker.md",
+  ]);
+  for (const agentPath of manifest.agents) {
+    const agent = artifacts.find((item) => item.path === agentPath.slice(2));
+    assert.ok(agent, `declared agent exists: ${agentPath}`);
+    assert.ok(parseFrontmatter(agent.content.toString("utf8"), agentPath).body.trim());
+  }
+});
 
 async function addSchemas(root) {
   await cp(path.join(ROOT, "schemas"), path.join(root, "schemas"), { recursive: true });
@@ -58,6 +73,20 @@ test("canonical marketplace and semantic workflow contract validate", async () =
   }
   const contractFiles = result.plugins.flatMap((plugin) => plugin.skills.flatMap((skill) => skill.files.filter((file) => file.relative.endsWith("workflow-contract.yaml"))));
   assert.ok(contractFiles.length > 0, "a declared skill must carry the workflow contract");
+});
+
+test("semantic validation and packaging preserve binary skill assets", async (t) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "oovz-binary-assets-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  await copyCanonicalRepository(root);
+  const asset = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
+  const assetDirectory = path.join(root, "skills", "tauri-v2-desktop", "assets");
+  await mkdir(assetDirectory);
+  await writeFile(path.join(assetDirectory, "logo.png"), asset);
+
+  await runGenerator(["build", "--plugin", "tauri-v2-desktop", "--host", "portable-agent-skills"], { root, stdout: silent });
+  const packagedAsset = path.join(root, "dist", "portable-agent-skills", "tauri-v2-desktop", ".agents", "skills", "tauri-v2-desktop", "assets", "logo.png");
+  assert.deepEqual(await readFile(packagedAsset), asset);
 });
 
 test("a cataloged skill can remain standalone without a plugin bundle", async (t) => {
@@ -118,7 +147,7 @@ test("Chrome Extension Tester is a multi-skill plugin with Codex MCP host integr
   assert.deepEqual(plugin.manifest.components.commands, []);
   assert.equal(plugin.skills.length, 2);
   assert.deepEqual(plugin.skills.map((s) => s.id).sort(), ["chrome-extension-test", "wxt-extension-test"]);
-  assert.equal(plugin.manifest.version, "0.1.1");
+  assert.equal(plugin.manifest.version, "0.1.2");
   for (const host of ["claude-code", "codex", "cursor", "gemini-cli", "antigravity", "oh-my-pi", "opencode", "portable"]) {
     assert.equal(plugin.manifest.hosts[host].enabled, true, `${host} should be enabled`);
   }
@@ -127,14 +156,23 @@ test("Chrome Extension Tester is a multi-skill plugin with Codex MCP host integr
   assert.deepEqual(codexManifest.interface.capabilities, ["Read", "Write", "Execute"]);
   assert.equal(codexManifest.mcpServers, "./.mcp.json");
   const codexMcp = await readJson(path.join(ROOT, "adapters", "codex", "chrome-extension-tester", ".mcp.json"));
-  assert.ok(codexMcp.mcp_servers["chrome-devtools"]);
-  assert.deepEqual(codexMcp.mcp_servers["chrome-devtools"].args, [
+  assert.equal(codexMcp.mcp_servers, undefined, "Codex MCP documents use the native camelCase wrapper");
+  assert.ok(codexMcp.mcpServers["chrome-devtools"]);
+  assert.deepEqual(codexMcp.mcpServers["chrome-devtools"].args, [
     "-y",
     "chrome-devtools-mcp@latest",
     "--categoryExtensions",
     "--allowUnrestrictedPaths"
   ]);
   await assert.rejects(readFile(path.join(ROOT, "adapters", "claude-code", "chrome-extension-tester", ".mcp.json")), /ENOENT/);
+});
+
+test("Codex MCP validation rejects the obsolete snake_case wrapper", async (t) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "oovz-codex-mcp-wrapper-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  await copyCanonicalRepository(root);
+  await writeFile(path.join(root, "plugins", "chrome-extension-tester", "codex.mcp.json"), "{\"mcp_servers\":{\"chrome-devtools\":{\"command\":\"npx\"}}}\n");
+  await assert.rejects(validateRepository(root), /must declare at least one MCP server/u);
 });
 
 test("Senior Engineering Workflow targets exactly the seven subagent-capable harnesses", async () => {
@@ -145,14 +183,20 @@ test("Senior Engineering Workflow targets exactly the seven subagent-capable har
   assert.deepEqual(Object.entries(plugin.manifest.hosts).filter(([, value]) => value.enabled).map(([key]) => key).sort(), supported);
   assert.equal(plugin.manifest.hosts.portable, undefined);
 
+  const geminiExtension = await readJson(path.join(ROOT, "adapters", "gemini-cli", plugin.manifest.id, "gemini-extension.json"));
+  assert.equal(geminiExtension.name, plugin.manifest.id);
+  assert.ok(await readFile(path.join(ROOT, "adapters", "gemini-cli", plugin.manifest.id, "skills", plugin.manifest.id, "SKILL.md")));
+
   for (const role of ["researcher", "engineer", "verifier", "worker"]) {
     assert.ok(await readFile(path.join(ROOT, "adapters", "claude-code", plugin.manifest.id, "agents", `${role}.md`)));
     assert.ok(await readFile(path.join(ROOT, "adapters", "codex", plugin.manifest.id, "companion", "agents", `${plugin.manifest.id}-${role}.toml`)));
     assert.ok(await readFile(path.join(ROOT, "adapters", "cursor", plugin.manifest.id, "agents", `${plugin.manifest.id}-${role}.md`)));
     assert.ok(await readFile(path.join(ROOT, "adapters", "gemini-cli", plugin.manifest.id, "agents", `${plugin.manifest.id}-${role}.md`)));
     assert.ok(await readFile(path.join(ROOT, "adapters", "oh-my-pi", plugin.manifest.id, "agents", `${plugin.manifest.id}-${role}.md`)));
-    assert.ok(await readFile(path.join(ROOT, "adapters", "opencode", "stable", plugin.manifest.id, ".opencode", "agents", `${plugin.manifest.id}-${role}.md`)));
-    await assert.rejects(readFile(path.join(ROOT, "adapters", "antigravity", plugin.manifest.id, "agents", `${plugin.manifest.id}-${role}.md`)), /ENOENT/);
+    assert.ok(await readFile(path.join(ROOT, "adapters", "opencode", plugin.manifest.id, ".opencode", "agents", `${plugin.manifest.id}-${role}.md`)));
+    const antigravityRole = await readFile(path.join(ROOT, "adapters", "antigravity", plugin.manifest.id, "agents", `${plugin.manifest.id}-${role}.md`), "utf8");
+    assert.match(antigravityRole, /subagent: true/u);
+    assert.match(antigravityRole, /tools:/u);
   }
   assert.ok(await readFile(path.join(ROOT, "adapters", "antigravity", plugin.manifest.id, "skills", plugin.manifest.id, "SKILL.md")));
   const ompCatalog = await readJson(path.join(ROOT, ".omp-plugin", "marketplace.json"));
@@ -402,7 +446,7 @@ test("host projections require functional components and conditional skill point
   await runGenerator(["build", "--all"], { root, stdout: silent });
   const claudeManifest = await readJson(path.join(root, "dist", "claude-code", "agent-only-plugin", ".claude-plugin", "plugin.json"));
   assert.equal(claudeManifest.skills, undefined);
-  assert.equal(claudeManifest.agents, "./agents/");
+  assert.deepEqual(claudeManifest.agents, ["./agents/worker.md"]);
   await assert.rejects(lstat(path.join(root, "dist", "codex", "agent-only-plugin")), /ENOENT/);
 
   await runGenerator(["generate", "--all"], { root, stdout: silent });
@@ -429,7 +473,7 @@ test("Codex native host files use recognized manifest components", async (t) => 
       includeSkill: false,
       includeAgent: false,
       hosts: { codex: { enabled: true } },
-      hostFile: { path: "native/.mcp.json", hosts: ["codex"], destination: ".mcp.json", content: "{\"docs\":{\"command\":\"docs-mcp\"}}\n" }
+       hostFile: { path: "native/.mcp.json", hosts: ["codex"], destination: ".mcp.json", content: "{\"mcpServers\":{\"docs\":{\"command\":\"docs-mcp\"}}}\n" }
     }
   }]);
   await runGenerator(["build", "--all"], { root, stdout: silent });
@@ -736,8 +780,8 @@ test("generic delegating/question-capable plugin and unrelated contract validate
   const result = await validateRepository(root);
   assert.equal(result.plugins[0].manifest.id, "generic-plugin");
   const plugin = await inspectPlugin(result.catalog.plugins[0]);
-  const stable = (await import("../scripts/lib/hosts.mjs")).renderHost(plugin, "opencode", "stable");
-  const agent = stable.artifacts.find((item) => item.path.endsWith("generic-plugin-worker.md")).content.toString("utf8");
+  const opencode = (await import("../scripts/lib/hosts.mjs")).renderHost(plugin, "opencode");
+  const agent = opencode.artifacts.find((item) => item.path.endsWith("generic-plugin-worker.md")).content.toString("utf8");
   assert.doesNotMatch(agent, /task:\n\s+"\*": deny|question: deny/);
 });
 
@@ -774,25 +818,24 @@ test("permission-inheriting agents add no host-level restrictions", async (t) =>
     .find((item) => item.path.endsWith("inherit-plugin-worker.toml")).content.toString("utf8");
   assert.doesNotMatch(codex, /^sandbox_mode\s*=/mu);
 
-  const stable = renderHost(plugin, "opencode", "stable").artifacts
+  const opencode = renderHost(plugin, "opencode").artifacts
     .find((item) => item.path.endsWith("inherit-plugin-worker.md")).content.toString("utf8");
-  assert.doesNotMatch(stable, /^permission:/mu);
+  assert.doesNotMatch(opencode, /^permission:/mu);
 
   const gemini = renderHost(plugin, "gemini-cli").artifacts
     .find((item) => item.path.endsWith("inherit-plugin-worker.md")).content.toString("utf8");
   assert.doesNotMatch(gemini, /^tools:/mu);
 
   const antigravity = renderHost(plugin, "antigravity").artifacts;
-  assert.equal(antigravity.some((item) => item.path.endsWith("inherit-plugin-worker.md")), false);
+  const antigravityAgent = antigravity.find((item) => item.path.endsWith("inherit-plugin-worker.md")).content.toString("utf8");
+  const { frontmatter: antigravityFrontmatter } = parseFrontmatter(antigravityAgent, "Antigravity inheriting role");
+  assert.equal(antigravityFrontmatter.subagent, true);
+  assert.deepEqual(antigravityFrontmatter.tools, ["view_file", "list_dir", "find_by_name", "grep_search"]);
 
   const omp = renderHost(plugin, "oh-my-pi").artifacts
     .find((item) => item.path.endsWith("inherit-plugin-worker.md")).content.toString("utf8");
   assert.doesNotMatch(omp, /^(tools|spawns|model|thinking-level):/mu);
 
-  assert.throws(
-    () => renderHost(plugin, "opencode", "v2-beta"),
-    /does not support variant v2-beta/,
-  );
 });
 
 test("Oh My Pi explicit agents use documented tool names", async (t) => {
@@ -847,7 +890,7 @@ test("commands receive collision-safe flat IDs outside scoped Claude bundles", a
   await runGenerator(["build", "--all"], { root, stdout: silent });
   for (const id of ["first-plugin", "second-plugin"]) {
     assert.ok(await readFile(path.join(root, "dist", "gemini-cli", id, "commands", `${id}-review.toml`)));
-    assert.ok(await readFile(path.join(root, "dist", "opencode", "stable", id, ".opencode", "commands", `${id}-review.md`)));
+    assert.ok(await readFile(path.join(root, "dist", "opencode", id, ".opencode", "commands", `${id}-review.md`)));
     assert.ok(await readFile(path.join(root, "dist", "cursor", id, "commands", `${id}-review.md`)));
     assert.ok(await readFile(path.join(root, "dist", "claude-code", id, "commands", "review.md")));
   }

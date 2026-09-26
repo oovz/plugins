@@ -1,1002 +1,304 @@
-import { createHash } from "node:crypto";
-import { readFile, readdir } from "node:fs/promises";
-import { CliError } from "./errors.mjs";
-import {
-  HARNESS_METADATA,
-  fetchHarnessCapabilities,
-  isModelSupported,
-  isReasoningSupported,
-  parseCliModelsOutput,
-} from "./harness-catalog.mjs";
-import { assertSafePath, commitManagedOperation, hashFile, isContained, pathInfo } from "./managed-files.mjs";
-import {
-  MODEL_EDIT_HOSTS,
-  MODEL_MARKER,
-  PRESETS,
-  ROLES,
-  applyModelOverlay,
-  isManagedModelContent,
-  modelExtension,
-  normalizePreset,
-  parseRoleMap,
-  slotConfiguration,
-  validateModelConfiguration,
-  validateScalar,
-  validateStoredModels,
-} from "./model-config.mjs";
-import { defaultSpawnSync, spawnCodex, spawnHost } from "./process.mjs";
-import * as terminal from "./terminal-styles.mjs";
-import os from "node:os";
+#!/usr/bin/env node
+import { lstat, mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { CliError } from "./errors.mjs";
+import { HOST_CONFIG, ROLE_IDS, normalizeHome, normalizeHost, packagedRolePath, roleAgentRoot, roleFileName } from "./host-config.mjs";
+import { applyRoleOverride, preserveRoleOverrides, readRoleConfiguration, validateOverride } from "./model-config.mjs";
 
 const PACKAGE_NAME = "@oovz/sew";
 const PACKAGE_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const PACKAGE_MANIFEST = JSON.parse(await readFile(path.join(PACKAGE_ROOT, "package.json"), "utf8"));
 const PACKAGE_VERSION = PACKAGE_MANIFEST.version;
-const PAYLOAD_ROOT = path.join(PACKAGE_ROOT, "payloads");
-const PLUGIN_ID = "senior-engineering-workflow";
-const MARKETPLACE_ID = "otto-plugins";
-const MARKETPLACE_SOURCE = "oovz/plugins";
-const CODEX_PLUGIN_ID = `${PLUGIN_ID}@${MARKETPLACE_ID}`;
-const INSTALL_STATE_SCHEMA = 2;
+const PAYLOAD_ROOT = path.join(PACKAGE_ROOT, "payloads", "config");
+const PAYLOAD_MANIFEST_PATH = path.join(PACKAGE_ROOT, "payloads", "manifest.json");
+const HOSTS = Object.freeze(Object.keys(HOST_CONFIG));
 
-const HOSTS = Object.freeze(["claude-code", "codex", "opencode", "cursor", "gemini-cli", "antigravity", "oh-my-pi"]);
-const NATIVE_INSTALL_HOSTS = new Set(["claude-code", "oh-my-pi"]);
-const STATIC_INSTALL_HOSTS = new Set(HOSTS.filter((host) => !NATIVE_INSTALL_HOSTS.has(host)));
-
-const COMMAND_OPTIONS = Object.freeze({
-  install: Object.freeze({ values: new Set(["host", "scope", "project"]), booleans: new Set(["dry-run", "force", "json", "help"]) }),
-  update: Object.freeze({ values: new Set(["host", "scope", "project"]), booleans: new Set(["dry-run", "force", "json", "help"]) }),
-  uninstall: Object.freeze({ values: new Set(["host", "scope", "project"]), booleans: new Set(["dry-run", "force", "json", "help"]) }),
-  "models-configure": Object.freeze({
-    values: new Set(["host", "scope", "project", "preset", "worker-model", "worker-thinking", "balanced-model", "balanced-thinking", "map"]),
-    booleans: new Set(["dry-run", "force", "json", "help"]),
-  }),
-  doctor: Object.freeze({ values: new Set(["host", "project"]), booleans: new Set(["json", "help"]) }),
+const COMMANDS = Object.freeze({
+  install: { values: ["host", "scope", "project"], flags: ["force", "dry-run", "json", "help"] },
+  models: { values: ["host", "scope", "project", "role", "model", "reasoning"], flags: ["reset", "dry-run", "json", "help"] },
+  doctor: { values: ["host", "project"], flags: ["json", "help"] },
 });
 
 function usage() {
-  return `${terminal.heading(`${PACKAGE_NAME} ${PACKAGE_VERSION}`)}
+  return `${PACKAGE_NAME} ${PACKAGE_VERSION}
 
-Install and configure Senior Engineering Workflow.
+Install host-native subagent configuration. Plugin and skill acquisition is managed by each harness.
 
-${terminal.heading("Usage:")}
-  sew install --host <host> [--scope <user|project>] [options]
-  sew update --host <host> [--scope <user|project>] [options]
-  sew uninstall --host <host> [--scope <user|project>] [options]
-  sew models configure --host <host> --preset <inherit|two-model|three-model> [options]
-  sew doctor [--host <all|comma-list>] [options]
+Usage:
+  sew install --host <host> [--scope <user|project>] [--project <path>] [--force] [--dry-run]
+  sew models configure --host <host> --role <role> [--model <id>] [--reasoning <value>]
+  sew models configure --host <host> --role <role> --reset
+  sew doctor [--host <all|host,...>] [--project <path>]
 
-${terminal.heading("Hosts:")}
+Hosts:
   ${HOSTS.join(", ")}
 
-${terminal.heading("Install/update/uninstall options:")}
-  --scope <user|project>          Target scope (default: user)
-  --project <path>               Project root (default: current directory)
-  --dry-run                      Preview the operation without changing files or invoking a host CLI
-  --force                        Replace reviewed conflicts (Codex: reinstall the skill and companion agents)
-  --json                         Emit JSON
-
-${terminal.heading("Model options:")}
-  --worker-model <id>            Model for the worker slot
-  --worker-thinking <value>      Host-native effort/variant/thinking value
-  --balanced-model <id>          Model for the balanced slot
-  --balanced-thinking <value>    Host-native effort/variant/thinking value
-  --map <role=slot,...>          Slots: inherit, balanced, worker
-  --dry-run                      Preview model changes without writing files
-  --force                        Replace reviewed external changes to installed agent files
-  --json                         Emit JSON
-${terminal.heading("Doctor options:")}
-  --host <all|comma-list>        Inspect all seven hosts by default
-  --project <path>               Project root (default: current directory)
-  --json                         Emit JSON
-
-${terminal.heading("Notes:")}
-  Canonical plugin agents inherit the host session's model, thinking level, tools, and permissions.
-  models configure checks live harness model catalogs when available and warns when discovery is unavailable.
-  models configure --preset inherit removes model/thinking fields and restores the CI payload.
-  Configure models for Codex, OpenCode, Cursor, and Gemini CLI. Other hosts use native inheritance.
-  doctor inspects local configuration without calling a model API.
+Install replaces only the four SEW role files. Changed files require --force. Repeated installs of current files are safe.
+Model overrides are syntax-checked from local host schemas. Install and model configuration do not fetch model catalogs or invoke host commands.
+Doctor reads user and project role files and reports what it inspected; it does not verify that a host runs a model successfully.
 `;
 }
 
 function parseArgs(argv) {
   const args = [...argv];
-  if (args.length === 0) throw new CliError(`A command is required.\n\n${usage()}`);
-  const first = args[0];
-  if (first === "--help" || first === "-h") return { command: "help", options: {} };
-  if (first === "--version" || first === "-v") return { command: "version", options: {} };
-
-  let command = args.shift() ?? "help";
+  if (!args.length) throw new CliError(`A command is required.\n\n${usage()}`);
+  if (["--help", "-h"].includes(args[0])) return { command: "help", options: {} };
+  if (["--version", "-v"].includes(args[0])) return { command: "version", options: {} };
+  let command = args.shift();
   if (command === "models") {
-    const subcommand = args.shift();
-    if (subcommand !== "configure") throw new CliError("models requires the configure subcommand.\n\n" + usage());
-    command = "models-configure";
+    if (args.shift() !== "configure") throw new CliError("models requires the configure subcommand.");
   }
-  const definition = COMMAND_OPTIONS[command];
-  if (!definition) throw new CliError(`Unknown command: ${command}\n\n${usage()}`);
-
+  const definition = COMMANDS[command];
+  if (!definition) throw new CliError(`Unknown command: ${command}. Supported commands: install, models configure, doctor.`);
   const options = {};
-  while (args.length > 0) {
+  while (args.length) {
     const token = args.shift();
-    if (!token?.startsWith("--")) throw new CliError(`Unexpected positional argument: ${token}`);
+    if (!token.startsWith("--")) throw new CliError(`Unexpected positional argument: ${token}`);
     const raw = token.slice(2);
     const equal = raw.indexOf("=");
-    const key = equal >= 0 ? raw.slice(0, equal) : raw;
-    if (!key) throw new CliError("Empty option name.");
+    const key = equal < 0 ? raw : raw.slice(0, equal);
     if (Object.hasOwn(options, key)) throw new CliError(`Option --${key} may be provided only once.`);
-    if (!definition.values.has(key) && !definition.booleans.has(key)) throw new CliError(`Unknown option for ${command.replace("-", " ")}: --${key}`);
-    if (definition.booleans.has(key)) {
+    if (definition.flags.includes(key)) {
       if (equal >= 0) throw new CliError(`Boolean option --${key} does not accept a value.`);
       options[key] = true;
       continue;
     }
-    const value = equal >= 0 ? raw.slice(equal + 1) : args.shift();
-    if (value === undefined || value.startsWith("--")) throw new CliError(`Option --${key} requires a value.`);
-    if (!value.trim()) throw new CliError(`Option --${key} requires a non-empty value.`);
+    if (!definition.values.includes(key)) throw new CliError(`Unknown option for ${command}: --${key}`);
+    const value = equal < 0 ? args.shift() : raw.slice(equal + 1);
+    if (value === undefined || value.startsWith("--") || !value.trim()) throw new CliError(`Option --${key} requires a value.`);
     options[key] = value;
+  }
+  if (options.help) return { command: "help", options: {} };
+  if (command === "install" || command === "models") {
+    options.host = normalizeHost(options.host);
+    options.scope ??= "user";
+    if (!["user", "project"].includes(options.scope)) throw new CliError("--scope must be user or project.");
+    if (options.project && options.scope !== "project") throw new CliError("--project requires --scope project.");
+    options.project = path.resolve(options.project ?? process.cwd());
+    if (command === "models") {
+      if (!ROLE_IDS.includes(options.role)) throw new CliError(`--role must be one of: ${ROLE_IDS.join(", ")}`);
+      if (options.reset && (options.model !== undefined || options.reasoning !== undefined)) throw new CliError("--reset cannot be combined with --model or --reasoning.");
+      if (!options.reset && options.model === undefined && options.reasoning === undefined) throw new CliError("Supply --model, --reasoning, or --reset.");
+      if (!options.reset) validateOverride(options.host, options);
+    }
+  } else {
+    options.host = options.host === undefined || options.host === "all" ? HOSTS : [...new Set(options.host.split(",").map((item) => normalizeHost(item.trim())))];
+    if (typeof options.host === "string") options.host = [options.host];
+    options.project = path.resolve(options.project ?? process.cwd());
   }
   return { command, options };
 }
 
-function normalizeHost(value) {
-  if (!HOSTS.includes(value)) throw new CliError(`--host must be one of: ${HOSTS.join(", ")}`);
-  return value;
-}
-
-function normalizeDoctorHosts(value = "all") {
-  const requested = value === "all" ? HOSTS : value.split(",").map((item) => item.trim()).filter(Boolean);
-  if (requested.length === 0) throw new CliError("--host must name at least one host.");
-  return [...new Set(requested.map(normalizeHost))];
-}
-
-function normalizeScope(value = "user") {
-  if (value !== "user" && value !== "project") throw new CliError(`--scope must be user or project, received: ${value}`);
-  return value;
-}
-
-function homeDirectory(env = process.env, platform = process.platform, fallback = os.homedir()) {
-  const candidates = platform === "win32" ? [env.USERPROFILE, env.HOME, fallback] : [env.HOME, fallback, env.USERPROFILE];
-  const selected = candidates.find((item) => typeof item === "string" && item.trim());
-  if (!selected) throw new CliError("Unable to determine the user home directory.");
-  return path.resolve(selected);
-}
-
-function projectRoot(options = {}) {
-  return path.resolve(options.project ?? process.cwd());
-}
-
-function userConfigRoot(host, { env = process.env, platform = process.platform, home = homeDirectory(env, platform) } = {}) {
-  if (host === "claude-code") return path.resolve(env.CLAUDE_CONFIG_DIR || path.join(home, ".claude"));
-  if (host === "codex") return path.resolve(env.CODEX_HOME || path.join(home, ".codex"));
-  if (host === "opencode") {
-    if (env.OPENCODE_CONFIG_DIR) return path.resolve(env.OPENCODE_CONFIG_DIR);
-    const xdg = env.XDG_CONFIG_HOME ? path.resolve(env.XDG_CONFIG_HOME) : path.join(home, ".config");
-    return path.join(xdg, "opencode");
+async function assertProject(project) {
+  try {
+    const info = await stat(project);
+    if (!info.isDirectory()) throw new CliError(`Project root is not a directory: ${project}`);
+  } catch (error) {
+    if (error instanceof CliError) throw error;
+    if (error?.code === "ENOENT") throw new CliError(`Project directory does not exist: ${project}`);
+    throw new CliError(`Cannot read project directory ${project}: ${error.message}`);
   }
-  if (host === "cursor") return path.join(home, ".cursor");
-  if (host === "gemini-cli") return path.resolve(env.GEMINI_CLI_HOME || path.join(home, ".gemini"));
-  if (host === "antigravity") return path.join(home, ".gemini", "config");
-  if (host === "oh-my-pi") return path.join(home, ".omp", "agent");
-  throw new CliError(`Unsupported host: ${host}`);
 }
 
-function projectConfigRoot(host, root) {
-  const project = path.resolve(root);
-  if (host === "claude-code") return path.join(project, ".claude");
-  if (host === "codex") return path.join(project, ".codex");
-  if (host === "opencode") return path.join(project, ".opencode");
-  if (host === "cursor") return path.join(project, ".cursor");
-  if (host === "gemini-cli") return path.join(project, ".gemini");
-  if (host === "antigravity") return path.join(project, ".agents");
-  if (host === "oh-my-pi") return path.join(project, ".omp");
-  throw new CliError(`Unsupported host: ${host}`);
-}
-
-function modelAgentRoot(host, scope, project, env = process.env) {
-  if (scope === "project") return path.join(projectConfigRoot(host, project), "agents");
-  const root = userConfigRoot(host, { env });
-  if (host === "oh-my-pi") return path.join(root, "agents");
-  return path.join(root, "agents");
-}
-
-function staticInstallRoots(host, scope, project, env = process.env) {
-  const home = homeDirectory(env);
-  if (host === "codex") {
-    const codex = scope === "project" ? path.join(project, ".codex") : userConfigRoot("codex", { env, home });
-    return {
-      agents: path.join(codex, "agents"),
-    };
+async function fileType(file) {
+  try {
+    const info = await lstat(file);
+    if (!info.isFile() || info.isSymbolicLink()) throw new CliError(`Role target is not a regular file: ${file}`);
+    return "file";
+  } catch (error) {
+    if (error instanceof CliError) throw error;
+    if (error?.code === "ENOENT") return "missing";
+    throw new CliError(`Cannot inspect role target ${file}: ${error.message}`);
   }
-  if (host === "opencode") return { config: scope === "project" ? path.join(project, ".opencode") : userConfigRoot("opencode", { env, home }) };
-  if (host === "cursor") return { config: scope === "project" ? path.join(project, ".cursor") : userConfigRoot("cursor", { env, home }) };
-  if (host === "gemini-cli") return { config: scope === "project" ? path.join(project, ".gemini") : userConfigRoot("gemini-cli", { env, home }) };
-  if (host === "antigravity") {
-    return {
-      plugin: scope === "project"
-        ? path.join(project, ".agents", "plugins", PLUGIN_ID)
-        : path.join(home, ".gemini", "antigravity-cli", "plugins", PLUGIN_ID),
-    };
-  }
-  if (host === "claude-code") return { config: scope === "project" ? path.join(project, ".claude") : userConfigRoot("claude-code", { env, home }) };
-  if (host === "oh-my-pi") return { config: scope === "project" ? path.join(project, ".omp") : userConfigRoot("oh-my-pi", { env, home }) };
-  throw new CliError(`Host ${host} does not use the static installer.`);
-}
-
-function stateFile(host, scope, project, env = process.env) {
-  const home = homeDirectory(env);
-  if (scope === "project") return path.join(project, ".oovz", "sew", `${host}.json`);
-  if (process.platform === "win32" && env.LOCALAPPDATA) return path.join(path.resolve(env.LOCALAPPDATA), "oovz", "sew", `${host}.json`);
-  const base = env.XDG_STATE_HOME ? path.resolve(env.XDG_STATE_HOME) : path.join(home, ".local", "state");
-  return path.join(base, "oovz", "sew", `${host}.json`);
-}
-
-function normalizeRelative(value, label = "relative path") {
-  const text = String(value).replaceAll("\\", "/");
-  if (!text || text.startsWith("/") || /^[A-Za-z]:/u.test(text) || text.split("/").includes("..")) throw new CliError(`Invalid ${label}: ${value}`, 1);
-  return text;
-}
-
-async function readTree(directory) {
-  const result = [];
-  async function walk(current) {
-    const entries = await readdir(current, { withFileTypes: true });
-    for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
-      const absolute = path.join(current, entry.name);
-      if (entry.isSymbolicLink()) throw new CliError(`Unexpected symlink in package payload: ${absolute}`, 1);
-      if (entry.isDirectory()) await walk(absolute);
-      else if (entry.isFile()) result.push({ path: path.relative(directory, absolute).split(path.sep).join("/"), content: await readFile(absolute) });
-      else throw new CliError(`Unsupported package payload entry: ${absolute}`, 1);
-    }
-  }
-  await walk(directory);
-  return result;
 }
 
 async function payloadManifest() {
-  let value;
-  try {
-    value = JSON.parse(await readFile(path.join(PAYLOAD_ROOT, "manifest.json"), "utf8"));
-  } catch (error) {
-    if (error?.code === "ENOENT") {
-      throw new CliError("This source checkout has no release payloads. Use the published @oovz/sew package. For local testing, run npm run bundle:sew, then execute release-build/sew/package/bin/sew.mjs.", 1);
-    }
-    throw error;
-  }
-  const staticHosts = [...STATIC_INSTALL_HOSTS];
-  if (value?.schemaVersion !== 2 || value.package !== PACKAGE_NAME || value.plugin !== PLUGIN_ID || !staticHosts.every((host) => value.staticHosts?.includes(host))) {
-    throw new CliError("The packaged Senior Engineering Workflow payload manifest is invalid or incomplete.", 1);
-  }
-  return value;
-}
-
-async function staticPlan(host, scope, project, env = process.env) {
-  const roots = staticInstallRoots(host, scope, project, env);
-  const artifacts = await readTree(path.join(PAYLOAD_ROOT, host));
-  const files = [];
-  if (host === "codex") {
-    for (const artifact of artifacts) {
-      if (!artifact.path.startsWith("companion/agents/")) continue;
-      files.push({ root: "agents", path: normalizeRelative(artifact.path.slice("companion/agents/".length)), content: artifact.content });
-    }
-  } else if (host === "opencode") {
-    for (const artifact of artifacts) if (artifact.path.startsWith(".opencode/")) files.push({ root: "config", path: normalizeRelative(artifact.path.slice(".opencode/".length)), content: artifact.content });
-  } else if (host === "cursor") {
-    for (const artifact of artifacts) {
-      if (artifact.path.startsWith("skills/") || artifact.path.startsWith("agents/")) files.push({ root: "config", path: normalizeRelative(artifact.path), content: artifact.content });
-    }
-  } else if (host === "gemini-cli") {
-    for (const artifact of artifacts) {
-      if (artifact.path.startsWith("skills/") || artifact.path.startsWith("agents/")) files.push({ root: "config", path: normalizeRelative(artifact.path), content: artifact.content });
-    }
-  } else if (host === "antigravity") {
-    for (const artifact of artifacts) files.push({ root: "plugin", path: normalizeRelative(artifact.path), content: artifact.content });
-  }
-  if (files.length === 0) throw new CliError(`The packaged ${host} payload contains no installable files.`, 1);
-  for (const file of files) {
-    if (!roots[file.root]) throw new CliError(`Payload references unknown root ${file.root}.`, 1);
-    file.destination = path.join(roots[file.root], ...file.path.split("/"));
-    file.sha256 = createHash("sha256").update(file.content).digest("hex");
-    await assertSafePath(roots[file.root], file.destination);
-  }
-  return { roots, files };
-}
-
-function installStateRootKey(state, root) {
-  if (!Object.hasOwn(state.roots, root)) throw new CliError(`Install state references unknown root ${root}.`, 1);
-}
-
-function comparablePath(value) {
-  const resolved = path.resolve(value);
-  return process.platform === "win32" ? resolved.toLowerCase() : resolved;
-}
-
-function validateInstallState(value, expected) {
-  if (!value || typeof value !== "object" || Array.isArray(value)) throw new CliError("The Senior Engineering Workflow installation state is invalid.", 1);
-  const allowedKeys = new Set(["schemaVersion", "package", "packageVersion", "plugin", "pluginVersion", "host", "scope", "roots", "files", "models"]);
-  const unknownKey = Object.keys(value).find((key) => !allowedKeys.has(key));
-  if (unknownKey) throw new CliError(`The installation state contains an unknown field: ${unknownKey}.`, 1);
-  if (value.package !== PACKAGE_NAME || value.plugin !== PLUGIN_ID) throw new CliError("The Senior Engineering Workflow installation state is invalid.", 1);
-  if (value.schemaVersion !== INSTALL_STATE_SCHEMA) throw new CliError(`Senior Engineering Workflow installation-state schema ${value.schemaVersion ?? "missing"} is unsupported. Delete the 0.9.x payload and state file as documented in the @oovz/sew README, then install again.`, 1);
-  if (value.host !== expected.host || value.scope !== expected.scope) throw new CliError("The Senior Engineering Workflow installation state belongs to another host or scope.", 1);
-  if (typeof value.packageVersion !== "string" || !value.packageVersion || typeof value.pluginVersion !== "string" || !value.pluginVersion) throw new CliError("The installation state has invalid version metadata.", 1);
-  if (!value.roots || typeof value.roots !== "object" || Array.isArray(value.roots)) throw new CliError("The installation state has invalid roots.", 1);
-  const actualRootKeys = Object.keys(value.roots).sort();
-  const expectedRootKeys = Object.keys(expected.roots).sort();
-  if (JSON.stringify(actualRootKeys) !== JSON.stringify(expectedRootKeys)) throw new CliError("The installation state roots do not match the selected host and scope.", 1);
-  for (const root of expectedRootKeys) {
-    if (typeof value.roots[root] !== "string" || comparablePath(value.roots[root]) !== comparablePath(expected.roots[root])) {
-      throw new CliError(`The installation state root ${root} does not match the selected host and scope.`, 1);
-    }
-  }
-  if (!Array.isArray(value.files)) throw new CliError("The installation state has invalid files.", 1);
-  const seen = new Set();
-  for (const entry of value.files) {
-    if (!entry || typeof entry !== "object" || Array.isArray(entry)) throw new CliError("The installation state contains an invalid file entry.", 1);
-    const entryKeys = Object.keys(entry).sort();
-    if (JSON.stringify(entryKeys) !== JSON.stringify(["path", "root", "sha256"])) throw new CliError("The installation state contains an invalid file entry shape.", 1);
-    installStateRootKey(value, entry.root);
-    const relative = normalizeRelative(entry.path, "state path");
-    const key = `${entry.root}:${process.platform === "win32" ? relative.toLowerCase() : relative}`;
-    if (seen.has(key)) throw new CliError(`The installation state contains a duplicate file entry: ${entry.path}`, 1);
-    seen.add(key);
-    if (!/^[a-f0-9]{64}$/u.test(entry.sha256 ?? "")) throw new CliError(`The installation state contains an invalid hash for ${entry.path}.`, 1);
-  }
-  validateStoredModels(value.models, value.host);
-  return value;
-}
-
-async function readInstallState(file, expected) {
-  try { return validateInstallState(JSON.parse(await readFile(file, "utf8")), expected); }
+  let manifest;
+  try { manifest = JSON.parse(await readFile(PAYLOAD_MANIFEST_PATH, "utf8")); }
   catch (error) {
-    if (error?.code === "ENOENT") return null;
-    if (error instanceof SyntaxError) throw new CliError(`Could not parse installation state ${file}: ${error.message}`, 1);
+    if (error?.code === "ENOENT") throw new CliError(`The ${PACKAGE_NAME} configuration payload is missing. Rebuild the release package.`);
+    if (error instanceof SyntaxError) throw new CliError(`Could not parse configuration payload manifest: ${error.message}`);
     throw error;
   }
+  if (manifest.schemaVersion !== 1 || manifest.package !== PACKAGE_NAME || manifest.packageVersion !== PACKAGE_VERSION || !manifest.hosts) {
+    throw new CliError("The configuration payload manifest does not match this SEW package.");
+  }
+  return manifest;
 }
 
-
-async function planStaticOperation(operation, host, scope, project, options, env = process.env, runtime = {}) {
-  const manifest = await payloadManifest();
-  const statePath = stateFile(host, scope, project, env);
-  await assertSafePath(path.dirname(statePath), statePath);
-  const expectedRoots = Object.fromEntries(Object.entries(staticInstallRoots(host, scope, project, env)).map(([key, value]) => [key, path.resolve(value)]));
-  const currentState = await readInstallState(statePath, { host, scope, roots: expectedRoots });
-  const plan = operation === "uninstall" ? { roots: currentState?.roots ?? expectedRoots, files: [] } : await staticPlan(host, scope, project, env);
-  if (operation === "install" && currentState && !options.force) throw new CliError(`Senior Engineering Workflow is already installed for ${host}/${scope}. Run sew update, or use --force to reinstall.`, 1);
-  if (operation !== "install" && !currentState) throw new CliError(`No managed Senior Engineering Workflow installation was found for ${host}/${scope}.`, 1);
-
-  let modelWarnings = [];
-  if (operation !== "uninstall" && currentState?.models && Object.keys(currentState.models).length > 0) {
-    const capabilities = fetchHarnessCapabilities(host, { project, env, platform: runtime.platform ?? process.platform, spawnSync: runtime.spawnSync });
-    modelWarnings = validateStoredModels(currentState.models, host, capabilities);
+async function installedRoleFiles(host, manifest) {
+  const files = manifest.hosts[host];
+  const expected = ROLE_IDS.map((role) => packagedRolePath(host, role)).sort();
+  if (!Array.isArray(files) || JSON.stringify([...files].sort()) !== JSON.stringify(expected)) {
+    throw new CliError(`The package is missing the complete ${host} role configuration.`);
   }
-
-  const owned = new Map();
-  if (currentState) {
-    for (const entry of currentState.files) {
-      const root = currentState.roots[entry.root];
-      const destination = path.join(root, ...normalizeRelative(entry.path).split("/"));
-      await assertSafePath(root, destination);
-      owned.set(path.resolve(destination), { ...entry, destination, rootPath: root });
-      const actual = await hashFile(destination);
-      if (actual !== null && actual !== entry.sha256 && !options.force) throw new CliError(`Managed file changed outside ${PACKAGE_NAME}: ${destination}. Review it, then rerun with --force to replace or remove it.`, 1);
-    }
-  }
-
-  const writes = [];
-  if (operation !== "uninstall") {
-    for (const file of plan.files) {
-      const key = path.resolve(file.destination);
-      const currentHash = await hashFile(file.destination);
-      if (currentHash !== null && !owned.has(key) && !options.force) throw new CliError(`Destination is occupied by a file ${PACKAGE_NAME} does not manage: ${file.destination}. Review it, then rerun with --force to replace it.`, 1);
-      writes.push(file);
-    }
-    const models = currentState?.models;
-    if (models && Object.keys(models).length > 0) {
-      for (const file of writes) {
-        const role = ROLES.find((candidate) => path.basename(file.path) === `${PLUGIN_ID}-${candidate}${modelExtension(host)}`);
-        const config = role !== undefined ? models[role] : undefined;
-        if (!config) continue;
-        const overlaid = applyModelOverlay(host, String(file.content), config);
-        file.content = Buffer.from(overlaid);
-        file.sha256 = createHash("sha256").update(file.content).digest("hex");
-      }
-    }
-  }
-  const next = new Set(writes.map((item) => path.resolve(item.destination)));
-  const removals = [...owned.values()].filter((item) => !next.has(path.resolve(item.destination)));
-  const roots = operation === "uninstall" ? (currentState?.roots ?? {}) : Object.fromEntries(Object.entries(plan.roots).map(([key, value]) => [key, path.resolve(value)]));
-  const nextState = operation === "uninstall" ? null : {
-    schemaVersion: INSTALL_STATE_SCHEMA,
-    package: PACKAGE_NAME,
-    packageVersion: PACKAGE_VERSION,
-    plugin: PLUGIN_ID,
-    pluginVersion: manifest.pluginVersion,
-    host,
-    scope,
-    roots,
-    files: writes.map((file) => ({ root: file.root, path: file.path, sha256: file.sha256 })),
-    ...(currentState?.models && Object.keys(currentState.models).length > 0 ? { models: currentState.models } : {}),
-  };
-  return { statePath, currentState, nextState, writes, removals, roots, pluginVersion: manifest.pluginVersion, modelWarnings };
-}
-
-function nativeCommands(operation, host, scope, project, force = false) {
-  const plugin = `${PLUGIN_ID}@${MARKETPLACE_ID}`;
-  if (host === "claude-code") {
-    if (force) throw new CliError("Claude Code native plugin operations do not accept --force.");
-    if (operation === "install") return [
-      { argv: ["claude", "plugin", "marketplace", "add", MARKETPLACE_SOURCE, "--scope", scope], tolerateAlreadyExists: true, cwd: project },
-      { argv: ["claude", "plugin", "install", plugin, "--scope", scope], cwd: project },
-    ];
-    if (operation === "update") return [{ argv: ["claude", "plugin", "update", plugin, "--scope", scope], cwd: project }];
-    return [{ argv: ["claude", "plugin", "uninstall", plugin, "--scope", scope], cwd: project }];
-  }
-  if (host === "oh-my-pi") {
-    if (operation === "install") return [
-      { argv: ["omp", "plugin", "marketplace", "add", MARKETPLACE_SOURCE], tolerateAlreadyExists: true, cwd: project },
-      { argv: ["omp", "plugin", "install", ...(force ? ["--force"] : []), "--scope", scope, plugin], cwd: project },
-    ];
-    if (operation === "update") return [{ argv: ["omp", "plugin", "upgrade", "--scope", scope, plugin], cwd: project }];
-    return [{ argv: ["omp", "plugin", "uninstall", "--scope", scope, plugin], cwd: project }];
-  }
-  throw new CliError(`Host ${host} does not use native installation.`);
-}
-
-function codexPluginIdentifier(plugin) {
-  if (!plugin || typeof plugin !== "object") return null;
-  for (const key of ["pluginId", "plugin_id", "id", "qualifiedName"]) {
-    if (typeof plugin[key] === "string") return plugin[key];
-  }
-  const name = plugin.name ?? plugin.pluginName;
-  const marketplace = plugin.marketplaceName ?? plugin.marketplace;
-  if (typeof name === "string" && typeof marketplace === "string") return `${name}@${marketplace}`;
-  return null;
-}
-
-function parseCodexPluginStatus(stdout) {
-  let value;
-  try {
-    value = JSON.parse(String(stdout ?? ""));
-  } catch (error) {
-    throw new CliError(`Could not parse codex plugin list --json: ${error.message}. Re-run with --force to reinstall the marketplace skill and companion agents.`, 1);
-  }
-
-  let records;
-  if (Array.isArray(value?.installed)) records = value.installed;
-  else if (Array.isArray(value)) records = value;
-  else if (Array.isArray(value?.plugins)) records = value.plugins.filter((item) => item?.installed === true);
-  else throw new CliError("codex plugin list --json did not return an installed-plugin list. Re-run with --force to reinstall the marketplace skill and companion agents.", 1);
-
-  const plugin = records.find((item) => codexPluginIdentifier(item) === CODEX_PLUGIN_ID);
-  if (!plugin) return { installed: false, enabled: false, version: undefined };
-  return {
-    installed: plugin.installed !== false,
-    enabled: plugin.enabled !== false && plugin.disabled !== true,
-    version: plugin.version,
-  };
-}
-
-function inspectCodexPlugin(project, runner = defaultSpawnSync, env = process.env, platform = process.platform) {
-  const result = spawnCodex(["plugin", "list", "--json"], { cwd: project, stdio: "pipe", spawnSync: runner, env, platform });
-  if (result.error) {
-    if (result.error.code === "SEW_INVALID_CWD") throw new CliError(result.error.message, 1);
-    if (result.error.code === "ENOENT") throw new CliError("Could not find the codex CLI on PATH or in the ChatGPT desktop application. Install Codex, then re-run.", 1);
-    throw new CliError(`Could not inspect Codex plugins: ${result.error.message}. Re-run with --force to reinstall the marketplace skill and companion agents.`, 1);
-  }
-  if ((result.status ?? 1) !== 0) {
-    const stderr = String(result.stderr ?? "").trim();
-    throw new CliError(`codex plugin list --json failed (${result.status})${stderr ? `: ${stderr}` : ""}. Re-run with --force to reinstall the marketplace skill and companion agents.`, 1);
-  }
-  return parseCodexPluginStatus(result.stdout);
-}
-
-function codexPluginInstallCommands(project) {
-  return [
-    { argv: ["codex", "plugin", "marketplace", "add", MARKETPLACE_SOURCE], tolerateAlreadyExists: true, cwd: project },
-    { argv: ["codex", "plugin", "add", CODEX_PLUGIN_ID], cwd: project },
-  ];
-}
-
-function commandDisplay(argv) {
-  return argv.map((value) => /[\s"']/u.test(value) ? JSON.stringify(value) : value).join(" ");
-}
-
-function executeNative(commands, options = {}) {
-  const runner = options.spawnSync ?? defaultSpawnSync;
-  const results = [];
-  for (const command of commands) {
-    const display = commandDisplay(command.argv);
-    if (options.dryRun) { results.push({ command: display, status: "would-run" }); continue; }
-    const [executable, ...args] = command.argv;
-    const captureOutput = options.json || command.tolerateAlreadyExists;
-    const spawnOptions = { cwd: command.cwd, stdio: captureOutput ? "pipe" : "inherit", spawnSync: runner, env: options.env ?? process.env, platform: options.platform ?? process.platform };
-    const result = executable === "codex" ? spawnCodex(args, spawnOptions) : spawnHost(executable, args, spawnOptions);
-    const stderr = captureOutput ? String(result.stderr ?? "") : "";
-    const stdout = captureOutput ? String(result.stdout ?? "") : "";
-    const alreadyExists = command.tolerateAlreadyExists && /already|exists|configured|duplicate/iu.test(`${stdout}\n${stderr}`);
-    if (result.error) {
-      if (result.error.code === "SEW_INVALID_CWD") throw new CliError(result.error.message, 1);
-      if (result.error.code === "ENOENT") {
-        const location = executable === "codex" ? "on PATH or in the ChatGPT desktop application" : "on PATH";
-        throw new CliError(`Could not find the ${executable} CLI ${location}. Install it, then re-run.`, 1);
-      }
-      throw new CliError(`Could not execute ${executable}: ${result.error.message}`, 1);
-    }
-    if (!options.json && captureOutput) {
-      if (stdout) process.stdout.write(stdout);
-      if (stderr) process.stderr.write(stderr);
-    }
-    if ((result.status ?? 1) !== 0 && !alreadyExists) throw new CliError(`Native command failed (${result.status}): ${display}${stderr ? `\n${stderr.trim()}` : ""}`, 1);
-    results.push({ command: display, status: alreadyExists ? "already-configured" : "completed", exitCode: result.status ?? 0, stdout: stdout.trim(), stderr: stderr.trim() });
-  }
-  return results;
-}
-
-
-function parseOpenCodeAgentList(stdout) {
-  const names = new Set();
-  for (const line of String(stdout ?? "").replaceAll("\r\n", "\n").split("\n")) {
-    const match = line.match(/^([^\s]+)\s+\((?:all|primary|subagent)\)$/u);
-    if (match) names.add(match[1]);
-  }
-  return ROLES.map((role) => `${PLUGIN_ID}-${role}`).filter((name) => names.has(name));
-}
-
-function inspectOpenCodeDiscovery(project, env = process.env, runner = defaultSpawnSync) {
-  const expected = ROLES.map((role) => `${PLUGIN_ID}-${role}`);
-  const base = {
-    command: "opencode agent list",
-    expected,
-    message: "OpenCode installs one Agent Skill and four Markdown subagents. Inspect them with opencode agent list.",
-  };
-  const result = spawnHost("opencode", ["agent", "list"], { cwd: project, env, stdio: "pipe", spawnSync: runner });
-  if (result.error) {
-    const detail = result.error.code === "ENOENT"
-      ? "OpenCode CLI was not found on PATH. Restart OpenCode and run opencode agent list to verify discovery."
-      : result.error.message;
-    return { ...base, status: "not-checked", found: [], missing: expected, detail };
-  }
-  if ((result.status ?? 1) !== 0) {
-    const detail = String(result.stderr ?? "").trim() || `opencode agent list exited with status ${result.status}.`;
-    return { ...base, status: "not-checked", found: [], missing: expected, detail };
-  }
-  const found = parseOpenCodeAgentList(result.stdout);
-  const missing = expected.filter((name) => !found.includes(name));
-  if (missing.length > 0) {
-    return { ...base, status: "not-discovered", found, missing, detail: `OpenCode did not discover these agents: ${missing.join(", ")}. Check the reported installation paths and OpenCode version.` };
-  }
-  return { ...base, status: "verified", found, missing: [], detail: "Restart OpenCode sessions that were running during installation so they load the new agents and skill." };
-}
-
-function printOperation(result, json) {
-  if (json) { process.stdout.write(`${JSON.stringify(result, null, 2)}\n`); return; }
-  process.stdout.write(`${terminal.status(result.status)}: ${result.host}/${result.scope}\n`);
-  for (const warning of result.warnings ?? []) process.stderr.write(`${terminal.warning(`sew: warning: ${warning}`)}\n`);
-  for (const item of result.actions ?? []) process.stdout.write(`- ${terminal.action(item.action ?? item.status)} ${item.path ?? item.command}\n`);
-  if (result.discovery) {
-    process.stdout.write(`- ${terminal.status(result.discovery.status)} ${result.discovery.message}\n`);
-    if (result.discovery.detail) process.stdout.write(`  ${result.discovery.detail}\n`);
-  }
-}
-
-function staticOperationActions(operation, plan) {
-  if (operation === "uninstall") return plan.removals.map((item) => ({ action: "remove", path: item.destination }));
-  return [
-    ...plan.writes.map((item) => ({ action: plan.currentState ? "update" : "create", path: item.destination })),
-    ...plan.removals.map((item) => ({ action: "remove", path: item.destination })),
-  ];
-}
-
-async function runCodexOperation(operation, options, runtime, scope, project) {
-  const plan = await planStaticOperation(operation, "codex", scope, project, options, runtime.env ?? process.env, runtime);
-  const companionActions = staticOperationActions(operation, plan);
-  let plugin;
-  let pluginActions = [];
-
-  if (operation === "uninstall") {
-    plugin = {
-      status: "preserved",
-      managedBy: "codex",
-      detail: "The Codex marketplace keeps ownership of the skill. @oovz/sew manages only the companion agents.",
-    };
-  } else if (options["dry-run"]) {
-    if (options.force) {
-      pluginActions = executeNative(codexPluginInstallCommands(project), { dryRun: true, json: options.json === true, spawnSync: runtime.spawnSync, env: runtime.env ?? process.env, platform: runtime.platform ?? process.platform });
-      plugin = { status: "would-reinstall", inspected: false };
-    } else {
-      pluginActions = [
-        { command: commandDisplay(["codex", "plugin", "list", "--json"]), status: "would-inspect" },
-        ...codexPluginInstallCommands(project).map((command) => ({ command: commandDisplay(command.argv), status: "if-missing-or-disabled" })),
-      ];
-      plugin = { status: "conditional", inspected: false };
-    }
-  } else {
-    const inspected = options.force ? null : inspectCodexPlugin(project, runtime.spawnSync ?? defaultSpawnSync, runtime.env ?? process.env, runtime.platform ?? process.platform);
-    const installPlugin = options.force === true || !inspected.installed || !inspected.enabled;
-    if (installPlugin) {
-      pluginActions = executeNative(codexPluginInstallCommands(project), { json: options.json === true, spawnSync: runtime.spawnSync, env: runtime.env ?? process.env, platform: runtime.platform ?? process.platform });
-    }
-    plugin = {
-      status: options.force ? "reinstalled" : installPlugin ? "installed" : "already-installed",
-      inspected: options.force !== true,
-      ...(inspected ?? {}),
-    };
-  }
-
-  if (!options["dry-run"]) await commitManagedOperation(operation, plan);
-  const completedStatus = { install: "installed", update: "updated", uninstall: "uninstalled" }[operation];
-  const result = {
-    command: operation,
-    status: options["dry-run"] ? "dry-run" : completedStatus,
-    host: "codex",
-    scope,
-    method: "hybrid",
-    pluginVersion: plan.pluginVersion,
-    statePath: plan.statePath,
-    plugin,
-    actions: [...pluginActions, ...companionActions],
-    ...(plan.modelWarnings.length > 0 ? { warnings: plan.modelWarnings } : {}),
-  };
-  printOperation(result, options.json);
-  return 0;
-}
-
-async function runInstallOperation(operation, options, runtime = {}) {
-  const host = normalizeHost(options.host);
-  const scope = normalizeScope(options.scope);
-  const project = projectRoot(options);
-  if (options.project !== undefined && scope !== "project") throw new CliError("--project is valid only with --scope project.");
-  if (host === "codex") return runCodexOperation(operation, options, runtime, scope, project);
-  if (NATIVE_INSTALL_HOSTS.has(host)) {
-    const commands = nativeCommands(operation, host, scope, project, options.force === true);
-    const actions = executeNative(commands, { dryRun: options["dry-run"] === true, json: options.json === true, spawnSync: runtime.spawnSync, env: runtime.env ?? process.env, platform: runtime.platform ?? process.platform });
-    const completedStatus = { install: "installed", update: "updated", uninstall: "uninstalled" }[operation];
-    const result = { command: operation, status: options["dry-run"] ? "dry-run" : completedStatus, host, scope, method: "native", actions };
-    printOperation(result, options.json);
-    return 0;
-  }
-  if (!STATIC_INSTALL_HOSTS.has(host)) throw new CliError(`Unsupported install host: ${host}`);
-  const plan = await planStaticOperation(operation, host, scope, project, options, runtime.env ?? process.env, runtime);
-  const actions = staticOperationActions(operation, plan);
-  if (!options["dry-run"]) await commitManagedOperation(operation, plan);
-  const discovery = host === "opencode" && operation !== "uninstall"
-    ? options["dry-run"]
-      ? { status: "would-verify", expected: ROLES.map((role) => `${PLUGIN_ID}-${role}`), command: "opencode agent list", message: "OpenCode installs one Agent Skill and four Markdown subagents. Inspect them with opencode agent list." }
-      : inspectOpenCodeDiscovery(project, runtime.env ?? process.env, runtime.spawnSync ?? defaultSpawnSync)
-    : undefined;
-  const completedStatus = { install: "installed", update: "updated", uninstall: "uninstalled" }[operation];
-  const discoveryFailed = discovery?.status === "not-discovered";
-  const result = {
-    command: operation,
-    status: options["dry-run"] ? "dry-run" : discoveryFailed ? `${completedStatus}-but-not-discovered` : completedStatus,
-    host,
-    scope,
-    method: "static",
-    pluginVersion: plan.pluginVersion,
-    statePath: plan.statePath,
-    actions,
-    ...(plan.modelWarnings.length > 0 ? { warnings: plan.modelWarnings } : {}),
-    ...(discovery ? { discovery } : {}),
-  };
-  printOperation(result, options.json);
-  return discoveryFailed ? 1 : 0;
-}
-
-async function configureModels(options, runtime = {}, capabilities = null) {
-  const host = normalizeHost(options.host);
-  const scope = normalizeScope(options.scope);
-  const preset = normalizePreset(options.preset);
-  const project = projectRoot(options);
-  const env = runtime.env ?? process.env;
-  if (options.project !== undefined && scope !== "project") throw new CliError("--project is valid only with --scope project.");
-  if (!MODEL_EDIT_HOSTS.has(host)) throw new CliError(`${host} roles use native model inheritance, so sew cannot configure them.`);
-
-  const mapping = parseRoleMap(options.map, PRESETS[preset]);
-  const statePath = stateFile(host, scope, project, env);
-  await assertSafePath(path.dirname(statePath), statePath);
-  const expectedRoots = Object.fromEntries(Object.entries(staticInstallRoots(host, scope, project, env)).map(([key, value]) => [key, path.resolve(value)]));
-  const state = await readInstallState(statePath, { host, scope, roots: expectedRoots });
-  if (!state) throw new CliError(`No managed ${host}/${scope} installation was found. Run sew install --host ${host} --scope ${scope}, then configure models.`, 1);
-
-  const resolvedCaps = capabilities || (preset === "inherit" ? null : fetchHarnessCapabilities(host, { project, env, platform: runtime.platform ?? process.platform, spawnSync: runtime.spawnSync }));
-  const validationWarnings = validateModelConfiguration(host, preset, mapping, options, resolvedCaps ?? HARNESS_METADATA[host]);
-  const warnings = [...new Set([...(resolvedCaps?.warnings ?? []), ...validationWarnings])];
-  const edits = [];
-  for (const role of ROLES) {
-    const fileName = `${PLUGIN_ID}-${role}${modelExtension(host)}`;
-    const entry = state.files.find((file) => path.basename(file.path) === fileName);
-    if (!entry) throw new CliError(`The managed ${host}/${scope} installation does not contain the ${role} agent file.`, 1);
-    const root = state.roots[entry.root];
-    const destination = path.join(root, ...normalizeRelative(entry.path).split("/"));
-    await assertSafePath(root, destination);
-    if (!(await pathInfo(destination))) throw new CliError(`The installed ${host}/${scope} ${role} agent is missing. Run sew update --host ${host} --scope ${scope} first.`, 1);
-    const current = await readFile(destination, "utf8");
-    const currentHash = await hashFile(destination);
-    const managed = currentHash === entry.sha256;
-    if (!managed && !options.force) throw new CliError(`Installed agent changed outside ${PACKAGE_NAME}: ${destination}. Review it, then rerun with --force to replace it.`, 1);
-    const slot = mapping[role];
-    const config = slot === "inherit" ? {} : slotConfiguration(slot, options);
-    const next = applyModelOverlay(host, current, config);
-    edits.push({ role, slot, path: destination, action: next === current ? "unchanged" : "update", content: next });
-  }
-  if (!options["dry-run"]) {
-    const models = {};
-    for (const role of ROLES) {
-      const slot = mapping[role];
-      if (slot === "inherit") continue;
-      models[role] = slotConfiguration(slot, options);
-    }
-    const editsByPath = new Map(edits.map((item) => [path.resolve(item.path), item]));
-    const files = state.files.map((entry) => {
-      const destination = path.join(state.roots[entry.root], ...normalizeRelative(entry.path).split("/"));
-      const edit = editsByPath.get(path.resolve(destination));
-      return edit ? { ...entry, sha256: createHash("sha256").update(edit.content).digest("hex") } : entry;
-    });
-    const { models: _previousModels, ...stateWithoutModels } = state;
-    const nextState = { ...stateWithoutModels, files, ...(Object.keys(models).length > 0 ? { models } : {}) };
-    await commitManagedOperation("models", {
-      statePath,
-      nextState,
-      writes: edits.filter((item) => item.action === "update").map((item) => ({ destination: item.path, content: Buffer.from(item.content) })),
-      removals: [],
-      roots: state.roots,
-    });
-  }
-  const result = {
-    command: "models configure",
-    status: options["dry-run"] ? "dry-run" : "configured",
-    host,
-    scope,
-    preset,
-    statePath,
-    mapping,
-    files: edits.map(({ content: _content, ...item }) => item),
-    ...(warnings.length > 0 ? { warnings } : {}),
-  };
-  if (options.json) process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
-  else {
-    process.stdout.write(`${terminal.status(result.status)}: ${host}/${scope}\n`);
-    for (const warning of warnings) process.stderr.write(`${terminal.warning(`sew: warning: ${warning}`)}\n`);
-    for (const item of result.files) {
-      const padding = " ".repeat(Math.max(1, 18 - item.action.length));
-      process.stdout.write(`- ${terminal.action(item.action)}${padding} ${item.path}\n`);
-    }
-  }
-  return 0;
-}
-
-function unquote(value) {
-  const text = String(value).trim();
-  if (!text) return "";
-  if (text.startsWith('"') && text.endsWith('"')) { try { return JSON.parse(text); } catch { return text.slice(1, -1); } }
-  if (text.startsWith("'") && text.endsWith("'")) return text.slice(1, -1).replaceAll("''", "'");
-  if (text === "true") return true;
-  if (text === "false") return false;
-  return text;
-}
-
-function parseFrontmatterScalars(content) {
-  const normalized = String(content).replaceAll("\r\n", "\n");
-  if (!normalized.startsWith("---\n")) return {};
-  const end = normalized.indexOf("\n---\n", 4);
-  if (end < 0) throw new Error("unterminated frontmatter");
-  const output = {};
-  for (const line of normalized.slice(4, end).split("\n")) {
-    const match = line.match(/^([A-Za-z][A-Za-z0-9_-]*):\s*(.*)$/u);
-    if (match) output[match[1]] = unquote(match[2]);
+  const output = [];
+  for (const role of ROLE_IDS) {
+    const relative = packagedRolePath(host, role);
+    const source = path.join(PAYLOAD_ROOT, host, ...relative.split("/"));
+    if (path.relative(path.join(PAYLOAD_ROOT, host), source).startsWith("..")) throw new CliError(`Invalid packaged role path: ${relative}`);
+    let content;
+    try { content = await readFile(source); }
+    catch (error) { throw new CliError(`Cannot read packaged ${host} role ${role} at ${source}: ${error.message}`); }
+    readRoleConfiguration(host, content, role);
+    output.push({ role, relative, content });
   }
   return output;
 }
 
-function parseTomlScalars(content) {
-  const sections = new Map([["", {}]]);
-  let current = "";
-  for (const raw of String(content).replaceAll("\r\n", "\n").split("\n")) {
-    const line = raw.replace(/\s+#.*$/u, "").trim();
-    if (!line) continue;
-    const section = line.match(/^\[([^\]]+)\]$/u);
-    if (section) { current = section[1]; if (!sections.has(current)) sections.set(current, {}); continue; }
-    const assignment = line.match(/^([A-Za-z0-9_.-]+)\s*=\s*(.+)$/u);
-    if (assignment) sections.get(current)[assignment[1]] = unquote(assignment[2]);
+async function install(options) {
+  if (options.scope === "project") await assertProject(options.project);
+  const manifest = await payloadManifest();
+  const sourceFiles = await installedRoleFiles(options.host, manifest);
+  const root = roleAgentRoot(options.host, options.scope, options.project, process.env);
+  const planned = [];
+  for (const file of sourceFiles) {
+    const destination = path.join(root, path.basename(file.relative));
+    const state = await fileType(destination);
+    const current = state === "file" ? await readFile(destination) : null;
+    let content = file.content;
+    if (current && !current.equals(file.content) && !options.force) {
+      const retained = preserveRoleOverrides(options.host, current, file.content, file.role);
+      if (retained === null) throw new CliError(`Role file already exists with different content: ${destination}. Review it, then rerun install with --force to replace this file.`, 1);
+      content = Buffer.from(retained, "utf8");
+    }
+    planned.push({ ...file, content, destination, current });
   }
-  return sections;
-}
-
-function parseJsonc(content) {
-  return JSON.parse(String(content).replace(/\/\*[\s\S]*?\*\//gu, "").replace(/^\s*\/\/.*$/gmu, ""));
-}
-
-async function listAgentFiles(directory, extension) {
-  try {
-    const entries = await readdir(directory, { withFileTypes: true });
-    return entries.filter((entry) => entry.isFile() && entry.name.endsWith(extension)).map((entry) => path.join(directory, entry.name)).sort();
-  } catch (error) { if (error?.code === "ENOENT") return []; throw error; }
-}
-
-function finding(level, code, message, details) { return { level, code, message, ...(details === undefined ? {} : { details }) }; }
-
-async function scanMarkdownAgents(directory, scope, host) {
-  const definitions = [];
-  const findings = [];
-  for (const file of await listAgentFiles(directory, ".md")) {
-    try {
-      const content = await readFile(file, "utf8");
-      const frontmatter = parseFrontmatterScalars(content);
-      const model = frontmatter.model;
-      const thinking = frontmatter.effort ?? frontmatter.variant ?? frontmatter["thinking-level"] ?? frontmatter.thinking;
-      const canonical = path.basename(file).startsWith(`${PLUGIN_ID}-`);
-      if (model === undefined && thinking === undefined && !isManagedModelContent(content) && !canonical) continue;
-      definitions.push({ scope, path: file, name: frontmatter.name ?? path.basename(file, ".md"), model, thinking, generated: isManagedModelContent(content), canonical });
-    } catch (error) { findings.push(finding("warning", "agent-parse", `Could not parse ${host} agent ${file}: ${error.message}`)); }
-  }
-  return { definitions, findings };
-}
-
-async function scanCodexAgents(directory, scope) {
-  const definitions = [];
-  const findings = [];
-  for (const file of await listAgentFiles(directory, ".toml")) {
-    try {
-      const content = await readFile(file, "utf8");
-      const root = parseTomlScalars(content).get("") ?? {};
-      const canonical = path.basename(file).startsWith(`${PLUGIN_ID}-`);
-      if (root.model === undefined && root.model_reasoning_effort === undefined && !isManagedModelContent(content) && !canonical) continue;
-      definitions.push({ scope, path: file, name: root.name ?? path.basename(file, ".toml"), model: root.model, thinking: root.model_reasoning_effort, generated: isManagedModelContent(content), canonical });
-    } catch (error) { findings.push(finding("warning", "agent-parse", `Could not parse Codex agent ${file}: ${error.message}`)); }
-  }
-  return { definitions, findings };
-}
-
-function duplicateFindings(definitions) {
-  const byName = new Map();
-  for (const definition of definitions) {
-    const key = String(definition.name).toLowerCase();
-    if (!byName.has(key)) byName.set(key, []);
-    byName.get(key).push(definition);
-  }
-  return [...byName.entries()].filter(([, items]) => items.length > 1).map(([name, items]) => finding("warning", "duplicate-agent", `Agent ${name} has multiple model definitions. Host precedence selects the active one.`, items));
-}
-
-async function inspectStaticState(host, project, env) {
-  const installations = [];
-  const findings = [];
-  for (const scope of ["user", "project"]) {
-    const file = stateFile(host, scope, project, env);
-    try {
-      const expectedRoots = Object.fromEntries(Object.entries(staticInstallRoots(host, scope, project, env)).map(([key, value]) => [key, path.resolve(value)]));
-      const state = validateInstallState(JSON.parse(await readFile(file, "utf8")), { host, scope, roots: expectedRoots });
-      const files = [];
-      for (const entry of state.files) {
-        const root = state.roots[entry.root];
-        const destination = path.join(root, ...normalizeRelative(entry.path).split("/"));
-        const actual = await hashFile(destination);
-        files.push({ path: destination, expected: entry.sha256, actual, status: actual === entry.sha256 ? "current" : actual === null ? "missing" : "modified" });
-      }
-      if (files.some((item) => item.status !== "current")) findings.push(finding("warning", "installation-drift", `${host}/${scope} installation has missing or modified files.`, files));
-      installations.push({ scope, statePath: file, pluginVersion: state.pluginVersion, files });
-    } catch (error) {
-      if (error?.code !== "ENOENT") findings.push(finding("warning", "installation-state", `Could not inspect ${host}/${scope} installation state ${file}: ${error.message}`));
+  const actions = planned.map((file) => ({ role: file.role, path: file.destination, action: file.current?.equals(file.content) ? "unchanged" : file.current ? "replace" : "create" }));
+  if (!options["dry-run"]) {
+    try { await mkdir(root, { recursive: true }); }
+    catch (error) { throw new CliError(`Cannot create agent configuration directory ${root}: ${error.message}`, 1); }
+    for (const file of planned) {
+      if (file.current?.equals(file.content)) continue;
+      try { await writeFile(file.destination, file.content); }
+      catch (error) { throw new CliError(`Cannot write role file ${file.destination}: ${error.message}`, 1); }
     }
   }
-  return { installations, findings };
+  return { command: "install", status: options["dry-run"] ? "dry-run" : "installed", host: options.host, scope: options.scope, root, actions };
 }
 
-async function inspectNativeState(host, project, env) {
-  const installations = [];
-  const findings = [];
-  if (host === "oh-my-pi") {
-    const home = homeDirectory(env);
-    const candidates = [
-      { scope: "user", path: path.join(home, ".omp", "plugins", "installed_plugins.json") },
-      { scope: "project", path: path.join(project, ".omp", "plugins", "installed_plugins.json") },
-    ];
-    for (const candidate of candidates) {
-      try {
-        const value = JSON.parse(await readFile(candidate.path, "utf8"));
-        const text = JSON.stringify(value);
-        installations.push({ scope: candidate.scope, statePath: candidate.path, detected: text.includes(PLUGIN_ID) });
-      } catch (error) { if (error?.code !== "ENOENT") findings.push(finding("warning", "installation-state", `Could not parse ${candidate.path}: ${error.message}`)); }
-    }
-  } else {
-    findings.push(finding("information", "native-install", "Claude Code manages plugin installation. Doctor inspects model configuration and environment overrides. The host's private plugin cache is outside its scope."));
+async function configureModel(options) {
+  if (options.scope === "project") await assertProject(options.project);
+  const root = roleAgentRoot(options.host, options.scope, options.project, process.env);
+  const file = path.join(root, roleFileName(options.host, options.role));
+  if ((await fileType(file)) !== "file") throw new CliError(`Role configuration is missing: ${file}. Run sew install for ${options.host}/${options.scope} first.`);
+  let source;
+  try { source = await readFile(file, "utf8"); }
+  catch (error) { throw new CliError(`Cannot read role configuration ${file}: ${error.message}`); }
+  const current = readRoleConfiguration(options.host, source, options.role);
+  const next = options.reset
+    ? applyRoleOverride(options.host, source, { reset: true })
+    : applyRoleOverride(options.host, source, options);
+  readRoleConfiguration(options.host, next, options.role);
+  if (!options["dry-run"] && next !== source) {
+    try { await writeFile(file, next, "utf8"); }
+    catch (error) { throw new CliError(`Cannot write role configuration ${file}: ${error.message}`); }
   }
-  return { installations, findings };
-}
-
-async function inspectCodexConfig(file, scope) {
-  try {
-    const sections = parseTomlScalars(await readFile(file, "utf8"));
-    const agents = sections.get("agents") ?? {};
-    const settings = [];
-    if (agents.default_subagent_model !== undefined || agents.default_subagent_reasoning_effort !== undefined) settings.push({ scope, path: file, defaultSubagentModel: agents.default_subagent_model, defaultSubagentThinking: agents.default_subagent_reasoning_effort });
-    return { settings, findings: [] };
-  } catch (error) { if (error?.code === "ENOENT") return { settings: [], findings: [] }; return { settings: [], findings: [finding("warning", "config-parse", `Could not parse Codex config ${file}: ${error.message}`)] }; }
-}
-
-async function inspectHost(host, project, env) {
-  const definitions = [];
-  const settings = [];
-  const findings = [];
-  const locations = [];
-  for (const scope of ["user", "project"]) {
-    const agents = modelAgentRoot(host, scope, project, env);
-    locations.push({ scope, agents });
-    const scan = host === "codex" ? await scanCodexAgents(agents, scope) : await scanMarkdownAgents(agents, scope, host);
-    definitions.push(...scan.definitions);
-    findings.push(...scan.findings);
-  }
-  findings.push(...duplicateFindings(definitions));
-  if (host === "claude-code") {
-    if (env.CLAUDE_CODE_SUBAGENT_MODEL) findings.push(finding("warning", "claude-model-env", "CLAUDE_CODE_SUBAGENT_MODEL may override agent model frontmatter.", { value: env.CLAUDE_CODE_SUBAGENT_MODEL }));
-    if (env.CLAUDE_CODE_EFFORT_LEVEL) findings.push(finding("information", "claude-effort-env", "CLAUDE_CODE_EFFORT_LEVEL sets the session effort baseline.", { value: env.CLAUDE_CODE_EFFORT_LEVEL }));
-  }
-  if (host === "codex") {
-    for (const scope of ["user", "project"]) {
-      const root = scope === "user" ? userConfigRoot("codex", { env }) : projectConfigRoot("codex", project);
-      const report = await inspectCodexConfig(path.join(root, "config.toml"), scope);
-      settings.push(...report.settings);
-      findings.push(...report.findings);
-    }
-    for (const setting of settings) findings.push(finding("warning", "codex-subagent-default", `Codex subagent defaults in ${setting.path} can replace parent inheritance.`, setting));
-  }
-  let installation;
-  if (STATIC_INSTALL_HOSTS.has(host)) installation = await inspectStaticState(host, project, env);
-  else installation = await inspectNativeState(host, project, env);
-  findings.push(...installation.findings);
-  if (host === "opencode") {
-    findings.push(finding("information", "opencode-install-shape", "Senior Engineering Workflow installs one Agent Skill and four Markdown subagents. Restart OpenCode after installation and verify them with opencode agent list."));
-  }
-  if (host === "antigravity") {
-    findings.push(finding("information", "antigravity-model-aliases", "Antigravity uses native model inheritance and inherited generic or dynamically defined subagents."));
-  } else if (definitions.length === 0) {
-    findings.push(finding("information", "no-model-aliases", "No explicit Senior Engineering Workflow model configuration was found."));
-  }
-  return { host, locations, definitions, settings, installations: installation.installations, findings };
-}
-
-async function doctor(options, runtime = {}) {
-  const project = projectRoot(options);
-  const hosts = normalizeDoctorHosts(options.host);
-  const env = runtime.env ?? process.env;
-  const reports = [];
-  for (const host of hosts) reports.push(await inspectHost(host, project, env));
-  const findings = reports.flatMap((report) => report.findings);
-  const summary = {
-    information: findings.filter((item) => item.level === "information").length,
-    warnings: findings.filter((item) => item.level === "warning").length,
-    errors: findings.filter((item) => item.level === "error").length,
+  return {
+    command: "models configure",
+    status: options["dry-run"] ? "dry-run" : next === source ? "unchanged" : "configured",
+    host: options.host,
+    scope: options.scope,
+    role: options.role,
+    path: file,
+    previous: { model: current.model ?? null, reasoning: current.reasoning ?? null },
+    current: readRoleConfiguration(options.host, next, options.role),
   };
-  const result = { command: "doctor", status: summary.errors ? "errors" : summary.warnings ? "warnings" : "healthy", packageVersion: PACKAGE_VERSION, projectRoot: project, hosts: reports, summary };
-  if (options.json) process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
-  else {
-    process.stdout.write(`${terminal.heading("Senior Engineering Workflow doctor:")} ${terminal.status(result.status)}\n`);
-    for (const report of reports) {
-      process.stdout.write(`\n${terminal.heading(report.host)}\n`);
-      for (const item of report.findings) process.stdout.write(`- [${terminal.findingLevel(item.level)}] ${item.message}\n`);
-    }
-    process.stdout.write(`\nSummary: ${summary.information} information, ${summary.warnings} warnings, ${summary.errors} errors.\n`);
-  }
-  return summary.errors ? 1 : 0;
 }
 
-export async function main(argv = process.argv.slice(2), runtime = {}) {
-  try {
-    const { command, options } = parseArgs(argv);
-    if (command === "help" || options.help) { process.stdout.write(usage()); return 0; }
-    if (command === "version") { process.stdout.write(`${PACKAGE_VERSION}\n`); return 0; }
+async function inspectRoot(host, scope, project, env) {
+  const root = roleAgentRoot(host, scope, project, env);
+  const roles = [];
+  for (const role of ROLE_IDS) {
+    const file = path.join(root, roleFileName(host, role));
+    let status;
+    try { status = await fileType(file); }
+    catch (error) {
+      roles.push({ role, path: file, status: "invalid", error: error.message });
+      continue;
+    }
+    if (status === "missing") {
+      roles.push({ role, path: file, status: "missing" });
+      continue;
+    }
+    try {
+      const config = readRoleConfiguration(host, await readFile(file, "utf8"), role);
+      roles.push({ role, path: file, status: "valid", name: config.name, model: config.model ?? null, reasoning: config.reasoning ?? null });
+    } catch (error) {
+      roles.push({ role, path: file, status: "invalid", error: error.message });
+    }
+  }
+  return { scope, root, roles };
+}
 
-    if (["install", "update", "uninstall"].includes(command)) return await runInstallOperation(command, options, runtime);
-    if (command === "models-configure") return await configureModels(options, runtime);
-    if (command === "doctor") return await doctor(options, runtime);
-    throw new CliError(`Unknown command: ${command}`);
+async function doctor(options) {
+  await assertProject(options.project);
+  const reports = [];
+  const home = normalizeHome(process.env);
+  for (const host of options.host) {
+    const user = await inspectRoot(host, "user", options.project, process.env);
+    const project = await inspectRoot(host, "project", options.project, process.env);
+    const coverage = ROLE_IDS.map((role) => ({
+      role,
+      scopes: [user, project].filter((inventory) => inventory.roles.some((item) => item.role === role && item.status === "valid")).map((inventory) => inventory.scope),
+    }));
+    const duplicates = coverage.filter((item) => item.scopes.length === 2).map((item) => item.role);
+    const statuses = [...user.roles, ...project.roles];
+    reports.push({ host, home, user, project, coverage, duplicates, status: statuses.some((item) => item.status === "invalid") ? "invalid" : coverage.every((item) => item.scopes.length > 0) ? "configuration-valid" : "incomplete" });
+  }
+  const status = reports.some((report) => report.status === "invalid")
+    ? "invalid"
+    : reports.every((report) => report.status === "configuration-valid")
+      ? "configuration-valid"
+      : "incomplete";
+  return { command: "doctor", status, projectRoot: options.project, checked: "documented agent files and configuration syntax; model execution was not checked", hosts: reports };
+}
+
+function printResult(result, jsonOutput) {
+  if (jsonOutput) { process.stdout.write(`${JSON.stringify(result, null, 2)}\n`); return; }
+  if (result.command === "install") {
+    process.stdout.write(`${result.status}: ${result.host}/${result.scope} at ${result.root}\n`);
+    for (const file of result.actions) process.stdout.write(`- ${file.action} ${file.path}\n`);
+  } else if (result.command === "models configure") {
+    process.stdout.write(`${result.status}: ${result.host}/${result.scope}/${result.role} at ${result.path}\n`);
+  } else {
+    for (const host of result.hosts) {
+      process.stdout.write(`${host.status}: ${host.host}\n`);
+      for (const inventory of [host.user, host.project]) {
+        for (const item of inventory.roles) {
+          const details = item.status === "valid"
+            ? `, name ${item.name}${item.model ? `, model ${item.model}` : ""}${item.reasoning ? `, reasoning ${item.reasoning}` : ""}`
+            : item.error ? `, ${item.error}` : "";
+          process.stdout.write(`- ${inventory.scope}/${item.role}: ${item.status} at ${item.path}${details}\n`);
+        }
+      }
+      if (host.duplicates.length) process.stdout.write(`Duplicate roles: ${host.duplicates.join(", ")}\n`);
+    }
+    process.stdout.write(`Checked ${result.checked}.\n`);
+  }
+}
+
+export async function main(argv = process.argv.slice(2)) {
+  const jsonOutput = argv.includes("--json");
+  try {
+    const parsed = parseArgs(argv);
+    const options = parsed.options;
+    if (parsed.command === "help") { process.stdout.write(`${usage()}\n`); return 0; }
+    if (parsed.command === "version") { process.stdout.write(`${PACKAGE_VERSION}\n`); return 0; }
+    const result = parsed.command === "install"
+      ? await install(options)
+      : parsed.command === "models"
+        ? await configureModel(options)
+        : await doctor(options);
+    printResult(result, options.json === true);
+    return result.status === "invalid" ? 1 : 0;
   } catch (error) {
-    if (error instanceof CliError) { process.stderr.write(`${terminal.error(`sew: ${error.message}`)}\n`); return error.exitCode; }
-    process.stderr.write(`${terminal.error(`sew: unexpected error: ${error.stack ?? error.message}`)}\n`);
-    return 1;
+    const message = error instanceof CliError ? error.message : `Unexpected error: ${error.message}`;
+    if (jsonOutput) process.stdout.write(`${JSON.stringify({ error: message })}\n`);
+    else process.stderr.write(`sew: ${message}\n`);
+    return error instanceof CliError ? error.exitCode : 1;
   }
 }
 
@@ -1005,41 +307,19 @@ if (direct) process.exitCode = await main();
 
 export const internals = Object.freeze({
   HOSTS,
-  ROLES,
-  PRESETS,
-  MODEL_MARKER,
-  HARNESS_METADATA,
-  fetchHarnessCapabilities,
-  isModelSupported,
-  isReasoningSupported,
-  parseCliModelsOutput,
-  validateStoredModels,
-  configureModels,
+  ROLE_IDS,
+  HOST_CONFIG,
+  packageVersion: PACKAGE_VERSION,
   parseArgs,
-  normalizePreset,
-  parseRoleMap,
-  homeDirectory,
-  userConfigRoot,
-  projectConfigRoot,
-  modelAgentRoot,
-  staticInstallRoots,
-  stateFile,
-  staticPlan,
-  nativeCommands,
-  spawnHost,
-  spawnCodex,
-  inspectOpenCodeDiscovery,
-  parseOpenCodeAgentList,
-  commitManagedOperation,
-  codexPluginIdentifier,
-  parseCodexPluginStatus,
-  inspectCodexPlugin,
-  codexPluginInstallCommands,
-  applyModelOverlay,
-  parseFrontmatterScalars,
-  parseTomlScalars,
-  parseJsonc,
-  isManagedModelContent,
-  inspectHost,
-  isContained,
+  normalizeHome,
+  normalizeHost,
+  roleAgentRoot,
+  roleFileName,
+  packagedRolePath,
+  payloadManifest,
+  installedRoleFiles,
+  install,
+  configureModel,
+  inspectRoot,
+  doctor,
 });

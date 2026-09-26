@@ -14,9 +14,9 @@ Plugins, Agent Skills, and command-line tools for agentic coding harnesses.
 
 | Plugin | Version | What it does |
 |---|---:|---|
-| [Senior Engineering Workflow](plugins/senior-engineering-workflow/) | 0.12.2 | Keeps engineering decisions in the main agent while bounded specialists handle focused work. |
+| [Senior Engineering Workflow](plugins/senior-engineering-workflow/) | 0.13.0 | Keeps engineering decisions in the main agent while bounded specialists handle focused work. |
 | [Tauri v2 Desktop](plugins/tauri-v2-desktop/) | 1.2.1 | Guides Tauri v2 development, security, testing, upgrades, and distribution on Windows, macOS, and Linux. |
-| [Chrome Extension Tester](plugins/chrome-extension-tester/) | 0.1.1 | Tests and debugs Chrome extensions in browser-managed contexts through Chrome DevTools MCP, including WXT projects. |
+| [Chrome Extension Tester](plugins/chrome-extension-tester/) | 0.1.2 | Tests and debugs Chrome extensions in browser-managed contexts through Chrome DevTools MCP, including WXT projects. |
 
 ## Available skills
 

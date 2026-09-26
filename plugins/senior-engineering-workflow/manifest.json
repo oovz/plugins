@@ -2,7 +2,7 @@
   "$schema": "../../schemas/plugin-manifest.schema.json",
   "schemaVersion": 2,
   "id": "senior-engineering-workflow",
-  "version": "0.12.2",
+  "version": "0.13.0",
   "displayName": "Senior Engineering Workflow",
   "description": "An engineering workflow where the main agent owns decisions and bounded specialists handle focused research, implementation, verification, and tool work.",
   "license": "MIT",

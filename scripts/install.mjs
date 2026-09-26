@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-import { createHash, randomUUID } from "node:crypto";
-import { lstat, mkdir, readFile, rename, rm, rmdir, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { lstat, readFile, rmdir } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import process from "node:process";
@@ -8,19 +8,20 @@ import { fileURLToPath } from "node:url";
 import { renderHost, resolveHost } from "./lib/hosts.mjs";
 import { assert, classifyCodexComponents, discoverMarketplace, inspectPlugin, json, ROOT, within } from "./lib/marketplace.mjs";
 import { assertCatalogMatchesSchemas } from "./lib/schema.mjs";
+import { acquireManagedLock, assertSafePath as assertManagedSafePath, capturePathAnchor, commitManagedOperation, isContained as isManagedContained } from "./lib/managed-files.mjs";
+import { antigravityPluginRoot } from "./lib/host-paths.mjs";
 
 export const USAGE = `Usage:
   node scripts/install.mjs <install|update|uninstall> --plugin <id> --host <host> --scope <project|user> [options]
 
 Options:
-  --variant <stable>               OpenCode only (default: stable)
   --mode <standalone|companion>    Required for Codex only
   --project <path>                 Project root (default: current directory)
   --dry-run                        Preflight and print actions without writing
   --force                          Replace conflicting unowned files; never modified owned files
   --help                           Show this help
 
-Direct install hosts: codex, opencode, cursor, antigravity, portable-agent-skills.
+Direct install hosts: codex, opencode, cursor, antigravity (CLI agy), portable-agent-skills.
 Claude Code, Gemini CLI, and Oh My Pi packages must be installed with their native CLIs.`;
 
 function parseArgs(argv) {
@@ -34,7 +35,7 @@ function parseArgs(argv) {
     if (["--dry-run", "--force"].includes(token)) {
       if (flags.has(token)) throw new Error(`${token} may only be specified once`);
       flags.add(token);
-    } else if (["--plugin", "--host", "--scope", "--variant", "--mode", "--project"].includes(token)) {
+    } else if (["--plugin", "--host", "--scope", "--mode", "--project"].includes(token)) {
       if (values[token]) throw new Error(`${token} may only be specified once`);
       const value = argv.shift();
       if (!value || value.startsWith("--")) throw new Error(`${token} requires a value`);
@@ -45,7 +46,7 @@ function parseArgs(argv) {
   if (!values["--plugin"].match(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)) throw new Error("--plugin must be a lowercase kebab-case id");
   if (!values["--host"].match(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)) throw new Error("--host must be a lowercase kebab-case id");
   if (!["project", "user"].includes(values["--scope"])) throw new Error("--scope must be project or user");
-  const host = resolveHost(values["--host"], values["--variant"]);
+  const host = resolveHost(values["--host"]);
   if (values["--host"] === "codex") {
     if (!["standalone", "companion"].includes(values["--mode"])) throw new Error("Codex requires --mode standalone or --mode companion");
   } else if (values["--mode"]) throw new Error("--mode is only valid for Codex");
@@ -55,7 +56,6 @@ function parseArgs(argv) {
     operation,
     plugin: values["--plugin"],
     host: host.id,
-    variant: host.variant,
     scope: values["--scope"],
     mode: values["--mode"] ?? null,
     project: values["--project"],
@@ -71,11 +71,11 @@ function homeDirectory(env) {
 }
 
 function identity(args) {
-  return { plugin: args.plugin, host: args.host, variant: args.variant, scope: args.scope, mode: args.mode };
+  return { plugin: args.plugin, host: args.host, scope: args.scope, mode: args.mode ?? null };
 }
 
 function sameIdentity(entry, expected) {
-  return entry.plugin === expected.plugin && entry.host === expected.host && (entry.variant ?? null) === (expected.variant ?? null) && entry.scope === expected.scope && (entry.mode ?? null) === (expected.mode ?? null);
+  return entry.plugin === expected.plugin && entry.host === expected.host && entry.scope === expected.scope && (entry.mode ?? null) === (expected.mode ?? null);
 }
 
 function ownershipKey(file) {
@@ -98,6 +98,7 @@ function resolveOwnershipContext(args, env = process.env, cwd = process.cwd()) {
   const stateBase = path.resolve(env.XDG_STATE_HOME || path.join(home, ".local", "state"), "oovz-plugins");
   const projectKey = createHash("sha256").update(project).digest("hex").slice(0, 24);
   const recordRoot = args.scope === "project" ? path.join(stateBase, "projects", projectKey) : path.join(stateBase, "user");
+  const stateAnchor = isManagedContained(home, stateBase) ? home : stateBase;
   const trustedRoots = new Set([recordRoot]);
   const prunableRoots = [];
   if (args.host === "codex") {
@@ -108,7 +109,7 @@ function resolveOwnershipContext(args, env = process.env, cwd = process.cwd()) {
   } else if (args.host === "cursor") {
     trustedRoots.add(args.scope === "project" ? path.join(project, ".cursor") : path.join(home, ".cursor"));
   } else if (args.host === "antigravity") {
-    const pluginRoot = args.scope === "project" ? path.join(project, ".agents", "plugins", args.plugin) : path.join(home, ".gemini", "config", "plugins", args.plugin);
+    const pluginRoot = antigravityPluginRoot(args.scope, project, home, args.plugin);
     trustedRoots.add(pluginRoot);
     prunableRoots.push(pluginRoot);
   } else if (args.host === "portable-agent-skills") {
@@ -121,6 +122,17 @@ function resolveOwnershipContext(args, env = process.env, cwd = process.cwd()) {
     recordRoot,
     recordFile: path.join(recordRoot, "ownership.json"),
     trustedRoots: [...trustedRoots].map((root) => path.resolve(root)),
+    rootAnchors: Object.fromEntries([...trustedRoots].map((root) => {
+      const resolved = path.resolve(root);
+      const selectedStateBase = path.resolve(env.XDG_STATE_HOME || path.join(home, ".local", "state"));
+      const anchor = isManagedContained(selectedStateBase, resolved)
+        ? stateAnchor
+        : args.scope === "project" && isManagedContained(project, resolved)
+          ? project
+          : isManagedContained(home, resolved) ? home : resolved;
+      return [resolved, path.resolve(anchor)];
+    })),
+    stateAnchor,
     prunableRoots: prunableRoots.map((root) => path.resolve(root)),
     identity: identity(args)
   };
@@ -144,7 +156,7 @@ export function resolveInstallPlan(plugin, args, env = process.env, cwd = proces
       throw new Error(`Codex companion mode cannot install "${plugin.manifest.displayName}": it declares no companion agents or standalone skills.`);
     }
   }
-  const rendered = renderHost(plugin, args.host, args.variant, { allowCompanion: args.host === "codex" && args.mode === "companion" });
+  const rendered = renderHost(plugin, args.host, { allowCompanion: args.host === "codex" && args.mode === "companion" });
   const context = resolveOwnershipContext(args, env, cwd);
   const { home, project, scopeRoot, recordRoot, recordFile } = context;
   const files = [];
@@ -155,9 +167,6 @@ export function resolveInstallPlan(plugin, args, env = process.env, cwd = proces
     throw new Error(`Claude Code manages its plugin cache. Run "claude plugin marketplace add ${plugin.marketplace.repository}" then "claude plugin install ${plugin.manifest.id}@${plugin.marketplace.id}".`);
   }
   if (args.host === "gemini-cli") {
-    if (plugin.manifest.id === "senior-engineering-workflow") {
-      throw new Error(`Gemini CLI installation is provided by the public CLI. Run "npx @oovz/sew install --host gemini-cli --scope ${args.scope}${args.scope === "project" ? ` --project ${args.project ?? process.cwd()}` : ""}". Build dist/gemini-cli/${plugin.manifest.id} only for adapter development.`);
-    }
     throw new Error(`Gemini CLI installation for "${plugin.manifest.displayName}" requires building the adapter. Run "npm run build -- --plugin ${plugin.manifest.id} --host gemini-cli" then "gemini extensions install ./dist/gemini-cli/${plugin.manifest.id}".`);
   }
   if (args.host === "oh-my-pi") {
@@ -192,10 +201,13 @@ export function resolveInstallPlan(plugin, args, env = process.env, cwd = proces
       : path.resolve(env.OPENCODE_CONFIG_DIR || (env.XDG_CONFIG_HOME ? path.join(env.XDG_CONFIG_HOME, "opencode") : path.join(home, ".config", "opencode")));
     files.push(...mapArtifacts(rendered.artifacts, (relative) => relative.startsWith(".opencode/"), (relative) => args.scope === "project" ? path.join(project, relative) : path.join(configRoot, relative.slice(".opencode/".length))));
   } else if (args.host === "cursor") {
+    if (rendered.artifacts.some((artifact) => artifact.path.startsWith("commands/"))) {
+      throw new Error(`Cursor direct installation cannot install commands for "${plugin.manifest.displayName}". Install the complete native Cursor plugin through its marketplace.`);
+    }
     const configRoot = args.scope === "project" ? path.join(project, ".cursor") : path.join(home, ".cursor");
     files.push(...mapArtifacts(rendered.artifacts, (relative) => relative.startsWith("skills/") || relative.startsWith("agents/"), (relative) => path.join(configRoot, relative)));
   } else if (args.host === "antigravity") {
-    const bundleRoot = args.scope === "project" ? path.join(project, ".agents", "plugins", plugin.manifest.id) : path.join(home, ".gemini", "config", "plugins", plugin.manifest.id);
+    const bundleRoot = antigravityPluginRoot(args.scope, project, home, plugin.manifest.id);
     files.push(...rendered.artifacts.map((artifact) => ({ ...artifact, destination: path.join(bundleRoot, artifact.path) })));
   } else if (args.host === "portable-agent-skills") {
     files.push(...mapArtifacts(rendered.artifacts, (relative) => relative.startsWith(".agents/"), (relative) => path.join(scopeRoot, relative)));
@@ -214,11 +226,19 @@ export function resolveInstallPlan(plugin, args, env = process.env, cwd = proces
     files,
     recordFile,
     recordRoot,
+    stateAnchor: context.stateAnchor,
+    rootAnchors: context.rootAnchors,
     trustedRoots: [...trustedRoots].map((root) => path.resolve(root)),
     prunableRoots: context.prunableRoots,
     identity: identity(args),
     notices
   };
+}
+
+async function retainPlanAnchors(plan) {
+  const stateAnchor = plan.stateAnchor ? await capturePathAnchor(plan.stateAnchor) : undefined;
+  const rootAnchors = Object.fromEntries(await Promise.all(Object.entries(plan.rootAnchors ?? {}).map(async ([root, anchor]) => [root, await capturePathAnchor(anchor)])));
+  return { ...plan, ...(stateAnchor ? { stateAnchor } : {}), rootAnchors };
 }
 
 async function readRecord(file) {
@@ -234,7 +254,9 @@ async function readRecord(file) {
       assert(!portablePaths.has(portable), `ownership record contains a cross-platform path collision: ${destination}`);
       portablePaths.add(portable);
       assert(entry && typeof entry === "object" && typeof entry.plugin === "string" && typeof entry.version === "string" && typeof entry.host === "string", `ownership record contains invalid metadata for ${destination}`);
-      assert(["project", "user"].includes(entry.scope) && (entry.variant === null || typeof entry.variant === "string") && (entry.mode === null || typeof entry.mode === "string"), `ownership record contains invalid scope/variant/mode for ${destination}`);
+      const allowedEntryKeys = ["host", "mode", "plugin", "scope", "sha256", "version"];
+      assert(JSON.stringify(Object.keys(entry).sort()) === JSON.stringify(allowedEntryKeys), `ownership record contains obsolete or unknown metadata for ${destination}`);
+      assert(["project", "user"].includes(entry.scope) && (entry.mode === null || typeof entry.mode === "string"), `ownership record contains invalid scope/mode for ${destination}`);
       assert(/^[a-f0-9]{64}$/.test(entry.sha256), `ownership record contains an invalid hash for ${destination}`);
     }
     return value;
@@ -244,73 +266,26 @@ async function readRecord(file) {
   }
 }
 
-async function existingAncestor(target) {
-  let current = path.resolve(target);
-  while (true) {
-    try { await lstat(current); return current; } catch (error) { if (error.code !== "ENOENT") throw error; }
-    const parent = path.dirname(current);
-    if (parent === current) throw new Error(`no existing ancestor for ${target}`);
-    current = parent;
-  }
+async function assertNoSymlinkPath(target, trustedRoot, anchor = undefined) {
+  return assertManagedSafePath(trustedRoot, target, anchor);
 }
 
-async function assertNoSymlinkPath(target, trustedRoot) {
-  within(trustedRoot, target, "install destination");
-  const ancestor = await existingAncestor(trustedRoot);
-  const ancestorInfo = await lstat(ancestor);
-  if (ancestorInfo.isSymbolicLink()) throw new Error(`refusing symlink in install path: ${ancestor}`);
-  const relative = path.relative(ancestor, target);
-  let current = ancestor;
-  for (const part of relative.split(path.sep).filter(Boolean)) {
-    current = path.join(current, part);
-    try {
-      const info = await lstat(current);
-      if (info.isSymbolicLink()) throw new Error(`refusing symlink in install path: ${current}`);
-    } catch (error) {
-      if (error.code === "ENOENT") continue;
-      throw error;
-    }
-  }
+function planAnchor(plan, root) {
+  const resolved = path.resolve(root);
+  if (plan.rootAnchors?.[resolved]) return plan.rootAnchors[resolved];
+  const related = Object.entries(plan.rootAnchors ?? {}).find(([candidate]) => isManagedContained(candidate, resolved) || isManagedContained(resolved, candidate));
+  return related?.[1] ?? plan.stateAnchor;
 }
 
-async function removeCreatedDirectories(created) {
-  for (const directory of [...created].reverse()) {
-    try {
-      await rmdir(directory);
-    } catch (error) {
-      if (!["ENOENT", "ENOTEMPTY", "EEXIST"].includes(error.code)) throw error;
-    }
-  }
-}
-
-async function acquireRecordLock(plan) {
-  const createdDirectories = [];
-  await assertNoSymlinkPath(plan.recordRoot, plan.recordRoot);
-  await mkdirTracked(plan.recordRoot, createdDirectories);
-  await assertNoSymlinkPath(plan.recordRoot, plan.recordRoot);
-  const lockDirectory = path.join(plan.recordRoot, ".install.lock");
-  await assertNoSymlinkPath(lockDirectory, plan.recordRoot);
+export async function acquireOwnershipRecordLock(plan) {
   try {
-    await mkdir(lockDirectory, { mode: 0o700 });
+    return await acquireManagedLock(plan.recordFile, { anchor: plan.stateAnchor });
   } catch (error) {
-    if (error.code !== "EEXIST") {
-      await removeCreatedDirectories(createdDirectories);
-      throw error;
+    if (error instanceof Error && error.message.startsWith("Managed installation is busy")) {
+      throw new Error(error.message.replace("Managed installation is busy", "ownership record is busy"));
     }
-    const info = await lstat(lockDirectory);
-    if (info.isSymbolicLink()) throw new Error(`refusing symlink in install path: ${lockDirectory}`);
-    await removeCreatedDirectories(createdDirectories);
-    throw new Error(`ownership record is busy; another install, update, or uninstall is in progress. Lock: ${lockDirectory}. If no installer process is running, remove that lock directory manually and retry.`);
+    throw error;
   }
-  const lockInfo = await lstat(lockDirectory);
-  if (lockInfo.isSymbolicLink() || !lockInfo.isDirectory()) throw new Error(`invalid ownership lock: ${lockDirectory}`);
-  return async () => {
-    await assertNoSymlinkPath(lockDirectory, plan.recordRoot);
-    const current = await lstat(lockDirectory);
-    if (current.isSymbolicLink() || !current.isDirectory()) throw new Error(`invalid ownership lock: ${lockDirectory}`);
-    await rmdir(lockDirectory);
-    await removeCreatedDirectories(createdDirectories);
-  };
 }
 
 function trustedRootFor(destination, roots) {
@@ -333,28 +308,14 @@ async function fileHash(file) {
   }
 }
 
-async function mkdirTracked(directory, created) {
-  const missing = [];
-  let current = path.resolve(directory);
-  while (true) {
-    try { await lstat(current); break; } catch (error) { if (error.code !== "ENOENT") throw error; }
-    missing.push(current);
-    const parent = path.dirname(current);
-    if (parent === current) break;
-    current = parent;
-  }
-  await mkdir(directory, { recursive: true });
-  for (const item of missing.reverse()) if (!created.includes(item)) created.push(item);
-}
-
 async function preflight(args, plan, record) {
-  await assertNoSymlinkPath(plan.recordFile, plan.recordRoot);
+  await assertNoSymlinkPath(plan.recordFile, plan.recordRoot, plan.stateAnchor);
   const owned = Object.entries(record.files).filter(([, entry]) => sameIdentity(entry, plan.identity));
   if (args.operation === "install" && owned.length) throw new Error("this plugin/host/scope is already installed; use update");
   if (args.operation !== "install" && owned.length === 0) throw new Error("no matching owned installation was found");
   for (const [destination, entry] of owned) {
     const root = trustedRootFor(destination, plan.trustedRoots);
-    await assertNoSymlinkPath(destination, root);
+    await assertNoSymlinkPath(destination, root, planAnchor(plan, root));
     const actual = await fileHash(destination);
     if (actual !== null && actual !== entry.sha256) throw new Error(`owned file was modified; refusing to overwrite or remove: ${destination}`);
   }
@@ -363,7 +324,7 @@ async function preflight(args, plan, record) {
   const planned = new Set(writes.map((file) => ownershipKey(file.destination)));
   for (const file of writes) {
     const root = trustedRootFor(file.destination, plan.trustedRoots);
-    await assertNoSymlinkPath(file.destination, root);
+    await assertNoSymlinkPath(file.destination, root, planAnchor(plan, root));
     const owner = record.files[ownershipKey(file.destination)];
     if (owner && !sameIdentity(owner, plan.identity)) throw new Error(`destination is owned by another plugin or install mode: ${file.destination}`);
     const current = await fileHash(file.destination);
@@ -373,56 +334,32 @@ async function preflight(args, plan, record) {
   return { writes, removals, owned };
 }
 
-async function commit(plan, record, actions) {
-  const token = `${process.pid}-${randomUUID()}`;
-  const changed = [];
-  const staged = [];
-  const createdDirectories = [];
-  let recordBackup = null;
-  let recordInstalled = false;
+async function commit(plan, record, actions, operation = "install") {
   const newRecord = structuredClone(record);
   for (const [destination] of actions.owned) delete newRecord.files[destination];
   for (const file of actions.writes) {
     newRecord.files[ownershipKey(file.destination)] = { ...plan.identity, version: file.version, sha256: file.sha256 };
   }
   for (const file of actions.writes) newRecord.files[ownershipKey(file.destination)].version ??= plan.version;
-
-  try {
-    for (const file of actions.writes) {
-      await mkdirTracked(path.dirname(file.destination), createdDirectories);
-      const temporary = `${file.destination}.oovz-tmp-${token}`;
-      await writeFile(temporary, file.content, { mode: file.executable ? 0o755 : 0o644, flag: "wx" });
-      staged.push(temporary);
-    }
-    for (const destination of [...new Set([...actions.removals, ...actions.writes.map((file) => file.destination)])]) {
-      const backup = `${destination}.oovz-backup-${token}`;
-      try { await rename(destination, backup); changed.push({ destination, backup }); } catch (error) { if (error.code !== "ENOENT") throw error; }
-    }
-    for (const file of actions.writes) {
-      const temporary = `${file.destination}.oovz-tmp-${token}`;
-      await rename(temporary, file.destination);
-      changed.push({ destination: file.destination, created: true });
-    }
-    await mkdirTracked(plan.recordRoot, createdDirectories);
-    const recordTemporary = `${plan.recordFile}.tmp-${token}`;
-    await writeFile(recordTemporary, json(newRecord), { flag: "wx" });
-    staged.push(recordTemporary);
-    try { recordBackup = `${plan.recordFile}.backup-${token}`; await rename(plan.recordFile, recordBackup); } catch (error) { if (error.code !== "ENOENT") throw error; recordBackup = null; }
-    await rename(recordTemporary, plan.recordFile);
-    recordInstalled = true;
-    if (recordBackup) await rm(recordBackup, { force: true }).catch(() => {});
-    for (const item of changed) if (item.backup) await rm(item.backup, { force: true }).catch(() => {});
-  } catch (error) {
-    if (recordInstalled) await rm(plan.recordFile, { force: true }).catch(() => {});
-    if (recordBackup) await rename(recordBackup, plan.recordFile).catch(() => {});
-    for (const item of [...changed].reverse()) {
-      if (item.created) await rm(item.destination, { force: true }).catch(() => {});
-      if (item.backup) await rename(item.backup, item.destination).catch(() => {});
-    }
-    for (const file of staged) await rm(file, { force: true }).catch(() => {});
-    for (const directory of [...createdDirectories].reverse()) await rmdir(directory).catch(() => {});
-    throw error;
-  }
+  const writes = actions.writes.map((file) => ({
+    ...file,
+    rootPath: trustedRootFor(file.destination, plan.trustedRoots),
+    mode: file.executable ? 0o755 : 0o644,
+  }));
+  const removals = actions.removals.map((destination) => ({
+    destination,
+    rootPath: trustedRootFor(destination, plan.trustedRoots),
+  }));
+  return commitManagedOperation(operation, {
+    statePath: plan.recordFile,
+    stateAnchor: plan.stateAnchor,
+    nextState: newRecord,
+    writes,
+    removals,
+    roots: {},
+    requireRoots: true,
+    rootAnchors: plan.rootAnchors,
+  }, { lockHeld: true });
 }
 
 async function pruneEmptyOwnedDirectories(plan, removals) {
@@ -438,7 +375,7 @@ async function pruneEmptyOwnedDirectories(plan, removals) {
   }
   const ordered = [...candidates.values()].sort((a, b) => b.directory.length - a.directory.length || b.directory.localeCompare(a.directory));
   for (const { directory, root } of ordered) {
-    await assertNoSymlinkPath(directory, root);
+    await assertNoSymlinkPath(directory, root, planAnchor(plan, root));
     try {
       const info = await lstat(directory);
       if (info.isSymbolicLink() || !info.isDirectory()) throw new Error(`refusing to prune a non-directory install path: ${directory}`);
@@ -449,7 +386,7 @@ async function pruneEmptyOwnedDirectories(plan, removals) {
   }
   for (const directory of plan.prunableRoots ?? []) {
     const boundary = path.dirname(directory);
-    await assertNoSymlinkPath(directory, boundary);
+    await assertNoSymlinkPath(directory, boundary, planAnchor(plan, boundary));
     try {
       const info = await lstat(directory);
       if (info.isSymbolicLink() || !info.isDirectory()) throw new Error(`refusing to prune a non-directory install path: ${directory}`);
@@ -481,20 +418,22 @@ export async function runInstaller(argv, options = {}) {
     plan.version = plugin.manifest.version;
     for (const file of plan.files) file.version = plugin.manifest.version;
   }
-  const releaseLock = await acquireRecordLock(plan);
+  plan = await retainPlanAnchors(plan);
+  const releaseLock = args.dryRun ? null : await acquireOwnershipRecordLock(plan);
   try {
-    await assertNoSymlinkPath(plan.recordFile, plan.recordRoot);
+    await assertNoSymlinkPath(plan.recordFile, plan.recordRoot, plan.stateAnchor);
     const record = await readRecord(plan.recordFile);
     const actions = await preflight(args, plan, record);
     for (const notice of plan.notices) stdout.write(`note: ${notice}\n`);
     const verb = args.operation === "uninstall" ? "remove" : "write";
     for (const file of args.operation === "uninstall" ? actions.removals : actions.writes.map(({ destination }) => destination)) stdout.write(`${args.dryRun ? "would " : ""}${verb} ${file}\n`);
     if (!args.dryRun) {
-      await commit(plan, record, actions);
+      const commitResult = await commit(plan, record, actions, args.operation);
+      for (const failure of commitResult?.cleanupFailures ?? []) stdout.write(`warning: cleanup incomplete; retained ${failure.operation} at ${failure.path}: ${failure.message}\n`);
       await pruneEmptyOwnedDirectories(plan, actions.removals);
     }
   } finally {
-    await releaseLock();
+    if (releaseLock) await releaseLock();
   }
   stdout.write(`${args.dryRun ? "dry-run complete" : `${args.operation} complete`}\n`);
 }

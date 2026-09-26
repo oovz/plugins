@@ -9,10 +9,10 @@ import { json, ROOT } from "./lib/marketplace.mjs";
 import { validateRepository } from "./validate.mjs";
 
 const USAGE = `Usage:
-  node scripts/generate.mjs <generate|build|check> (--all | --plugin <id>) [--host <host>] [--variant <variant>]
+  node scripts/generate.mjs <generate|build|check> (--all | --plugin <id>) [--host <host>]
 
 Hosts: ${Object.keys(HOSTS).join(", ")}
-Variants: opencode supports stable (default).
+Each host has one projection.
 
 generate  refresh checked-in adapters and host marketplace/plugin manifests
 build     create isolated native bundles under dist/
@@ -29,7 +29,7 @@ function parseArgs(argv) {
     if (token === "--all") {
       if (all) throw new Error("--all may only be specified once");
       all = true;
-    } else if (["--plugin", "--host", "--variant"].includes(token)) {
+    } else if (["--plugin", "--host"].includes(token)) {
       if (values[token]) throw new Error(`${token} may only be specified once`);
       const value = argv.shift();
       if (!value || value.startsWith("--")) throw new Error(`${token} requires a value`);
@@ -39,29 +39,28 @@ function parseArgs(argv) {
   if (all && values["--plugin"]) throw new Error("--all and --plugin are mutually exclusive");
   if (!all && !values["--plugin"]) all = true;
   if (operation === "check" && !all) throw new Error("check requires --all so stale files cannot be hidden");
-  if (values["--variant"] && !values["--host"]) throw new Error("--variant requires --host");
-  if (values["--host"]) resolveHost(values["--host"], values["--variant"]);
-  return { operation, all, plugin: values["--plugin"], host: values["--host"], variant: values["--variant"] };
+  if (values["--host"]) resolveHost(values["--host"]);
+  return { operation, all, plugin: values["--plugin"], host: values["--host"] };
 }
 
 function targets(args) {
   if (args.host) {
-    const host = resolveHost(args.host, args.variant);
-    return [{ id: host.id, variant: host.variant }];
+    const host = resolveHost(args.host);
+    return [{ id: host.id }];
   }
   return allHostTargets();
 }
 
 function targetRelative(base, target, pluginId) {
-  return path.join(base, target.id, ...(target.variant ? [target.variant] : []), pluginId);
+  return path.join(base, target.id, pluginId);
 }
 
 function targetPrefix(target, pluginId) {
-  return path.posix.join(target.id, ...(target.variant ? [target.variant] : []), pluginId);
+  return path.posix.join(target.id, pluginId);
 }
 
 function enabled(plugin, target) {
-  return supportsHost(plugin, resolveHost(target.id, target.variant));
+  return supportsHost(plugin, resolveHost(target.id));
 }
 
 function prefixArtifacts(prefix, artifacts) {
@@ -176,11 +175,11 @@ export async function runGenerator(argv, options = {}) {
 
   if (args.operation === "build") {
     if (args.all) {
-      const base = args.host ? path.join(root, "dist", selectedTargets[0].id, ...(selectedTargets[0].variant ? [selectedTargets[0].variant] : [])) : path.join(root, "dist");
+      const base = args.host ? path.join(root, "dist", selectedTargets[0].id) : path.join(root, "dist");
       const artifacts = [];
       for (const plugin of plugins) for (const target of selectedTargets) {
         if (!enabled(plugin, target)) continue;
-        const rendered = renderHost(plugin, target.id, target.variant);
+        const rendered = renderHost(plugin, target.id);
         const prefix = args.host ? plugin.manifest.id : targetPrefix(target, plugin.manifest.id);
         artifacts.push(...prefixArtifacts(prefix, rendered.artifacts));
         stdout.write(`built ${targetRelative("dist", target, plugin.manifest.id)}\n`);
@@ -191,13 +190,13 @@ export async function runGenerator(argv, options = {}) {
     for (const plugin of plugins) {
       for (const target of selectedTargets) {
         if (!enabled(plugin, target)) {
-          if (args.host) throw new Error(`${plugin.manifest.id} does not enable ${target.id}${target.variant ? `/${target.variant}` : ""}`);
+          if (args.host) throw new Error(`${plugin.manifest.id} does not enable ${target.id}`);
           const stale = path.join(root, targetRelative("dist", target, plugin.manifest.id));
           await assertNoSymlinkAncestors(stale, path.join(root, "dist"));
           await rm(stale, { recursive: true, force: true });
           continue;
         }
-        const rendered = renderHost(plugin, target.id, target.variant);
+        const rendered = renderHost(plugin, target.id);
         const output = path.join(root, targetRelative("dist", target, plugin.manifest.id));
         await atomicWriteTree(output, rendered.artifacts, path.join(root, "dist"));
         stdout.write(`built ${path.relative(root, output)}\n`);
@@ -208,11 +207,11 @@ export async function runGenerator(argv, options = {}) {
 
   if (args.operation === "generate") {
     if (args.all) {
-      const base = args.host ? path.join(root, "adapters", selectedTargets[0].id, ...(selectedTargets[0].variant ? [selectedTargets[0].variant] : [])) : path.join(root, "adapters");
+      const base = args.host ? path.join(root, "adapters", selectedTargets[0].id) : path.join(root, "adapters");
       const artifacts = [];
       for (const plugin of plugins) for (const target of selectedTargets) {
         if (!enabled(plugin, target)) continue;
-        const rendered = renderHost(plugin, target.id, target.variant);
+        const rendered = renderHost(plugin, target.id);
         const prefix = args.host ? plugin.manifest.id : targetPrefix(target, plugin.manifest.id);
         artifacts.push(...prefixArtifacts(prefix, rendered.artifacts));
         stdout.write(`generated ${targetRelative("adapters", target, plugin.manifest.id)}\n`);
@@ -222,13 +221,13 @@ export async function runGenerator(argv, options = {}) {
     for (const plugin of plugins) {
       for (const target of selectedTargets) {
         if (!enabled(plugin, target)) {
-          if (args.host) throw new Error(`${plugin.manifest.id} does not enable ${target.id}${target.variant ? `/${target.variant}` : ""}`);
+          if (args.host) throw new Error(`${plugin.manifest.id} does not enable ${target.id}`);
           const stale = path.join(root, targetRelative("adapters", target, plugin.manifest.id));
           await assertNoSymlinkAncestors(stale, path.join(root, "adapters"));
           await rm(stale, { recursive: true, force: true });
           continue;
         }
-        const rendered = renderHost(plugin, target.id, target.variant);
+        const rendered = renderHost(plugin, target.id);
         const output = path.join(root, targetRelative("adapters", target, plugin.manifest.id));
         await atomicWriteTree(output, rendered.artifacts, path.join(root, "adapters"));
         stdout.write(`generated ${path.relative(root, output)}\n`);
@@ -250,7 +249,7 @@ export async function runGenerator(argv, options = {}) {
   for (const plugin of validatedPlugins) {
     for (const target of allHostTargets()) {
       if (!enabled(plugin, target)) continue;
-      const rendered = renderHost(plugin, target.id, target.variant);
+      const rendered = renderHost(plugin, target.id);
       expectedAdapters.push(...prefixArtifacts(targetPrefix(target, plugin.manifest.id), rendered.artifacts));
     }
   }

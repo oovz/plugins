@@ -10,8 +10,13 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  validation:
+    if: github.repository == 'oovz/plugins'
+    uses: ./.github/workflows/validate-reusable.yml
+
   build:
     if: github.repository == 'oovz/plugins'
+    needs: validation
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -35,12 +40,19 @@ jobs:
         run: npm run verify
 
       - name: Build and pack release package
+        env:
+          SEW_SOURCE_COMMIT: ${{ github.sha }}
         run: npm run pack:sew
+
+      - name: Verify source commit identity
+        env:
+          SEW_SOURCE_COMMIT: ${{ github.sha }}
+        run: test "$SEW_SOURCE_COMMIT" = "$(git rev-parse HEAD)"
 
       - name: Verify tag and release bundle
         run: node scripts/check-sew-release.mjs "$GITHUB_REF_NAME"
 
-      - name: Upload immutable release bundle
+      - name: Upload the immutable candidate tarball
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: sew-release-${{ github.ref_name }}
@@ -50,9 +62,46 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-  release:
+  smoke:
     if: github.repository == 'oovz/plugins'
     needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        node: [22, 24]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Check out tagged source for the smoke runner
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      - name: Install locked smoke-runner dependencies
+        run: npm ci
+
+      - name: Download the exact candidate tarball
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: sew-release-${{ github.ref_name }}
+          path: release-build/sew/artifacts
+
+      - name: Smoke the npm-installed command and every host configuration
+        run: node scripts/smoke-sew-release.mjs release-build/sew/artifacts
+
+  release:
+    if: github.repository == 'oovz/plugins'
+    needs: smoke
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -69,7 +118,7 @@ jobs:
       - name: Use a trusted-publishing-capable npm CLI
         run: npm install --global npm@11.5.1
 
-      - name: Download release bundle built by the build job
+      - name: Download the candidate tarball tested on every platform
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: sew-release-${{ github.ref_name }}
@@ -79,14 +128,14 @@ jobs:
         working-directory: release-build/sew/artifacts
         run: sha256sum --check SHA256SUMS.txt
 
-      - name: Publish the CI-built tarball to npm
+      - name: Publish the tested CI-built tarball to npm
         shell: bash
         run: |
           mapfile -t tarballs < <(find release-build/sew/artifacts -maxdepth 1 -type f -name '*.tgz' -print)
           test "${#tarballs[@]}" -eq 1
           npm publish "${tarballs[0]}" --access public --provenance
 
-      - name: Create GitHub Release from the same bundle
+      - name: Create GitHub Release from the same tested bundle
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}

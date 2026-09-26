@@ -1,15 +1,19 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { lstat, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
+import { chmod, lstat, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import { runInstaller } from "../scripts/install.mjs";
+import { resolveInstallPlan, runInstaller } from "../scripts/install.mjs";
+import { assertOwnershipRecordMatchesSchema } from "../scripts/lib/schema.mjs";
+import { discoverMarketplace, inspectPlugin } from "../scripts/lib/marketplace.mjs";
 import { createFixtureMarketplace, execFileAsync, readJson } from "./helpers.mjs";
+import { removeLegacyAntigravityOwnership } from "../scripts/migrate-antigravity-ownership.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const INSTALLER = path.join(ROOT, "scripts", "install.mjs");
+const MIGRATION = path.join(ROOT, "scripts", "migrate-antigravity-ownership.mjs");
 const PLUGIN = "senior-engineering-workflow";
 
 async function fixture(t) {
@@ -48,7 +52,12 @@ test("strict argv and native-only host guidance", async (t) => {
   await assert.rejects(run(["install", "--plugin", PLUGIN, "--host", "codex", "--scope", "project", "--project", ctx.project], ctx), /requires --mode/);
   await assert.rejects(run([...base("install", "codex", "project", ["--mode", "companion", "--project", ctx.project]), "--unknown"], ctx), /unknown argument/);
   await assert.rejects(run(base("install", "claude-code", "project", ["--project", ctx.project]), ctx), /claude plugin marketplace add/i);
-  await assert.rejects(run(base("install", "gemini-cli", "user"), ctx), /npx @oovz\/sew install/i);
+  await assert.rejects(run(base("install", "gemini-cli", "user"), ctx), (error) => {
+    assert.match(error.message, /npm run build -- --plugin senior-engineering-workflow --host gemini-cli/u);
+    assert.match(error.message, /gemini extensions install \.\/dist\/gemini-cli\/senior-engineering-workflow/u);
+    assert.doesNotMatch(error.message, /npx @oovz\/sew/u);
+    return true;
+  });
   await assert.rejects(run(base("install", "oh-my-pi", "project", ["--project", ctx.project]), ctx), /omp plugin marketplace add/i);
 
   const marketplaceRoot = path.join(ctx.root, "renamed-marketplace");
@@ -142,6 +151,45 @@ test("Codex user scope splits Agent Skills from CODEX_HOME agents", async (t) =>
   await assert.rejects(readFile(path.join(codexHome, "skills", PLUGIN, "SKILL.md")), /ENOENT/);
 });
 
+test("generic installer ownership records match the current schema", async (t) => {
+  const ctx = await fixture(t);
+  await run(base("install", "codex", "project", ["--mode", "companion", "--project", ctx.project]), ctx);
+  const projectKey = createHash("sha256").update(path.resolve(ctx.project)).digest("hex").slice(0, 24);
+  const recordPath = path.join(ctx.home, ".state", "oovz-plugins", "projects", projectKey, "ownership.json");
+  const record = await readJson(recordPath);
+  await assertOwnershipRecordMatchesSchema(ROOT, record);
+  const first = Object.keys(record.files)[0];
+  record.files[first].variant = null;
+  await assert.rejects(assertOwnershipRecordMatchesSchema(ROOT, record), /additional properties/u);
+});
+
+test("generic install plans retain explicit state and trusted-root anchors", async (t) => {
+  const ctx = await fixture(t);
+  await createFixtureMarketplace(ctx.root, [{ id: "anchor-plugin", version: "1.0.0", options: { hosts: { portable: { enabled: true } } } }]);
+  const catalog = await discoverMarketplace(ctx.root);
+  const plugin = await inspectPlugin(catalog.plugins.find((candidate) => candidate.manifest.id === "anchor-plugin"));
+  const env = { ...process.env, HOME: ctx.home, USERPROFILE: ctx.home, XDG_STATE_HOME: path.join(ctx.home, ".state") };
+  const plan = resolveInstallPlan(plugin, { plugin: "anchor-plugin", host: "portable-agent-skills", scope: "project", mode: null, project: ctx.project }, env, ctx.project);
+  assert.equal(plan.stateAnchor, path.resolve(ctx.home));
+  assert.ok(plan.rootAnchors[path.resolve(ctx.project, ".agents", "skills")]);
+});
+
+test("generic installer preserves a concrete trusted root through staged promotion below a stable alias", async (t) => {
+  const ctx = await fixture(t);
+  const physicalParent = path.join(ctx.root, "physical");
+  const aliasParent = path.join(ctx.root, "alias");
+  const project = path.join(aliasParent, "project");
+  await mkdir(path.join(physicalParent, "project"), { recursive: true });
+  try { await symlink(physicalParent, aliasParent, process.platform === "win32" ? "junction" : "dir"); }
+  catch (error) { if (["EPERM", "EACCES"].includes(error?.code)) { t.skip("platform does not permit directory aliases"); return; } throw error; }
+  const env = { ...process.env, HOME: ctx.home, USERPROFILE: ctx.home, XDG_STATE_HOME: path.join(ctx.home, ".state") };
+  await runInstaller(
+    ["install", "--plugin", "tauri-v2-desktop", "--host", "portable-agent-skills", "--scope", "project", "--project", project],
+    { root: ROOT, env, cwd: project, stdout: { write() {} } },
+  );
+  assert.equal(await readFile(path.join(physicalParent, "project", ".agents", "skills", "tauri-v2-desktop", "SKILL.md"), "utf8").then(Boolean), true);
+});
+
 test("OpenCode user root precedence is OPENCODE_CONFIG_DIR then XDG then HOME", async (t) => {
   const ctx = await fixture(t);
   for (const [name, env, expected] of [
@@ -151,16 +199,16 @@ test("OpenCode user root precedence is OPENCODE_CONFIG_DIR then XDG then HOME", 
   ]) {
     const isolatedHome = path.join(ctx.root, `home-${name}`);
     await mkdir(isolatedHome);
-    await run(base("install", "opencode", "user", ["--variant", "stable"]), { ...ctx, home: isolatedHome, env });
+    await run(base("install", "opencode", "user"), { ...ctx, home: isolatedHome, env });
     assert.ok(await readFile(path.join(expected.replace(ctx.home, isolatedHome), "agents", `${PLUGIN}-researcher.md`)));
   }
 });
 
-test("OpenCode rejects the removed V2 beta variant", async (t) => {
+test("OpenCode rejects the removed variant selector", async (t) => {
   const ctx = await fixture(t);
   await assert.rejects(
     run(base("install", "opencode", "project", ["--variant", "v2-beta", "--project", ctx.project]), ctx),
-    /does not support variant v2-beta/,
+    /unknown argument: --variant/,
   );
   await assert.rejects(lstat(path.join(ctx.project, ".opencode")), /ENOENT/);
 });
@@ -180,7 +228,7 @@ test("Antigravity and portable installs use native project/user roots", async (t
   await run(baseFor(antigravityPlugin, "install", "antigravity", "user"), ctx);
   assert.ok(
     await readFile(
-      path.join(ctx.home, ".gemini", "config", "plugins", antigravityPlugin, "plugin.json"),
+      path.join(ctx.home, ".gemini", "antigravity-cli", "plugins", antigravityPlugin, "plugin.json"),
     ),
   );
   await run(
@@ -193,13 +241,49 @@ test("Antigravity and portable installs use native project/user roots", async (t
   );
   await run(baseFor(antigravityPlugin, "uninstall", "antigravity", "user"), ctx);
   await assert.rejects(
-    lstat(path.join(ctx.home, ".gemini", "config", "plugins", antigravityPlugin)),
+    lstat(path.join(ctx.home, ".gemini", "antigravity-cli", "plugins", antigravityPlugin)),
     /ENOENT/,
   );
   const portableProject = path.join(ctx.root, "portable-project");
   await mkdir(portableProject);
   await run(baseFor("tauri-v2-desktop", "install", "portable-agent-skills", "project", ["--project", portableProject]), ctx);
   assert.ok(await readFile(path.join(portableProject, ".agents", "skills", "tauri-v2-desktop", "SKILL.md")));
+});
+
+test("Antigravity migration filters only the obsolete generic ownership entries", () => {
+  const oldRoot = path.resolve("C:/Users/tester/.gemini/config/plugins/senior-engineering-workflow");
+  const record = {
+    schemaVersion: 1,
+    files: {
+      [path.join(oldRoot, "plugin.json")]: { plugin: "senior-engineering-workflow", host: "antigravity", scope: "user", variant: null },
+      [path.join(oldRoot, "skills", "workflow", "SKILL.md")]: { plugin: "senior-engineering-workflow", host: "antigravity", scope: "user", variant: null },
+      [path.join(path.dirname(oldRoot), "other-plugin", "plugin.json")]: { plugin: "other-plugin", host: "antigravity", scope: "user", variant: null },
+    },
+  };
+  const result = removeLegacyAntigravityOwnership(record, oldRoot);
+  assert.equal(result.removed.length, 2);
+  assert.deepEqual(Object.keys(result.record.files), [path.join(path.dirname(oldRoot), "other-plugin", "plugin.json")]);
+  assert.equal(Object.hasOwn(result.record.files[path.join(path.dirname(oldRoot), "other-plugin", "plugin.json")], "variant"), false);
+  const tauriRoot = path.resolve("C:/Users/tester/.gemini/config/plugins/tauri-v2-desktop");
+  const tauriResult = removeLegacyAntigravityOwnership({
+    schemaVersion: 1,
+    files: { [path.join(tauriRoot, "plugin.json")]: { plugin: "tauri-v2-desktop", host: "antigravity", scope: "user" } },
+  }, tauriRoot);
+  assert.deepEqual(tauriResult.removed, [path.join(tauriRoot, "plugin.json")]);
+});
+
+test("Antigravity ownership migration refuses an active generic writer lock", async (t) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "oovz-antigravity-migration-lock-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const recordRoot = path.join(root, "state", "oovz-plugins", "user");
+  const recordFile = path.join(recordRoot, "ownership.json");
+  const oldRoot = path.join(root, "old", "senior-engineering-workflow");
+  const record = { schemaVersion: 1, files: { [path.join(oldRoot, "plugin.json")]: { plugin: "senior-engineering-workflow", host: "antigravity", scope: "user", variant: null } } };
+  await mkdir(recordRoot, { recursive: true });
+  await writeFile(recordFile, `${JSON.stringify(record, null, 2)}\n`);
+  await mkdir(path.join(recordRoot, ".install.lock"));
+  await assert.rejects(execFileAsync(process.execPath, [MIGRATION, "--record", recordFile, "--old-root", oldRoot, "--apply"]), /ownership record is busy/u);
+  assert.deepEqual(JSON.parse(await readFile(recordFile, "utf8")), record);
 });
 
 test("dry-run is non-mutating and preflight prevents partial writes", async (t) => {
@@ -217,6 +301,54 @@ test("dry-run is non-mutating and preflight prevents partial writes", async (t) 
   await run([...args, "--force"], ctx);
   assert.match(await readFile(conflict, "utf8"), /developer_instructions/);
   assert.doesNotMatch(await readFile(conflict, "utf8"), /sandbox_mode/);
+});
+
+test("dry-run previews install, update, and uninstall while a writer holds the lock", async (t) => {
+  const ctx = await fixture(t);
+  const extra = ["--mode", "companion", "--project", ctx.project];
+  const projectKey = createHash("sha256").update(path.resolve(ctx.project)).digest("hex").slice(0, 24);
+  const recordRoot = path.join(ctx.home, ".state", "oovz-plugins", "projects", projectKey);
+  const lock = path.join(recordRoot, ".install.lock");
+  await mkdir(lock, { recursive: true });
+  const install = await run([...base("install", "codex", "project", extra), "--dry-run"], ctx);
+  assert.match(install.stdout, /would write/);
+  assert.deepEqual(await readdir(recordRoot), [".install.lock"]);
+  await assert.rejects(lstat(path.join(ctx.project, ".codex")), /ENOENT/);
+  await rm(lock, { recursive: true });
+  await run(base("install", "codex", "project", extra), ctx);
+  const recordFile = path.join(recordRoot, "ownership.json");
+  const record = await readFile(recordFile, "utf8");
+  const agent = path.join(ctx.project, ".codex", "agents", `${PLUGIN}-researcher.toml`);
+  const original = await readFile(agent, "utf8");
+  await mkdir(lock);
+  for (const operation of ["update", "uninstall"]) {
+    const preview = await run([...base(operation, "codex", "project", extra), "--dry-run"], ctx);
+    assert.match(preview.stdout, operation === "update" ? /would write/ : /would remove/);
+    assert.equal(await readFile(recordFile, "utf8"), record);
+    assert.equal(await readFile(agent, "utf8"), original);
+    assert.equal((await lstat(lock)).isDirectory(), true);
+  }
+  await writeFile(agent, "local modification\n");
+  await assert.rejects(run([...base("update", "codex", "project", extra), "--dry-run"], ctx), /modified/);
+});
+
+test("dry-run works with read-only ownership state without creating directories", async (t) => {
+  if (process.platform === "win32" || process.getuid?.() === 0) {
+    t.skip("requires POSIX permission enforcement");
+    return;
+  }
+  const ctx = await fixture(t);
+  const state = path.join(ctx.home, ".state");
+  await mkdir(state);
+  await chmod(state, 0o555);
+  try {
+    const preview = await run([...base("install", "codex", "project", ["--mode", "companion", "--project", ctx.project]), "--dry-run"], ctx);
+    assert.match(preview.stdout, /would write/);
+    assert.deepEqual(await readdir(state), []);
+    await assert.rejects(lstat(path.join(ctx.project, ".codex")), /ENOENT/);
+  } finally {
+    await chmod(state, 0o755);
+  }
 });
 
 test("updates and uninstalls refuse modified owned files", async (t) => {
@@ -319,11 +451,13 @@ test("ownership records are checked for symlinks before they are read", async (t
   await mkdir(external);
   await writeFile(path.join(external, "sentinel"), "TOP_SECRET_SENTINEL not json\n");
   await symlink(external, path.join(recordRoot, "ownership.json"), process.platform === "win32" ? "junction" : "dir");
-  await assert.rejects(run(base("install", "codex", "project", ["--mode", "companion", "--project", ctx.project]), ctx), (error) => {
-    assert.match(`${error.stderr}${error.message}`, /symlink/);
-    assert.doesNotMatch(`${error.stderr}${error.message}`, /TOP_SECRET_SENTINEL/);
-    return true;
-  });
+  for (const flags of [[], ["--dry-run"]]) {
+    await assert.rejects(run(base("install", "codex", "project", ["--mode", "companion", "--project", ctx.project, ...flags]), ctx), (error) => {
+      assert.match(`${error.stderr}${error.message}`, /symlink/);
+      assert.doesNotMatch(`${error.stderr}${error.message}`, /TOP_SECRET_SENTINEL/);
+      return true;
+    });
+  }
 });
 
 test("uninstall relies on ownership, not the current catalog or plugin source", async (t) => {
@@ -513,7 +647,6 @@ test("tampered ownership entries outside exact host roots are rejected", async (
     plugin: PLUGIN,
     version: "0.6.0",
     host: "codex",
-    variant: null,
     scope: "project",
     mode: "companion",
     sha256: createHash("sha256").update("valuable\n").digest("hex")

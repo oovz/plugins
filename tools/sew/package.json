@@ -1,7 +1,7 @@
 {
   "name": "@oovz/sew",
-  "version": "0.12.2",
-  "description": "Install and configure Senior Engineering Workflow across supported coding harnesses.",
+  "version": "0.13.0",
+  "description": "Install Senior Engineering Workflow role configuration across supported coding harnesses.",
   "type": "module",
   "bin": {
     "sew": "./bin/sew.mjs"
@@ -13,7 +13,7 @@
     "LICENSE"
   ],
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "license": "MIT",
   "author": {
@@ -43,7 +43,7 @@
     "provenance": true
   },
   "dependencies": {
-    "cross-spawn": "7.0.6",
-    "picocolors": "1.1.1"
+    "smol-toml": "1.7.1",
+    "yaml": "2.9.0"
   }
 }

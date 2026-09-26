@@ -1,173 +1,143 @@
 #!/usr/bin/env node
-import { randomUUID } from "node:crypto";
-import { lstat, mkdir, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { readFile, readdir, stat } from "node:fs/promises";
 import path from "node:path";
-import process from "node:process";
 import { fileURLToPath } from "node:url";
+import YAML from "yaml";
+import { atomicWriteTree } from "./lib/files.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const json = (value) => `${JSON.stringify(value, null, 2)}\n`;
 const PLUGIN_ID = "senior-engineering-workflow";
-const PACKAGE_SOURCE = path.join("tools", "sew");
-const RELEASE_BUILD_ROOT = path.join("release-build", "sew");
-const PACKAGE_OUTPUT = path.join(RELEASE_BUILD_ROOT, "package");
-const STATIC_PAYLOADS = Object.freeze({
-  codex: path.join("dist", "codex", PLUGIN_ID),
-  opencode: path.join("dist", "opencode", "stable", PLUGIN_ID),
-  cursor: path.join("dist", "cursor", PLUGIN_ID),
-  "gemini-cli": path.join("dist", "gemini-cli", PLUGIN_ID),
-  antigravity: path.join("dist", "antigravity", PLUGIN_ID),
+const SOURCE_PACKAGE = "tools/sew";
+const OUTPUT_ROOT = "release-build/sew";
+const ROLES = Object.freeze(["researcher", "engineer", "verifier", "worker"]);
+const CONFIG_SOURCES = Object.freeze({
+  "claude-code": { projection: "claude-code", prefix: "agents/", extension: ".md", namespaceFrontmatter: true },
+  codex: { projection: "codex", prefix: "companion/agents/", extension: ".toml" },
+  opencode: { projection: "opencode", prefix: ".opencode/agents/", extension: ".md" },
+  cursor: { projection: "cursor", prefix: "agents/", extension: ".md" },
+  "gemini-cli": { projection: "gemini-cli", prefix: "agents/", extension: ".md" },
+  antigravity: { projection: "antigravity", prefix: "agents/", extension: ".md" },
+  "oh-my-pi": { projection: "oh-my-pi", prefix: "agents/", extension: ".md" },
 });
-const ALL_HOSTS = Object.freeze(["claude-code", "codex", "opencode", "cursor", "gemini-cli", "antigravity", "oh-my-pi"]);
 
-function isContained(root, candidate) {
-  const relative = path.relative(path.resolve(root), path.resolve(candidate));
-  return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
-}
-
-async function pathInfo(file) {
-  try { return await lstat(file); } catch (error) { if (error?.code === "ENOENT") return null; throw error; }
-}
-
-async function nearestExisting(target) {
-  let current = path.resolve(target);
-  while (true) {
-    if (await pathInfo(current)) return current;
-    const parent = path.dirname(current);
-    if (parent === current) throw new Error(`No existing ancestor for ${target}`);
-    current = parent;
-  }
-}
-
-async function assertSafePath(root, target) {
-  const absoluteRoot = path.resolve(root);
-  const absoluteTarget = path.resolve(target);
-  if (!isContained(absoluteRoot, absoluteTarget)) throw new Error(`Generated path escapes ${absoluteRoot}: ${absoluteTarget}`);
-  const start = await nearestExisting(absoluteRoot);
-  let current = start;
-  for (const part of ["", ...path.relative(start, absoluteTarget).split(path.sep).filter(Boolean)]) {
-    if (part) current = path.join(current, part);
-    const info = await pathInfo(current);
-    if (info?.isSymbolicLink()) throw new Error(`Refusing symlink or junction in generated path: ${current}`);
-  }
-}
-
-function normalizeArtifactPath(value) {
-  const normalized = String(value).replaceAll("\\", "/");
-  if (!normalized || normalized.startsWith("/") || /^[A-Za-z]:/u.test(normalized) || normalized.split("/").includes("..")) {
-    throw new Error(`Invalid generated artifact path: ${value}`);
-  }
-  return normalized;
-}
+function json(value) { return `${JSON.stringify(value, null, 2)}\n`; }
 
 async function readTree(directory) {
-  const result = [];
+  const files = [];
   async function walk(current) {
     for (const entry of (await readdir(current, { withFileTypes: true })).sort((a, b) => a.name.localeCompare(b.name))) {
       const absolute = path.join(current, entry.name);
-      if (entry.isSymbolicLink()) throw new Error(`Unexpected symlink in release input: ${absolute}`);
+      if (entry.isSymbolicLink()) throw new Error(`Symlinks are not allowed in generated configuration: ${absolute}`);
       if (entry.isDirectory()) await walk(absolute);
-      else if (entry.isFile()) result.push({
-        path: path.relative(directory, absolute).split(path.sep).join("/"),
-        content: await readFile(absolute),
-        executable: ((await stat(absolute)).mode & 0o111) !== 0,
-      });
-      else throw new Error(`Unsupported release input entry: ${absolute}`);
+      else if (entry.isFile()) files.push({ path: path.relative(directory, absolute).split(path.sep).join("/"), content: await readFile(absolute), executable: ((await stat(absolute)).mode & 0o111) !== 0 });
+      else throw new Error(`Unsupported configuration payload entry: ${absolute}`);
     }
   }
-  try { await walk(directory); } catch (error) { if (error?.code === "ENOENT") return []; throw error; }
-  return result;
+  await walk(directory);
+  return files;
 }
 
-async function atomicWriteTree(target, artifacts, containmentRoot) {
-  await assertSafePath(containmentRoot, target);
-  const parent = path.dirname(target);
-  await mkdir(parent, { recursive: true });
-  const token = `${process.pid}-${randomUUID()}`;
-  const staging = path.join(parent, `.${path.basename(target)}.staging-${token}`);
-  const backup = path.join(parent, `.${path.basename(target)}.backup-${token}`);
-  await mkdir(staging);
-  try {
-    for (const artifact of artifacts) {
-      const relative = normalizeArtifactPath(artifact.path);
-      const destination = path.join(staging, ...relative.split("/"));
-      if (!isContained(staging, destination)) throw new Error(`Generated artifact escapes staging root: ${relative}`);
-      await mkdir(path.dirname(destination), { recursive: true });
-      await writeFile(destination, artifact.content, { mode: artifact.executable ? 0o755 : 0o644 });
-    }
-    let backedUp = false;
-    try { await rename(target, backup); backedUp = true; } catch (error) { if (error?.code !== "ENOENT") throw error; }
-    try { await rename(staging, target); } catch (error) { if (backedUp) await rename(backup, target); throw error; }
-    if (backedUp) await rm(backup, { recursive: true, force: true });
-  } catch (error) {
-    await rm(staging, { recursive: true, force: true }).catch(() => {});
-    await rm(backup, { recursive: true, force: true }).catch(() => {});
-    throw error;
+function digestFiles(files) {
+  const hash = createHash("sha256");
+  for (const file of [...files].sort((a, b) => a.path.localeCompare(b.path))) {
+    hash.update(file.path);
+    hash.update("\0");
+    hash.update(file.content);
+    hash.update("\0");
   }
+  return hash.digest("hex");
 }
 
-function prefixArtifacts(prefix, artifacts) {
-  return artifacts.map((artifact) => ({ ...artifact, path: path.posix.join(prefix, artifact.path) }));
+function sourceRoleId(host, sourcePath) {
+  const basename = path.posix.basename(sourcePath);
+  const match = basename.match(new RegExp(`^${PLUGIN_ID}-(researcher|engineer|verifier|worker)\\.[^.]+$`, "u"));
+  if (match) return match[1];
+  const role = basename.replace(/\.[^.]+$/u, "");
+  if (host === "claude-code" && ROLES.includes(role)) return role;
+  return null;
 }
 
-async function requiredTree(root, relative, label) {
-  const directory = path.join(root, relative);
-  const artifacts = await readTree(directory);
-  if (artifacts.length === 0) {
-    throw new Error(`${label} is missing or empty at ${directory}. Build the Senior Engineering Workflow host projections before bundling @oovz/sew.`);
+function namespaceClaudeDefinition(content, role) {
+  const source = content.toString("utf8");
+  const match = source.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/u);
+  if (!match) throw new Error(`Claude ${role} agent has invalid YAML frontmatter`);
+  const frontmatter = YAML.parse(match[1]);
+  if (!frontmatter || typeof frontmatter !== "object" || Array.isArray(frontmatter)) throw new Error(`Claude ${role} agent frontmatter is not a mapping`);
+  frontmatter.name = `${PLUGIN_ID}-${role}`;
+  return Buffer.from(`---\n${YAML.stringify(frontmatter, { lineWidth: 0 }).trimEnd()}\n---\n${match[2]}`, "utf8");
+}
+
+async function roleConfigurations(root, host, descriptor) {
+  const projectionRoot = path.join(root, "dist", descriptor.projection, PLUGIN_ID);
+  const candidates = await readTree(projectionRoot);
+  const selected = new Map();
+  for (const file of candidates) {
+    if (!file.path.startsWith(descriptor.prefix) || !file.path.endsWith(descriptor.extension)) continue;
+    const role = sourceRoleId(host, file.path);
+    if (!role) continue;
+    if (selected.has(role)) throw new Error(`${host} projection has multiple definitions for role ${role}`);
+    const content = descriptor.namespaceFrontmatter ? namespaceClaudeDefinition(file.content, role) : file.content;
+    selected.set(role, { path: `agents/${PLUGIN_ID}-${role}${descriptor.extension}`, content, executable: file.executable });
   }
-  return artifacts;
+  const missing = ROLES.filter((role) => !selected.has(role));
+  if (missing.length) throw new Error(`${host} configuration projection is missing roles: ${missing.join(", ")}`);
+  return ROLES.map((role) => selected.get(role));
 }
 
-function releaseManifest(source) {
-  const manifest = structuredClone(source);
-  delete manifest.private;
-  delete manifest.scripts;
-  manifest.description = "Install, update, diagnose, and configure Senior Engineering Workflow across supported coding-agent harnesses.";
-  manifest.files = ["bin/", "lib/", "payloads/", "README.md", "LICENSE"];
-  manifest.publishConfig = { ...(manifest.publishConfig ?? {}), access: "public" };
-  return manifest;
+function sourceCommit(options) {
+  const value = options.sourceCommit ?? process.env.SEW_SOURCE_COMMIT;
+  if (value === undefined || value === null || value === "") return null;
+  if (!/^[a-f0-9]{40}$/iu.test(String(value))) throw new Error("SEW_SOURCE_COMMIT must be a 40-character Git commit SHA.");
+  return String(value).toLowerCase();
 }
 
 export async function buildSewPackage(options = {}) {
   const root = path.resolve(options.root ?? ROOT);
-  const output = path.resolve(options.output ?? path.join(root, PACKAGE_OUTPUT));
-  const sourceRoot = path.join(root, PACKAGE_SOURCE);
-  const sourceManifest = JSON.parse(await readFile(path.join(sourceRoot, "package.json"), "utf8"));
+  const output = path.resolve(options.output ?? path.join(root, OUTPUT_ROOT, "package"));
+  const sourceRoot = path.join(root, SOURCE_PACKAGE);
+  const manifest = JSON.parse(await readFile(path.join(sourceRoot, "package.json"), "utf8"));
   const pluginManifest = JSON.parse(await readFile(path.join(root, "plugins", PLUGIN_ID, "manifest.json"), "utf8"));
-
-  if (sourceManifest.name !== "@oovz/sew") throw new Error(`Unexpected source package name: ${sourceManifest.name}`);
-  if (sourceManifest.private !== true) throw new Error("tools/sew must remain private; only the staged CI package may be published.");
-  if (pluginManifest.id !== PLUGIN_ID) throw new Error(`Unexpected plugin manifest id: ${pluginManifest.id}`);
-
+  if (manifest.name !== "@oovz/sew" || manifest.private !== true) throw new Error("tools/sew must remain the private source workspace.");
+  if (pluginManifest.id !== PLUGIN_ID || pluginManifest.version !== manifest.version) throw new Error("SEW CLI and canonical role source versions must match.");
+  const commit = sourceCommit(options);
+  const hostFiles = {};
   const artifacts = [];
-  artifacts.push(...prefixArtifacts("bin", await requiredTree(sourceRoot, "bin", "SEW CLI bin source")));
-  artifacts.push(...prefixArtifacts("lib", await requiredTree(sourceRoot, "lib", "SEW CLI library source")));
+  for (const [host, descriptor] of Object.entries(CONFIG_SOURCES)) {
+    hostFiles[host] = await roleConfigurations(root, host, descriptor);
+    for (const file of hostFiles[host]) artifacts.push({ ...file, path: path.posix.join("payloads", "config", host, file.path) });
+  }
+  artifacts.push(...(await readTree(path.join(sourceRoot, "bin"))).map((file) => ({ ...file, path: path.posix.join("bin", file.path) })));
+  artifacts.push(...(await readTree(path.join(sourceRoot, "lib"))).map((file) => ({ ...file, path: path.posix.join("lib", file.path) })));
   artifacts.push({ path: "README.md", content: await readFile(path.join(sourceRoot, "README.md")) });
   artifacts.push({ path: "LICENSE", content: await readFile(path.join(sourceRoot, "LICENSE")) });
-  artifacts.push({ path: "package.json", content: Buffer.from(json(releaseManifest(sourceManifest))) });
 
-  for (const [host, relative] of Object.entries(STATIC_PAYLOADS)) {
-    artifacts.push(...prefixArtifacts(path.posix.join("payloads", host), await requiredTree(root, relative, `${host} release payload`)));
-  }
-
-  artifacts.push({
-    path: "payloads/manifest.json",
-    content: Buffer.from(json({
-      schemaVersion: 2,
-      package: sourceManifest.name,
-      packageVersion: sourceManifest.version,
-      plugin: pluginManifest.id,
-      pluginVersion: pluginManifest.version,
-      repository: sourceManifest.repository?.url,
-      hosts: ALL_HOSTS,
-      staticHosts: Object.keys(STATIC_PAYLOADS),
-    })),
-  });
+  const roleDigest = digestFiles(Object.entries(hostFiles).flatMap(([host, files]) => files.map((file) => ({ ...file, path: `${host}/${file.path}` }))));
+  const payloadManifest = {
+    schemaVersion: 1,
+    package: manifest.name,
+    packageVersion: manifest.version,
+    roleSourceVersion: pluginManifest.version,
+    ...(commit ? { sourceCommit: commit } : {}),
+    roles: ROLES.map((role) => `${PLUGIN_ID}-${role}`),
+    hosts: Object.fromEntries(Object.entries(hostFiles).map(([host, files]) => [host, files.map((file) => file.path)])),
+    roleDigest,
+    repository: manifest.repository?.url,
+  };
+  artifacts.push({ path: "payloads/manifest.json", content: Buffer.from(json(payloadManifest)) });
+  artifacts.push({ path: "package.json", content: Buffer.from(json({
+    ...manifest,
+    roleSourceVersion: pluginManifest.version,
+    private: undefined,
+    scripts: undefined,
+    files: ["bin/", "lib/", "payloads/", "README.md", "LICENSE"],
+    publishConfig: { access: "public", provenance: true },
+    ...(commit ? { sourceCommit: commit } : {}),
+  })) });
 
   await atomicWriteTree(output, artifacts, path.join(root, "release-build"));
-  options.stdout?.write?.(`bundled ${path.relative(root, output)} from freshly built host projections\n`);
-  return { root, output, packageVersion: sourceManifest.version, pluginVersion: pluginManifest.version, artifacts };
+  options.stdout?.write?.(`bundled ${path.relative(root, output)} as configuration-only host payloads\n`);
+  return { root, output, packageVersion: manifest.version, artifacts };
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

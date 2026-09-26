@@ -116,7 +116,7 @@ export function claudePluginManifest(plugin, repository = plugin.marketplace?.re
     keywords: plugin.manifest.keywords ?? []
   };
   if (plugin.skills.length > 0) manifest.skills = "./skills/";
-  if (plugin.agents.length > 0) manifest.agents = "./agents/";
+  if (plugin.agents.length > 0) manifest.agents = plugin.agents.map((agent) => `./agents/${agent.id}.md`);
   return manifest;
 }
 
@@ -202,10 +202,6 @@ function renderAntigravity(plugin) {
     ...skills(plugin)
   ];
   for (const agent of plugin.agents) {
-    // Antigravity custom-agent frontmatter defaults `tools` to an empty list.
-    // A permission-inheriting logical role therefore uses this skill's generic
-    // subagent fallback instead of a static agent that would lose parent tools.
-    if (inheritsPermissions(agent)) continue;
     const flatId = flatAgentId(plugin.manifest.id, agent.id);
     const frontmatter = {
       name: flatId,
@@ -247,7 +243,7 @@ function renderOhMyPi(plugin) {
   return [...artifacts, ...hostFiles(plugin, "oh-my-pi")];
 }
 
-function stablePermission(agent) {
+function openCodePermission(agent) {
   const permission = {};
   if (agent.workspace === "read-only") permission.edit = "deny";
   if (!agent.shell) permission.bash = "deny";
@@ -266,7 +262,7 @@ function renderOpenCode(plugin) {
   for (const agent of plugin.agents) {
     const flatId = flatAgentId(plugin.manifest.id, agent.id);
     const frontmatter = { description: agent.description, mode: "subagent" };
-    if (!inheritsPermissions(agent)) frontmatter.permission = stablePermission(agent);
+    if (!inheritsPermissions(agent)) frontmatter.permission = openCodePermission(agent);
     artifacts.push({ path: `.opencode/agents/${flatId}.md`, content: markdown(frontmatter, leafGuard(agent)) });
   }
   for (const command of plugin.commands.filter((item) => item.hosts.includes("opencode"))) artifacts.push({ path: `.opencode/commands/${flatAgentId(plugin.manifest.id, command.id)}.md`, content: command.source });
@@ -321,27 +317,24 @@ function renderPortable(plugin) {
 }
 
 export const HOSTS = Object.freeze({
-  "claude-code": { variants: [null], manifestKey: "claude-code", render: renderClaude },
-  codex: { variants: [null], manifestKey: "codex", render: renderCodex },
-  "gemini-cli": { variants: [null], manifestKey: "gemini-cli", render: renderGemini },
-  antigravity: { variants: [null], manifestKey: "antigravity", render: renderAntigravity },
-  "oh-my-pi": { variants: [null], manifestKey: "oh-my-pi", render: renderOhMyPi },
-  cursor: { variants: [null], manifestKey: "cursor", render: renderCursor },
-  opencode: { variants: ["stable"], manifestKey: "opencode", render: renderOpenCode },
-  "portable-agent-skills": { variants: [null], manifestKey: "portable", render: renderPortable }
+  "claude-code": { manifestKey: "claude-code", render: renderClaude },
+  codex: { manifestKey: "codex", render: renderCodex },
+  "gemini-cli": { manifestKey: "gemini-cli", render: renderGemini },
+  antigravity: { manifestKey: "antigravity", render: renderAntigravity },
+  "oh-my-pi": { manifestKey: "oh-my-pi", render: renderOhMyPi },
+  cursor: { manifestKey: "cursor", render: renderCursor },
+  opencode: { manifestKey: "opencode", render: renderOpenCode },
+  "portable-agent-skills": { manifestKey: "portable", render: renderPortable }
 });
 
-export function resolveHost(host, variant) {
+export function resolveHost(host) {
   const entry = HOSTS[host];
   if (!entry) throw new Error(`unsupported host ${host}; expected one of ${Object.keys(HOSTS).join(", ")}`);
-  const selectedVariant = entry.variants[0] === null ? null : (variant ?? "stable");
-  if (!entry.variants.includes(selectedVariant)) throw new Error(`host ${host} does not support variant ${selectedVariant}`);
-  if (entry.variants[0] === null && variant !== undefined && variant !== null) throw new Error(`--variant is only valid for a variant host`);
-  return { id: host, variant: selectedVariant, ...entry };
+  return { id: host, ...entry };
 }
 
 export function supportsHost(plugin, host) {
-  const key = typeof host.manifestKey === "function" ? host.manifestKey(host.variant) : host.manifestKey;
+  const key = host.manifestKey;
   if (plugin.manifest.hosts?.[key]?.enabled !== true) return false;
   const components = plugin.manifest.components;
   const skillsList = plugin.skills ?? components.skills;
@@ -358,17 +351,17 @@ export function supportsHost(plugin, host) {
     || commandsList.some((command) => command.hosts.includes(commandHost));
 }
 
-export function renderHost(plugin, hostId, variant, options = {}) {
-  const host = resolveHost(hostId, variant);
+export function renderHost(plugin, hostId, options = {}) {
+  const host = resolveHost(hostId);
   const allowCompanion = options.allowCompanion === true
     && host.id === "codex"
     && plugin.manifest.hosts?.codex?.enabled === true
     && plugin.agents.length > 0;
-  if (!supportsHost(plugin, host) && !allowCompanion) throw new Error(`${plugin.manifest.id} does not enable host ${hostId}${host.variant ? `/${host.variant}` : ""}: projection has no functional component`);
-  const artifacts = [{ path: "LICENSE", content: plugin.license.content }, ...host.render(plugin, host.variant)];
-  return { host, artifacts: uniqueArtifacts(artifacts, `${hostId}/${host.variant ?? "default"}/${plugin.manifest.id}`) };
+  if (!supportsHost(plugin, host) && !allowCompanion) throw new Error(`${plugin.manifest.id} does not enable host ${hostId}: projection has no functional component`);
+  const artifacts = [{ path: "LICENSE", content: plugin.license.content }, ...host.render(plugin)];
+  return { host, artifacts: uniqueArtifacts(artifacts, `${hostId}/${plugin.manifest.id}`) };
 }
 
 export function allHostTargets() {
-  return Object.entries(HOSTS).flatMap(([id, host]) => host.variants.map((variant) => ({ id, variant })));
+  return Object.keys(HOSTS).map((id) => ({ id }));
 }

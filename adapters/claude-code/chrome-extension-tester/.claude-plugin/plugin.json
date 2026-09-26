@@ -2,7 +2,7 @@
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "chrome-extension-tester",
   "displayName": "Chrome Extension Tester",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Test and debug Chrome extensions in Chrome-managed contexts through Chrome DevTools MCP, with extra guidance for WXT projects.",
   "author": {
     "name": "Otto",

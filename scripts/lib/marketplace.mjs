@@ -415,7 +415,7 @@ export async function inspectPlugin(plugin) {
     }
     assert(parsed && typeof parsed === "object" && !Array.isArray(parsed), `Codex ${component.nativeKind} component ${component.id} must contain a JSON object`);
     if (component.nativeKind === "mcpServers") {
-      const servers = parsed.mcp_servers ?? parsed;
+      const servers = parsed.mcpServers;
       assert(servers && typeof servers === "object" && !Array.isArray(servers) && Object.keys(servers).length > 0, `Codex mcpServers component ${component.id} must declare at least one MCP server`);
       for (const [name, server] of Object.entries(servers)) {
         assert(server && typeof server === "object" && !Array.isArray(server) && Object.keys(server).length > 0, `Codex MCP server ${name} in ${component.id} must be a non-empty object`);

@@ -117,10 +117,12 @@ cases:
     polarity: positive
     capability: bounded_implementation
     prompt: |-
-      Implement one settled package-local slice with explicit file ownership,
-      accepted behavior, focused tests, and no architecture changes.
+      Delegate one settled package-local slice to an isolated Engineer context,
+      with explicit file ownership, accepted behavior, focused tests, and no
+      architecture changes. The main agent is integrating another slice.
     fixtures:
       ownership_is_settled: true
+      isolation_requested: true
       architecture_trigger: false
     expected:
       activation: true
@@ -284,10 +286,12 @@ cases:
     polarity: positive
     capability: test_only_delivery
     prompt: |-
-      Add a focused regression test and fixture for accepted behavior. Production
-      code is explicitly out of scope.
+      Delegate a focused regression test and fixture to an isolated Engineer
+      context while the main agent integrates another slice. Production code
+      is explicitly out of scope.
     fixtures:
       test_files_identified: true
+      isolation_requested: true
       production_edits_forbidden: true
       implementation_boundary_settled: true
     expected:
@@ -302,3 +306,29 @@ cases:
         - engineer receives a test-only work order with production paths forbidden
         - engineer runs focused repository-native validation
         - a production defect is reported to the main agent rather than silently fixed
+
+
+  - id: local-test-only-change-stays-inline
+    polarity: positive
+    capability: test_only_delivery
+    prompt: |-
+      Add one focused regression test in the identified file for settled
+      behavior. The fixture and validation command are known; production
+      edits are out of scope.
+    fixtures:
+      test_files_identified: true
+      production_edits_forbidden: true
+      implementation_boundary_settled: true
+      isolation_requested: false
+      noisy_output_expected: false
+    expected:
+      activation: true
+      route: test_only
+      invoked_roles:
+        required: []
+        forbidden: [researcher, engineer, verifier, worker]
+      role_resolution: {}
+      behavior:
+        - main agent writes and runs the focused regression directly
+        - production paths remain unchanged
+        - a production defect is reported with evidence and the required scope decision

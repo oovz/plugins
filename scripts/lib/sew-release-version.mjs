@@ -76,33 +76,36 @@ export async function assertSewReleaseVersionAlignment({ requireStaged = false }
       `does not match source version ${versions.packageVersion}`,
     );
   }
-  if (stagedManifest.sewPluginVersion !== versions.pluginVersion) {
+  if (stagedManifest.roleSourceVersion !== versions.pluginVersion) {
     throw new Error(
-      `staged package sewPluginVersion ${stagedManifest.sewPluginVersion ?? "<missing>"} ` +
+      `staged package roleSourceVersion ${stagedManifest.roleSourceVersion ?? "<missing>"} ` +
       `does not match plugin version ${versions.pluginVersion}`,
     );
   }
   if (stagedManifest.publishConfig?.provenance !== true) {
     throw new Error("staged @oovz/sew package must set publishConfig.provenance to true");
   }
+  if (stagedManifest.sourceCommit !== undefined && !/^[a-f0-9]{40}$/iu.test(stagedManifest.sourceCommit)) {
+    throw new Error("staged @oovz/sew package sourceCommit must be a 40-character Git commit SHA");
+  }
 
   const payloadRoot = path.join(SEW_STAGE_ROOT, "payloads");
   const jsonFiles = await listJsonFiles(payloadRoot);
-  let pluginVersionManifestCount = 0;
+  let roleSourceManifestCount = 0;
   for (const filePath of jsonFiles) {
     const value = await readJson(filePath);
-    if (!Object.hasOwn(value, "pluginVersion")) continue;
-    pluginVersionManifestCount += 1;
-    if (value.pluginVersion !== versions.pluginVersion) {
+    if (!Object.hasOwn(value, "roleSourceVersion")) continue;
+    roleSourceManifestCount += 1;
+    if (value.roleSourceVersion !== versions.pluginVersion) {
       throw new Error(
-        `${path.relative(REPO_ROOT, filePath)} declares pluginVersion ${value.pluginVersion}, ` +
+        `${path.relative(REPO_ROOT, filePath)} declares roleSourceVersion ${value.roleSourceVersion}, ` +
         `expected ${versions.pluginVersion}`,
       );
     }
   }
-  if (pluginVersionManifestCount === 0) {
-    throw new Error("staged SEW payloads do not contain a pluginVersion manifest");
+  if (roleSourceManifestCount === 0) {
+    throw new Error("staged SEW payloads do not identify their canonical role source version");
   }
 
-  return { ...versions, stagedManifest, pluginVersionManifestCount };
+  return { ...versions, stagedManifest, roleSourceManifestCount };
 }

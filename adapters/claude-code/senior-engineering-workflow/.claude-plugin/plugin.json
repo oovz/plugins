@@ -2,7 +2,7 @@
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "senior-engineering-workflow",
   "displayName": "Senior Engineering Workflow",
-  "version": "0.12.2",
+  "version": "0.13.0",
   "description": "An engineering workflow where the main agent owns decisions and bounded specialists handle focused research, implementation, verification, and tool work.",
   "author": {
     "name": "Otto",
@@ -22,5 +22,10 @@
     "workflow"
   ],
   "skills": "./skills/",
-  "agents": "./agents/"
+  "agents": [
+    "./agents/researcher.md",
+    "./agents/engineer.md",
+    "./agents/verifier.md",
+    "./agents/worker.md"
+  ]
 }

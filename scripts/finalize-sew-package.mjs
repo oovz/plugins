@@ -11,7 +11,7 @@ const stagedManifestPath = path.join(SEW_STAGE_ROOT, "package.json");
 const stagedManifest = JSON.parse(await readFile(stagedManifestPath, "utf8"));
 
 stagedManifest.version = versions.packageVersion;
-stagedManifest.sewPluginVersion = versions.pluginVersion;
+stagedManifest.roleSourceVersion = versions.pluginVersion;
 delete stagedManifest.private;
 stagedManifest.publishConfig = {
   ...(stagedManifest.publishConfig ?? {}),

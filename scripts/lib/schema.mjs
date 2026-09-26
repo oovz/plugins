@@ -25,6 +25,20 @@ export async function loadManifestSchemaValidators(root) {
   };
 }
 
+export async function loadOwnershipSchemaValidator(root) {
+  const ownershipSchemaFile = path.join(root, "schemas/ownership.schema.json");
+  await assertSecureSourcePath(root, ownershipSchemaFile, "ownership schema");
+  const ajv = new Ajv({ allErrors: true, strict: false });
+  addFormats(ajv);
+  return ajv.compile(await readJson(ownershipSchemaFile));
+}
+
+export async function assertOwnershipRecordMatchesSchema(root, record) {
+  const validate = await loadOwnershipSchemaValidator(root);
+  assertMatchesSchema(validate, record, "ownership.json");
+  return record;
+}
+
 export async function assertCatalogMatchesSchemas(catalog) {
   const validators = await loadManifestSchemaValidators(catalog.root);
   assertMatchesSchema(validators.marketplace, catalog.marketplace, "marketplace.json");
