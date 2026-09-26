@@ -11,6 +11,10 @@ Testing and debugging workflow for Chrome extensions using Chrome DevTools MCP w
 - Checks extension-page UI, content scripts, MV3 service-worker diagnostics, and relevant network/console behavior.
 - Detects WXT output instead of hardcoding `.output/chrome-mv3`.
 
+## Install
+
+Follow the [per-host installation routes](../../README.md#install-plugins-and-skills), using `chrome-extension-tester` as the plugin ID, then complete the MCP setup below.
+
 ## Chrome DevTools MCP server setup
 
 The plugin's Codex integration bundles a Chrome DevTools MCP server entry (`.mcp.json`) configured with:
@@ -47,7 +51,7 @@ Test the popup, content script, and MV3 service-worker message flow. Report REAL
 
 ## Helper scripts
 
-The skills include self-contained helper scripts under their `scripts/` directories:
+The skills include self-contained helper scripts under their `scripts/` directories. Run these examples from the installed skill directory containing `SKILL.md`. In this checkout, that is `skills/chrome-extension-test/` or `skills/wxt-extension-test/`. Pass the extension project as an absolute path:
 
 Find likely unpacked build directories:
 

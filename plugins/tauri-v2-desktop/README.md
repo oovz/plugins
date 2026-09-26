@@ -38,7 +38,7 @@ Version 1.2.1 is a host-neutral Agent Skill for Tauri v2 desktop development on 
 
 ## Install
 
-Per-harness steps are in the [root README](../../README.md#install).
+Per-harness steps are in the [root README](../../README.md#install-plugins-and-skills).
 
 ## Scope
 

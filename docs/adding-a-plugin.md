@@ -154,7 +154,7 @@ dist/cursor/<plugin-id>/
 dist/gemini-cli/<plugin-id>/
 dist/antigravity/<plugin-id>/
 dist/oh-my-pi/<plugin-id>/
-dist/opencode/stable/<plugin-id>/
+dist/opencode/<plugin-id>/
 dist/portable-agent-skills/<plugin-id>/
 ```
 
@@ -172,15 +172,14 @@ Use a disposable project and run the marketplace installer in dry-run mode befor
 node scripts/install.mjs install \
   --plugin example-plugin \
   --host opencode \
-  --variant stable \
   --scope project \
   --project /absolute/path/to/disposable-project \
   --dry-run
 ```
 
-`--variant` is used only by OpenCode. Codex also requires an explicit `--mode standalone` or `--mode companion`. The script accepts `update` and `uninstall`. Use `--force` only after reviewing a reported ownership or content conflict.
+Codex requires an explicit `--mode standalone` or `--mode companion`. The script accepts `update` and `uninstall`. Use `--force` only after reviewing a reported ownership or content conflict.
 
-The installer prefixes flat host component names with `<plugin-id>-`, records the plugin/version/host/variant and content digest of every owned file, refuses unrelated existing content by default, and removes only files still owned by that plugin. Installing a second plugin must leave the first plugin's skills, agents, commands, and settings unchanged.
+The installer prefixes flat host component names with `<plugin-id>-`, records the plugin/version/host/scope and content digest of every owned file, refuses unrelated existing content by default, and removes only files still owned by that plugin. Installing a second plugin must leave the first plugin's skills, agents, commands, and settings unchanged.
 
 Prefer a host-native installer for native packages. The repository installer exists for documented static or companion modes and for isolated verification; it must not masquerade as a host's update database.
 
@@ -197,4 +196,4 @@ Before release:
 
 Gemini is the one monorepo exception: its remote extension installer has no documented subdirectory selector and its release manifest must be at the absolute archive/repository root. Publish the generated Gemini tree as a rooted archive or a per-plugin repository/ref. Do not tell users to install the marketplace root as a Gemini extension.
 
-Claude, Codex, Cursor, and Oh My Pi consume generated marketplace catalogs that point to their checked-in per-plugin adapter directories. Cursor also supports direct `.cursor/skills` and `.cursor/agents` installation for the public CLI. Gemini CLI and Antigravity consume generated native package directories. OpenCode consumes the stable static configuration bundle. Portable consumers receive only Agent Skills, not role agents or permission configuration.
+Claude, Codex, Cursor, and Oh My Pi consume generated marketplace catalogs that point to their checked-in per-plugin adapter directories. Cursor also supports direct `.cursor/skills` and `.cursor/agents` installation for the public CLI. Gemini CLI and Antigravity consume generated native package directories. OpenCode consumes the current static configuration bundle. Portable consumers receive only Agent Skills, not role agents or permission configuration.
