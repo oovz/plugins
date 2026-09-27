@@ -1,0 +1,110 @@
+schema_version: "3.0.0"
+contract_id: senior-engineering-workflow
+contract_version: "3.0.0"
+profile: engineering-delivery-v3
+description: Structural policy for direct engineering ownership and optional specialists.
+
+controller:
+  kind: primary_engineering_owner
+  is_leaf_role: false
+  responsibilities:
+    - accepted scope and user decisions
+    - architecture and integration
+    - proportionate delegation and verification
+    - evidence-based iteration and completion
+
+leaf_role_count: 3
+leaf_roles:
+  researcher:
+    logical_agent_id: researcher
+    is_leaf: true
+    delegates: false
+    reports_to: controller
+    may_write_production_files: false
+    may_write_test_files: false
+    runs_own_tools: true
+  engineer:
+    logical_agent_id: engineer
+    is_leaf: true
+    delegates: false
+    reports_to: controller
+    may_write_production_files: true
+    may_write_test_files: true
+    runs_own_tools: true
+  verifier:
+    logical_agent_id: verifier
+    is_leaf: true
+    delegates: false
+    reports_to: controller
+    may_write_production_files: false
+    may_write_test_files: false
+    runs_own_tools: true
+
+execution:
+  default: direct
+  preserve_viable_supplied_plan: true
+  implementation_owns_immediate_validation: true
+  concurrent_writers_require_disjoint_ownership_or_isolation: true
+  integrated_candidate_requires_validation: true
+  inquiries_and_reviews_are_read_only: true
+
+context:
+  advertised_capacity_is_not_a_routing_threshold: true
+  retain_relevant_connected_evidence: true
+  verbose_output: scoped_artifacts_and_targeted_retrieval
+  durable_state_trigger: likely_interruption_or_session_boundary
+  summaries_retain_evidence_locations: true
+
+delegation:
+  availability_is_not_a_trigger: true
+  inline_execution_is_first_class: true
+  required_work_order: references/delegation-and-state.md
+  specialist_may_invoke_agents: false
+  benefit_must_justify_coordination_cost: true
+  minimum_specialist_packet:
+    - objective_and_acceptance
+    - scope_and_authority
+    - authorized_instruction_sources
+    - relevant_context
+    - checks_and_stop_conditions
+    - evidence_and_limitations_return
+  identifiers: when_needed_for_concurrent_or_resumable_work
+
+runtime_permissions:
+  canonical_policy: inherit
+  plugin_emitted_host_restrictions:
+    default: none
+    antigravity:
+      tools: explicit_allowlist
+      command_execution_policy: sandbox
+  behavioral_scope_remains_work_order_bound: true
+
+verification:
+  independent_when:
+    - explicitly_requested
+    - consequential_security_data_loss_or_migration_risk
+    - uncertain_acceptance_or_demonstrated_capability_limit
+  independent_checks_derive_from: accepted_behavior_and_material_risk
+  unavailable_required_independence: disclose_limitation
+  verifier_preserves_candidate: true
+  modes: [acceptance, review, design-challenge, closure]
+
+iteration:
+  new_evidence_required_for_repeat: true
+  repeated_no_progress: reassess_hypothesis_and_design
+  experiment_limits: proportional_to_cost_and_risk
+  continue_useful_authorized_diagnosis: true
+  failure_classes: [production_defect, test_defect, environment_issue, contract_or_design_ambiguity]
+
+long_running_operations:
+  avoid_status_only_polling: true
+  prefer_completion_aware_waits: true
+  terminal_status_required_for_completion: true
+  respect_host_limits_and_communication_needs: true
+
+completion:
+  observed_evidence_required: true
+  final_diff_review_required: true
+  unrun_checks_may_not_be_reported_as_passed: true
+  material_findings_require_resolution_or_explicit_acceptance: true
+  distinguish_structural_behavioral_native_and_release_evidence: true

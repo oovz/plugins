@@ -10,7 +10,7 @@ import { fileURLToPath } from "node:url";
 import YAML from "yaml";
 
 const HOSTS = Object.freeze(["claude-code", "codex", "opencode", "cursor", "gemini-cli", "antigravity", "oh-my-pi"]);
-const ROLES = Object.freeze(["researcher", "engineer", "verifier", "worker"]);
+const ROLES = Object.freeze(["researcher", "engineer", "verifier"]);
 const REASONING_FIELD = Object.freeze({ "claude-code": "effort", codex: "model_reasoning_effort", opencode: "variant", "oh-my-pi": "thinking-level" });
 
 function runResult(command, args, options = {}) {
@@ -130,16 +130,16 @@ async function smoke(artifactDirectory) {
       for (const role of ROLES) assert.equal(typeof createdUserFiles.get(role), "string", `${host}/${role} user file`);
 
       const args = reasoningArgs(host);
-      invokeSew(npmBin, ["models", "configure", "--host", host, "--scope", "user", "--role", "worker", ...args], cliEnv);
-      const userWorker = parseRole(host, await readFile(roleFile(host, userRoot, "worker"), "utf8"));
+      invokeSew(npmBin, ["models", "configure", "--host", host, "--scope", "user", "--role", "engineer", ...args], cliEnv);
+      const userEngineer = parseRole(host, await readFile(roleFile(host, userRoot, "engineer"), "utf8"));
       const userModel = args[args.indexOf("--model") + 1];
-      assert.equal(userWorker.model, userModel, `${host} user model override`);
-      if (REASONING_FIELD[host]) assert.equal(userWorker[REASONING_FIELD[host]], "high", `${host} user reasoning override`);
+      assert.equal(userEngineer.model, userModel, `${host} user model override`);
+      if (REASONING_FIELD[host]) assert.equal(userEngineer[REASONING_FIELD[host]], "high", `${host} user reasoning override`);
       invokeSew(npmBin, ["install", "--host", host, "--scope", "user"], cliEnv);
-      invokeSew(npmBin, ["models", "configure", "--host", host, "--scope", "user", "--role", "worker", "--reset"], cliEnv);
-      const resetUserWorker = parseRole(host, await readFile(roleFile(host, userRoot, "worker"), "utf8"));
-      assert.equal(resetUserWorker.model, ["gemini-cli", "antigravity"].includes(host) ? "inherit" : undefined, `${host} user reset`);
-      if (REASONING_FIELD[host]) assert.equal(resetUserWorker[REASONING_FIELD[host]], undefined, `${host} user reasoning reset`);
+      invokeSew(npmBin, ["models", "configure", "--host", host, "--scope", "user", "--role", "engineer", "--reset"], cliEnv);
+      const resetUserEngineer = parseRole(host, await readFile(roleFile(host, userRoot, "engineer"), "utf8"));
+      assert.equal(resetUserEngineer.model, ["gemini-cli", "antigravity"].includes(host) ? "inherit" : undefined, `${host} user reset`);
+      if (REASONING_FIELD[host]) assert.equal(resetUserEngineer[REASONING_FIELD[host]], undefined, `${host} user reasoning reset`);
       userFiles.set(host, await readRoleSet(host, userRoot));
       const userReport = JSON.parse(invokeSew(npmBin, ["doctor", "--host", host, "--project", userOnlyProject, "--json"], cliEnv));
       assert.equal(userReport.status, "configuration-valid", `${host} user-only aggregate`);
@@ -154,18 +154,18 @@ async function smoke(artifactDirectory) {
       invokeSew(npmBin, ["install", "--host", host, "--scope", "project", "--project", project], cliEnv);
       const repeatedProjectFiles = await readRoleSet(host, projectRoot);
       assert.deepEqual(repeatedProjectFiles, baselineProjectFiles, `${host} project repeat install`);
-      invokeSew(npmBin, ["models", "configure", "--host", host, "--scope", "project", "--project", project, "--role", "worker", ...args], cliEnv);
-      const projectWorker = parseRole(host, await readFile(roleFile(host, projectRoot, "worker"), "utf8"));
-      assert.equal(projectWorker.model, userModel, `${host} project model override`);
-      if (REASONING_FIELD[host]) assert.equal(projectWorker[REASONING_FIELD[host]], "high", `${host} project reasoning override`);
+      invokeSew(npmBin, ["models", "configure", "--host", host, "--scope", "project", "--project", project, "--role", "engineer", ...args], cliEnv);
+      const projectEngineer = parseRole(host, await readFile(roleFile(host, projectRoot, "engineer"), "utf8"));
+      assert.equal(projectEngineer.model, userModel, `${host} project model override`);
+      if (REASONING_FIELD[host]) assert.equal(projectEngineer[REASONING_FIELD[host]], "high", `${host} project reasoning override`);
       invokeSew(npmBin, ["install", "--host", host, "--scope", "project", "--project", project], cliEnv);
-      const preservedProjectWorker = parseRole(host, await readFile(roleFile(host, projectRoot, "worker"), "utf8"));
-      assert.equal(preservedProjectWorker.model, userModel, `${host} repeat install preserves model`);
-      if (REASONING_FIELD[host]) assert.equal(preservedProjectWorker[REASONING_FIELD[host]], "high", `${host} repeat install preserves reasoning`);
-      invokeSew(npmBin, ["models", "configure", "--host", host, "--scope", "project", "--project", project, "--role", "worker", "--reset"], cliEnv);
-      const resetProjectWorker = parseRole(host, await readFile(roleFile(host, projectRoot, "worker"), "utf8"));
-      assert.equal(resetProjectWorker.model, ["gemini-cli", "antigravity"].includes(host) ? "inherit" : undefined, `${host} project reset`);
-      if (REASONING_FIELD[host]) assert.equal(resetProjectWorker[REASONING_FIELD[host]], undefined, `${host} project reasoning reset`);
+      const preservedProjectEngineer = parseRole(host, await readFile(roleFile(host, projectRoot, "engineer"), "utf8"));
+      assert.equal(preservedProjectEngineer.model, userModel, `${host} repeat install preserves model`);
+      if (REASONING_FIELD[host]) assert.equal(preservedProjectEngineer[REASONING_FIELD[host]], "high", `${host} repeat install preserves reasoning`);
+      invokeSew(npmBin, ["models", "configure", "--host", host, "--scope", "project", "--project", project, "--role", "engineer", "--reset"], cliEnv);
+      const resetProjectEngineer = parseRole(host, await readFile(roleFile(host, projectRoot, "engineer"), "utf8"));
+      assert.equal(resetProjectEngineer.model, ["gemini-cli", "antigravity"].includes(host) ? "inherit" : undefined, `${host} project reset`);
+      if (REASONING_FIELD[host]) assert.equal(resetProjectEngineer[REASONING_FIELD[host]], undefined, `${host} project reasoning reset`);
       const report = JSON.parse(invokeSew(npmBin, ["doctor", "--host", host, "--project", project, "--json"], cliEnv));
       assert.equal(report.status, "configuration-valid", `${host} aggregate doctor result`);
       assert.equal(report.hosts[0].status, "configuration-valid", `${host} doctor result`);
@@ -176,25 +176,25 @@ async function smoke(artifactDirectory) {
 
     const cursorRoot = roleRoot("cursor", "project", project, cliEnv);
     const cursorBaseline = await readRoleSet("cursor", cursorRoot);
-    const cursorWorkerPath = roleFile("cursor", cursorRoot, "worker");
-    const cursorChanged = `${cursorBaseline.get("worker")}\nreviewed customization\n`;
-    await writeFile(cursorWorkerPath, cursorChanged);
+    const cursorEngineerPath = roleFile("cursor", cursorRoot, "engineer");
+    const cursorChanged = `${cursorBaseline.get("engineer")}\nreviewed customization\n`;
+    await writeFile(cursorEngineerPath, cursorChanged);
     const refused = runResult(npmBin, ["install", "--host", "cursor", "--scope", "project", "--project", project], { env: cliEnv });
     assert.equal(refused.status, 1, String(refused.stderr ?? refused.stdout));
-    assert.equal(await readFile(cursorWorkerPath, "utf8"), cursorChanged, "unforced install preserves the conflict");
+    assert.equal(await readFile(cursorEngineerPath, "utf8"), cursorChanged, "unforced install preserves the conflict");
     const cursorSettings = path.join(project, ".cursor", "settings.json");
     const cursorSidecar = path.join(cursorRoot, "local-agent.md");
     await writeFile(cursorSettings, "{\"preserve\":true}\n");
     await writeFile(cursorSidecar, "local agent\n");
     invokeSew(npmBin, ["install", "--host", "cursor", "--scope", "project", "--project", project, "--force"], cliEnv);
     const cursorRestored = await readRoleSet("cursor", cursorRoot);
-    assert.deepEqual(cursorRestored, cursorBaseline, "force restores only the four packaged role files");
+    assert.deepEqual(cursorRestored, cursorBaseline, "force restores only the three packaged role files");
     assert.equal(await readFile(cursorSettings, "utf8"), "{\"preserve\":true}\n");
     assert.equal(await readFile(cursorSidecar, "utf8"), "local agent\n");
 
     assert.equal(await readFile(unrelatedSettings, "utf8"), "{\"general\":{\"checkpointing\":{\"enabled\":true}}}\n");
     assert.equal(await readFile(defaultClaudeSentinel, "utf8"), "preserve default profile\n");
-    await assert.rejects(readFile(roleFile("claude-code", defaultClaudeAgents, "worker")), /ENOENT/u);
+    await assert.rejects(readFile(roleFile("claude-code", defaultClaudeAgents, "engineer")), /ENOENT/u);
     process.stdout.write(`smoked @oovz/sew ${version} on ${process.platform} with ${HOSTS.length} host configurations and npm command entry ${npmBin}\n`);
     return { version, hosts: HOSTS.length, platform: process.platform };
   } finally {

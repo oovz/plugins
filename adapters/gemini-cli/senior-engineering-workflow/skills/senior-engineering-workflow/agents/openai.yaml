@@ -1,4 +1,4 @@
 interface:
   display_name: "Senior Engineering Workflow"
-  short_description: "Coordinate coding work with bounded specialist roles"
-  default_prompt: "Use $senior-engineering-workflow for this coding task. Keep decisions, planning, integration, and loop control in the main agent; delegate only bounded research, implementation, verification, or noisy tool work. Preserve any viable supplied plan."
+  short_description: "Own engineering work directly with optional specialists"
+  default_prompt: "Use $senior-engineering-workflow for this engineering task. Carry coherent work through implementation and validation directly. Preserve a viable supplied plan and delegate only when bounded parallelism, specialization, or independent verification improves the result."

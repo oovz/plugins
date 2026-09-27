@@ -44,14 +44,13 @@ test("staged SEW metadata binds payloads to an explicit source commit", async (t
   assert.equal(Object.keys(payload.hosts).length, 7);
   assert.match(payload.roleDigest, /^[a-f0-9]{64}$/u);
   const packagedFiles = await readdir(path.join(output, "payloads", "config", "cursor", "agents"));
-  assert.equal(packagedFiles.length, 4);
-  assert.equal((await readdir(path.join(output, "payloads", "config", "codex", "agents"))).length, 4);
-  assert.equal((await readdir(path.join(output, "payloads", "config", "oh-my-pi", "agents"))).length, 4);
+  assert.equal(packagedFiles.length, 3);
+  assert.equal((await readdir(path.join(output, "payloads", "config", "codex", "agents"))).length, 3);
+  assert.equal((await readdir(path.join(output, "payloads", "config", "oh-my-pi", "agents"))).length, 3);
   assert.deepEqual((await readdir(path.join(output, "payloads", "config", "cursor", "agents"))).sort(), [
     "senior-engineering-workflow-engineer.md",
     "senior-engineering-workflow-researcher.md",
     "senior-engineering-workflow-verifier.md",
-    "senior-engineering-workflow-worker.md",
   ]);
 });
 

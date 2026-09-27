@@ -10,7 +10,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const PLUGIN_ID = "senior-engineering-workflow";
 const SOURCE_PACKAGE = "tools/sew";
 const OUTPUT_ROOT = "release-build/sew";
-const ROLES = Object.freeze(["researcher", "engineer", "verifier", "worker"]);
+const ROLES = Object.freeze(["researcher", "engineer", "verifier"]);
 const CONFIG_SOURCES = Object.freeze({
   "claude-code": { projection: "claude-code", prefix: "agents/", extension: ".md", namespaceFrontmatter: true },
   codex: { projection: "codex", prefix: "companion/agents/", extension: ".toml" },
@@ -51,7 +51,7 @@ function digestFiles(files) {
 
 function sourceRoleId(host, sourcePath) {
   const basename = path.posix.basename(sourcePath);
-  const match = basename.match(new RegExp(`^${PLUGIN_ID}-(researcher|engineer|verifier|worker)\\.[^.]+$`, "u"));
+  const match = basename.match(new RegExp(`^${PLUGIN_ID}-(researcher|engineer|verifier)\\.[^.]+$`, "u"));
   if (match) return match[1];
   const role = basename.replace(/\.[^.]+$/u, "");
   if (host === "claude-code" && ROLES.includes(role)) return role;

@@ -1,59 +1,32 @@
-# Verification and remediation v2
+# Verification and repair
 
-The main agent selects direct validation or an independent Verifier according to accepted risk and user request.
+Select verification from the accepted outcome and consequences of failure. The implementation owner runs immediate checks. The main agent reviews the final diff, integrates changes, and decides completion.
 
-## Candidate readiness
+## Independent verification
 
-Before independent verification, the implementation owner returns:
+Use Verifier for an explicit request, consequential security/data-loss/migration risk, disputed acceptance, or a candidate near the model's demonstrated capability limits. Routine changes with decisive checks can complete directly. Independence is a separate context and evidence derivation; using a different model is optional and does not itself establish correctness.
 
-- candidate revision and changed files;
-- requirement-to-test mapping;
-- exact commands and observed results;
-- known limitations and unverified behavior;
-- prohibited-pattern audit;
-- remaining attempt budget.
+Give the verifier accepted behavior, relevant policies, changed paths, candidate identity or diff baseline, and observed checks. Ask it to derive checks and seek counterexamples. Use one focused review of a coherent candidate by default; add earlier design review for consequential irreversible choices or milestone reviews for independently risky boundaries.
 
-## Verifier modes
+Supported purposes:
 
-- `acceptance` derives checks independently from accepted behavior and material risk.
-- `review` seeks disconfirming evidence and plausible defect paths.
-- `closure` assesses named findings against the changed candidate and observed checks.
-- `design-challenge` challenges consequential design decisions before implementation.
+- **acceptance:** check observable behavior and material failure paths;
+- **review:** seek reachable defects in correctness, security, data integrity, scope, and test quality;
+- **design-challenge:** challenge a consequential decision before implementation;
+- **closure:** recheck named findings on the changed candidate.
 
-Verifier does not edit production or test files. Missing or defective tests become findings. The main agent may issue a test-only Engineer work item.
+Verifier inspects files and runs validation within authority, retaining large logs as artifacts. It leaves production and test files unchanged; missing or defective tests become findings for the implementation owner. Findings identify severity, affected requirement, location or reproduction, evidence, and practical consequence. Report only supported, actionable issues; record uncertain concerns as unknowns needing a decisive check.
 
-## Failure classification
+## Failure and repair
 
-Every observed failure is one of:
+Classify the failure before editing: production defect, test defect, environment issue, or contract/design ambiguity. Establish a causal hypothesis and the smallest decisive reproduction or diagnostic check. The implementation owner repairs within scope and reruns that check plus affected broader validation.
 
-- Production defect: the candidate violates accepted behavior or an invariant.
-- Test defect: the test or fixture misrepresents the accepted contract.
-- Environment issue: unavailable or untrustworthy environment state causes the failure.
-- Contract or architecture ambiguity: accepted behavior is insufficient to decide correctness.
+Compare each attempt with previous evidence. A narrowed causal chain, rejected hypothesis, changed reproduction, or newly passing requirement is progress. When attempts repeat without progress, stop varying the same fix and reassess the model or design. Use a fresh investigation when it can resolve uncertainty. Set explicit limits for costly or risky experiments; a universal repair count is not a reason to abandon useful, authorized diagnosis.
 
-## Repair gate
+Keep valid tests intact. Changes to accepted behavior, support, destructive actions, or risk require the appropriate decision owner. Resolve findings with observed evidence; an explicitly accepted risk is reported as accepted, not fixed.
 
-Before another production mutation, the main agent requires:
+## Completion evidence
 
-```text
-Affected requirement or invariant
-Decisive reproduction
-Failure classification
-Observed causal evidence
-Rejected hypotheses with evidence
-Authorized repair scope
-Required focused and broader reruns
-Remaining repair cycles
-```
+Inspect the final diff and run repository-required formatting, static checks, builds, and affected tests. Match test breadth to changed behavior and known uncertainty. After sufficient evidence, stop redundant reruns; a subsequent edit or new concern may require another check.
 
-A stack trace or guess alone is not a causal chain. Use one bounded Researcher or Worker diagnostic pass when needed.
-
-## Bounded cycle
-
-1. Main agent classifies or commissions classification.
-2. Main agent authorizes one bounded Engineer repair.
-3. Engineer makes the smallest causal fix and runs immediate focused checks.
-4. Main agent obtains independent or direct rerun of the decisive reproduction and affected broader checks.
-5. Verifier closes prior findings when a gate exists.
-
-Do not repeat a hypothesis without new evidence. Stop after two candidate repair cycles or two evidence-backed no-progress attempts. A claimed progress delta must narrow the causal chain, reject a material hypothesis, change the decisive reproduction, or make a previously failing accepted requirement pass.
+Report exact commands and terminal results, accepted criteria coverage, and limitations. Distinguish local structural/schema checks, actual behavioral agent runs, native host execution, and release/production acceptance. Material unresolved findings block an unqualified completion claim.

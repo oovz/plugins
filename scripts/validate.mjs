@@ -329,14 +329,14 @@ function validateSemanticProfile(plugin, suite, label) {
   }
 }
 
-// BEGIN senior-engineering-workflow engineering-delivery-v2 validator r3
-function validateEngineeringContractV2(plugin, contract, label) {
+// BEGIN senior-engineering-workflow engineering-delivery-v3 validator r3
+function validateEngineeringContractV3(plugin, contract, label) {
   assert(
-    contract?.schema_version === "2.0.0" &&
+    contract?.schema_version === "3.0.0" &&
       contract.contract_id === "senior-engineering-workflow" &&
-      contract.contract_version === "2.0.0" &&
-      contract.profile === "engineering-delivery-v2",
-    `${label} must identify the engineering-delivery-v2 schema and contract`,
+      contract.contract_version === "3.0.0" &&
+      contract.profile === "engineering-delivery-v3",
+    `${label} must identify the engineering-delivery-v3 schema and contract`,
   );
 
   assert(
@@ -344,34 +344,44 @@ function validateEngineeringContractV2(plugin, contract, label) {
     `${label} must declare leaf_roles and leaf_role_count`,
   );
 
-  const expectedRoleIds = new Set(["researcher", "engineer", "verifier", "worker"]);
+  const expectedRoleIds = new Set(["researcher", "engineer", "verifier"]);
   const roles = Object.values(contract.leaf_roles);
   const manifestIds = new Set(plugin.agents.map((agent) => agent.id));
   const contractIds = new Set(roles.map((role) => role.logical_agent_id));
 
   assert(
     contract.leaf_role_count === expectedRoleIds.size && roles.length === expectedRoleIds.size,
-    `${label} must declare exactly four leaf roles`,
+    `${label} must declare exactly three leaf roles`,
   );
   assert(
     manifestIds.size === expectedRoleIds.size &&
       [...expectedRoleIds].every((id) => manifestIds.has(id)),
-    `${label} manifest agents must be researcher, engineer, verifier, and worker`,
+    `${label} manifest agents must be researcher, engineer, and verifier`,
   );
   assert(
     contractIds.size === expectedRoleIds.size &&
       [...expectedRoleIds].every((id) => contractIds.has(id)),
-    `${label} contract roles must be researcher, engineer, verifier, and worker`,
+    `${label} contract roles must be researcher, engineer, and verifier`,
   );
 
+  assert(
+    Object.keys(contract.leaf_roles).length === expectedRoleIds.size &&
+      [...expectedRoleIds].every((id) => contract.leaf_roles[id]?.logical_agent_id === id),
+    `${label} role keys must match logical identities`,
+  );
   for (const role of roles) {
+    const mayWrite = role.logical_agent_id === "engineer";
+    assert(
+      role.may_write_production_files === mayWrite && role.may_write_test_files === mayWrite &&
+        role.runs_own_tools === true,
+      `${label} role ${role.logical_agent_id} must retain its write boundary and own tool execution`,
+    );
     assert(
       role.is_leaf === true && role.delegates === false,
       `${label} role ${role.logical_agent_id} must be a non-delegating leaf`,
     );
     assert(
-      role.reports_to === "controller" ||
-        (role.logical_agent_id === "worker" && role.reports_to === "caller"),
+      role.reports_to === "controller",
       `${label} role ${role.logical_agent_id} has an invalid report target`,
     );
   }
@@ -407,10 +417,22 @@ function validateEngineeringContractV2(plugin, contract, label) {
     );
   }
   assert(
-    contract.iteration?.maximum_candidate_repair_cycles === 2 &&
-      contract.iteration.maximum_evidence_backed_no_progress_attempts === 2 &&
-      contract.iteration.new_evidence_required_for_repeat === true,
-    `${label} must declare the bounded repair policy`,
+    contract.iteration?.new_evidence_required_for_repeat === true &&
+      contract.iteration.repeated_no_progress === "reassess_hypothesis_and_design" &&
+      contract.iteration.continue_useful_authorized_diagnosis === true,
+    `${label} must declare evidence-driven reassessment and continued useful diagnosis`,
+  );
+  assert(
+    contract.execution?.default === "direct" &&
+      contract.execution.preserve_viable_supplied_plan === true &&
+      contract.execution.implementation_owns_immediate_validation === true &&
+      contract.execution.concurrent_writers_require_disjoint_ownership_or_isolation === true &&
+      contract.execution.integrated_candidate_requires_validation === true &&
+      contract.delegation.benefit_must_justify_coordination_cost === true &&
+      contract.context?.advertised_capacity_is_not_a_routing_threshold === true &&
+      contract.context.summaries_retain_evidence_locations === true &&
+      contract.verification?.verifier_preserves_candidate === true,
+    `${label} must preserve direct execution, ownership, context judgment, and independent verification`,
   );
   assert(
     contract.long_running_operations?.avoid_status_only_polling === true &&
@@ -420,24 +442,24 @@ function validateEngineeringContractV2(plugin, contract, label) {
   );
 }
 
-function validateEngineeringProfileV2(plugin, contract, suite, label) {
-  assert(contract, `${label} declared contract is missing from its skill tree`);
-  validateEngineeringContractV2(plugin, contract, label);
+function validateEngineeringProfileV3(plugin, contract, suite, label) {
+  assert(contract, `${label} declared contract is missing`);
+  validateEngineeringContractV3(plugin, contract, label);
 
   assert(
-    suite?.schema_version === "2.0.0" &&
-      suite.profile === "engineering-delivery-v2" &&
+    suite?.schema_version === "3.0.0" &&
+      suite.profile === "engineering-delivery-v3" &&
       typeof suite.suite_id === "string" && suite.suite_id.trim(),
-    `${label} must identify the engineering-delivery-v2 eval suite`,
+    `${label} must identify the engineering-delivery-v3 eval suite`,
   );
   assert(
     suite.contract_ref ===
-      "../../../skills/senior-engineering-workflow/references/workflow-contract.yaml",
+      "./workflow-contract.yaml",
     `${label} must reference the canonical workflow-contract.yaml path`,
   );
   assert(Array.isArray(suite.cases) && suite.cases.length > 0, `${label} must contain cases`);
 
-  const roleIds = new Set(["researcher", "engineer", "verifier", "worker"]);
+  const roleIds = new Set(["researcher", "engineer", "verifier"]);
   const requiredResultFields = new Set([
     "activation",
     "route",
@@ -454,7 +476,7 @@ function validateEngineeringProfileV2(plugin, contract, suite, label) {
   );
   assert(
     declaredRoleIds.size === roleIds.size && [...roleIds].every((id) => declaredRoleIds.has(id)),
-    `${label} result_schema.role_values must match the four v2 roles`,
+    `${label} result_schema.role_values must match the three v3 roles`,
   );
 
   const caseIds = new Set();
@@ -525,7 +547,13 @@ function validateEngineeringProfileV2(plugin, contract, suite, label) {
     "inline_execution",
     "supplied_plan_preservation",
     "context_isolation",
-    "controller_mediated_worker_fanout",
+    "specialist_tool_ownership",
+    "long_context_judgment",
+    "ownership_safety",
+    "evidence_driven_iteration",
+    "durable_state",
+    "instruction_authority",
+    "capability_limitation",
     "bounded_implementation",
     "risk_triggered_verification",
     "verifier_independence",
@@ -538,10 +566,10 @@ function validateEngineeringProfileV2(plugin, contract, suite, label) {
     assert(capabilities.has(capability), `${label} lacks ${capability} coverage`);
   }
 }
-// END senior-engineering-workflow engineering-delivery-v2 validator r3
+// END senior-engineering-workflow engineering-delivery-v3 validator r3
 
 const VALIDATION_PROFILES = new Map([
-  ["engineering-delivery-v2", validateEngineeringProfileV2],
+  ["engineering-delivery-v3", validateEngineeringProfileV3],
   ["semantic-guidance-v1", (plugin, _contract, suite, label) => validateSemanticProfile(plugin, suite, label)]
 ]);
 
@@ -642,6 +670,7 @@ async function validatePlugin(plugin) {
       const suite = YAML.parse(decodeUtf8(file.content, `${plugin.manifest.id}/evals/${file.relative}`));
       assert(suite && typeof suite === "object", `${plugin.manifest.id}/evals/${file.relative} must contain a YAML object`);
       evalSuites.set(path.posix.join("evals", file.relative), suite);
+      contractFiles.set(path.posix.join("evals", file.relative), suite);
     }
   } catch (error) {
     if (error.code !== "ENOENT") throw error;

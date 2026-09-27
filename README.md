@@ -14,7 +14,7 @@ Plugins, Agent Skills, and host-configuration tools for coding harnesses.
 
 | Plugin | Version | Purpose |
 |---|---:|---|
-| [Senior Engineering Workflow](plugins/senior-engineering-workflow/) | 0.13.0 | Main-agent ownership with four bounded specialist roles. |
+| [Senior Engineering Workflow](plugins/senior-engineering-workflow/) | 0.14.0 | Direct engineering ownership with three optional specialists. |
 | [Tauri v2 Desktop](plugins/tauri-v2-desktop/) | 1.2.1 | Tauri architecture, security, testing, upgrades, and distribution. |
 | [Chrome Extension Tester](plugins/chrome-extension-tester/) | 0.1.2 | Test extensions through browser-managed Chrome DevTools MCP. |
 
@@ -147,22 +147,22 @@ Chrome Extension Tester bundles MCP configuration for Codex. For other hosts, fi
 
 ## Install SEW role configuration
 
-The CLI installs four host-native role files. It never registers a marketplace or edits plugin caches. Install in the user scope or a single project:
+The CLI installs three host-native role files. It never registers a marketplace or edits plugin caches. Install in the user scope or a single project:
 
 ```text
 npx @oovz/sew install --host codex --scope user
 npx @oovz/sew install --host cursor --scope project --project /absolute/path/to/project
 ```
 
-Repeated installation leaves identical files unchanged and preserves valid model/reasoning-only overrides. Other differences require `--force`, which replaces only the four SEW role targets. Other files and host settings remain in place. Run one SEW operation at a time and finish editing the role files before running it. SEW preflights all four targets, then writes them in sequence. A filesystem error can leave earlier writes in place; correct the reported problem and rerun the command.
+Repeated installation leaves identical files unchanged and preserves valid model/reasoning-only overrides. Other differences require `--force`, which replaces only the three SEW role targets. Other files and host settings remain in place. Run one SEW operation at a time and finish editing the role files before running it. SEW preflights all three targets, then writes them in sequence. A filesystem error can leave earlier writes in place; correct the reported problem and rerun the command.
 
 Configure one role's model and, where supported, its host-native reasoning field:
 
 ```text
-npx @oovz/sew models configure --host codex --role worker --model gpt-5.6-luna --reasoning high
-npx @oovz/sew models configure --host opencode --role researcher --model openai/gpt-5.6-terra --reasoning high
+npx @oovz/sew models configure --host codex --role engineer --model YOUR_MODEL_ID --reasoning high
+npx @oovz/sew models configure --host opencode --role researcher --model YOUR_PROVIDER/YOUR_MODEL_ID --reasoning high
 npx @oovz/sew models configure --host claude-code --role verifier --model sonnet --reasoning high
-npx @oovz/sew models configure --host antigravity --role worker --model flash
+npx @oovz/sew models configure --host antigravity --role engineer --model flash
 ```
 
 Claude Code maps `--reasoning` to `effort`; Codex, OpenCode, and Oh My Pi use their native effort fields. Antigravity accepts `inherit`, `flash`, and `pro` model tiers. The CLI validates model syntax and local file schemas without querying a model catalog. The host determines availability when it runs the agent. `--reset` removes the selected file's model/reasoning overrides and leaves configuration resolution to the host.

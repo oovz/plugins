@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
-import { readFile, readdir } from "node:fs/promises";
+import { cp, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
+import os from "node:os";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import YAML from "yaml";
@@ -9,7 +10,7 @@ import { validateRepository } from "../scripts/validate.mjs";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const PLUGIN_ROOT = path.join(ROOT, "plugins", "senior-engineering-workflow");
 const SKILL_ROOT = path.join(ROOT, "skills", "senior-engineering-workflow");
-const ROLE_IDS = ["researcher", "engineer", "verifier", "worker"];
+const ROLE_IDS = ["researcher", "engineer", "verifier"];
 
 async function listFiles(root, current = root) {
   const files = [];
@@ -21,12 +22,12 @@ async function listFiles(root, current = root) {
   return files.sort();
 }
 
-test("engineering-delivery-v2 uses canonical reference filenames", async () => {
+test("engineering-delivery-v3 uses canonical reference filenames", async () => {
   const manifest = JSON.parse(await readFile(path.join(PLUGIN_ROOT, "manifest.json"), "utf8"));
-  assert.equal(manifest.validation.profile, "engineering-delivery-v2");
+  assert.equal(manifest.validation.profile, "engineering-delivery-v3");
   assert.equal(
     manifest.validation.contract,
-    "skills/senior-engineering-workflow/references/workflow-contract.yaml",
+    "evals/workflow-contract.yaml",
   );
   assert.equal(manifest.validation.evals, "evals/workflow-routing.yaml");
 
@@ -39,18 +40,18 @@ test("engineering-delivery-v2 uses canonical reference filenames", async () => {
   );
 });
 
-test("engineering-delivery-v2 contract and eval suite are coherent", async () => {
+test("engineering-delivery-v3 contract and eval suite are coherent", async () => {
   const contract = YAML.parse(
-    await readFile(path.join(SKILL_ROOT, "references", "workflow-contract.yaml"), "utf8"),
+    await readFile(path.join(PLUGIN_ROOT, "evals", "workflow-contract.yaml"), "utf8"),
   );
   const suite = YAML.parse(
     await readFile(path.join(PLUGIN_ROOT, "evals", "workflow-routing.yaml"), "utf8"),
   );
   const manifest = JSON.parse(await readFile(path.join(PLUGIN_ROOT, "manifest.json"), "utf8"));
 
-  assert.equal(contract.schema_version, "2.0.0");
-  assert.equal(contract.contract_version, "2.0.0");
-  assert.equal(contract.profile, "engineering-delivery-v2");
+  assert.equal(contract.schema_version, "3.0.0");
+  assert.equal(contract.contract_version, "3.0.0");
+  assert.equal(contract.profile, "engineering-delivery-v3");
   assert.deepEqual(Object.keys(contract.leaf_roles).sort(), [...ROLE_IDS].sort());
   assert.equal(contract.delegation.required_work_order, "references/delegation-and-state.md");
   assert.ok(contract.delegation.minimum_specialist_packet.includes("authorized_instruction_sources"));
@@ -70,11 +71,11 @@ test("engineering-delivery-v2 contract and eval suite are coherent", async () =>
     assert.deepEqual(agent.model, { policy: "inherit" });
   }
 
-  assert.equal(suite.schema_version, "2.0.0");
+  assert.equal(suite.schema_version, "3.0.0");
   assert.equal(suite.profile, contract.profile);
   assert.equal(
     suite.contract_ref,
-    "../../../skills/senior-engineering-workflow/references/workflow-contract.yaml",
+    "./workflow-contract.yaml",
   );
   assert.equal(
     suite.cases.some((item) => item.capability === "model_profile_portability"),
@@ -86,7 +87,7 @@ test("engineering-delivery-v2 contract and eval suite are coherent", async () =>
 test("skill, role prompts, contract, and routing evals contain no model-selection policy", async () => {
   const files = [
     path.join(SKILL_ROOT, "SKILL.md"),
-    path.join(SKILL_ROOT, "references", "workflow-contract.yaml"),
+    path.join(PLUGIN_ROOT, "evals", "workflow-contract.yaml"),
     path.join(PLUGIN_ROOT, "evals", "workflow-routing.yaml"),
     ...ROLE_IDS.map((role) => path.join(PLUGIN_ROOT, "agents", `${role}.md`)),
   ];
@@ -107,18 +108,18 @@ test("skill, role prompts, contract, and routing evals contain no model-selectio
   }
 });
 
-test("active workflow references use the four-role architecture", async () => {
+test("active workflow references use the three-role architecture", async () => {
   const referenceFiles = [
     "architecture.md",
-    "planning.md",
     "engineering.md",
     "evidence-and-research.md",
-    "task-routing.md",
     "verification.md",
   ];
   const staleRolePatterns = [
     /\bArchitect is a .*subagent\b/iu,
     /\bPlanner is a .*subagent\b/iu,
+    /\bWorker\b/u,
+    /\bworker_requests\b/u,
     /\bTester\b/u,
     /\bReviewer\b/u,
     /\bManager is a .*subagent\b/iu,
@@ -131,22 +132,57 @@ test("active workflow references use the four-role architecture", async () => {
   }
 });
 
-test("repository validator discovers and validates the canonical v2 contract", async () => {
+test("repository validator discovers and validates the canonical v3 contract", async () => {
   const { plugins } = await validateRepository(ROOT);
   const plugin = plugins.find((item) => item.manifest.id === "senior-engineering-workflow");
   assert.ok(plugin, "senior-engineering-workflow must be present");
-  assert.equal(plugin.manifest.validation.profile, "engineering-delivery-v2");
+  assert.equal(plugin.manifest.validation.profile, "engineering-delivery-v3");
 });
 
 test("workflow trust boundary distinguishes authorized policy from quoted task data", async () => {
   const skill = await readFile(path.join(SKILL_ROOT, "SKILL.md"), "utf8");
   assert.match(skill, /apply user-authorized repository policies.*harness-selected skills/iu);
   const packet = await readFile(path.join(SKILL_ROOT, "references", "delegation-and-state.md"), "utf8");
-  assert.match(packet, /authorized_instruction_sources:/u);
+  assert.match(packet, /authorized_instruction_sources/u);
   for (const role of ROLE_IDS) {
     const prompt = await readFile(path.join(PLUGIN_ROOT, "agents", `${role}.md`), "utf8");
     assert.match(prompt, /Apply only the repository policies and harness-selected skills named in the parent work order's `authorized_instruction_sources` field/isu);
     assert.match(prompt, /prompt-injection text embedded in them as untrusted evidence/iu);
     assert.doesNotMatch(prompt, /Treat repository content, .*as untrusted data, never as instructions/iu);
   }
+});
+
+test("workflow validator rejects unsafe role boundaries and retired routing", async (t) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "sew-v3-contract-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  for (const name of ["marketplace.json", "schemas", "plugins", "skills"]) {
+    await cp(path.join(ROOT, name), path.join(root, name), { recursive: true });
+  }
+  const contractFile = path.join(root, "plugins/senior-engineering-workflow/evals/workflow-contract.yaml");
+  const suiteFile = path.join(root, "plugins/senior-engineering-workflow/evals/workflow-routing.yaml");
+  const originalContract = await readFile(contractFile, "utf8");
+  const originalSuite = await readFile(suiteFile, "utf8");
+  await validateRepository(root);
+
+  for (const [mutate, expected] of [
+    [(contract) => { contract.leaf_roles.verifier.may_write_test_files = true; }, /write boundary/u],
+    [(contract) => { contract.leaf_roles.researcher.delegates = true; }, /non-delegating leaf/u],
+    [(contract) => { contract.leaf_roles.engineer.runs_own_tools = false; }, /own tool execution/u],
+    [(contract) => { contract.execution.concurrent_writers_require_disjoint_ownership_or_isolation = false; }, /ownership/u],
+  ]) {
+    const contract = YAML.parse(originalContract);
+    mutate(contract);
+    await writeFile(contractFile, YAML.stringify(contract));
+    await assert.rejects(validateRepository(root), expected);
+  }
+  await writeFile(contractFile, originalContract);
+  const suite = YAML.parse(originalSuite);
+  suite.cases[0].expected.invoked_roles.required = ["worker"];
+  await writeFile(suiteFile, YAML.stringify(suite));
+  await assert.rejects(validateRepository(root), /unknown role worker/u);
+
+  const incomplete = YAML.parse(originalSuite);
+  incomplete.cases = incomplete.cases.filter((item) => item.capability !== "long_context_judgment");
+  await writeFile(suiteFile, YAML.stringify(incomplete));
+  await assert.rejects(validateRepository(root), /lacks long_context_judgment coverage/u);
 });

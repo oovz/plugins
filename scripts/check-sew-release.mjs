@@ -13,7 +13,7 @@ import { readTarEntriesFromGzip } from "./lib/deterministic-npm-tar.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const CONFIG_HOSTS = ["claude-code", "codex", "opencode", "cursor", "gemini-cli", "antigravity", "oh-my-pi"];
-const CONFIG_FILES = Object.fromEntries(CONFIG_HOSTS.map((host) => [host, ["researcher", "engineer", "verifier", "worker"].map((role) => `agents/senior-engineering-workflow-${role}.${host === "codex" ? "toml" : "md"}`)]));
+const CONFIG_FILES = Object.fromEntries(CONFIG_HOSTS.map((host) => [host, ["researcher", "engineer", "verifier"].map((role) => `agents/senior-engineering-workflow-${role}.${host === "codex" ? "toml" : "md"}`)]));
 
 function roleDigest(hostFiles) {
   const hash = createHash("sha256");
@@ -98,7 +98,7 @@ export async function checkSewRelease(tag, options = {}) {
   }
   const expectedRoleEntries = CONFIG_HOSTS.flatMap((host) => CONFIG_FILES[host].map((file) => ({ host, path: `package/payloads/config/${host}/${file}` })));
   const actualRoleEntries = entries.filter((entry) => entry.path.startsWith("package/payloads/config/"));
-  if (actualRoleEntries.length !== expectedRoleEntries.length) throw new Error("The release tarball does not contain exactly four role files for each host.");
+  if (actualRoleEntries.length !== expectedRoleEntries.length) throw new Error("The release tarball does not contain exactly three role files for each host.");
   const hostFiles = Object.fromEntries(CONFIG_HOSTS.map((host) => [host, []]));
   for (const expected of expectedRoleEntries) {
     const matches = entries.filter((entry) => entry.path === expected.path);

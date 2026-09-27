@@ -27,7 +27,7 @@ test("Cursor plugin adapter remains a separate marketplace product", async () =>
   assert.equal(manifest.skills, "./skills/");
   assert.equal(manifest.agents, "./agents/");
   assert.equal(manifest.minClientVersions.cursor, "2.5.0");
-  for (const role of ["researcher", "engineer", "verifier", "worker"]) {
+  for (const role of ["researcher", "engineer", "verifier"]) {
     const definition = artifacts.get(`agents/senior-engineering-workflow-${role}.md`);
     assert.match(definition, new RegExp(`name: senior-engineering-workflow-${role}`));
     assert.doesNotMatch(definition, /^model:/mu);

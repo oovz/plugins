@@ -1,6 +1,6 @@
 # Main-agent architecture checklist
 
-Architecture is a main-agent responsibility. Use this checklist only when the task changes or may change a material boundary, contract, invariant, trust model, persistence model, deployment model, or other consequential design decision. Do not create a separate architecture stage merely because several files are involved.
+Architecture is a main-agent responsibility. Use this checklist only when the task changes or may change a material boundary, contract, invariant, trust model, persistence model, deployment model, or other consequential design decision. Keep connected reasoning and implementation with the main agent when possible.
 
 ## Decision surface
 
@@ -21,7 +21,7 @@ Use repository and runtime evidence for the current system. Commission a bounded
 
 ## Exit condition
 
-Architecture is sufficiently settled when the main agent can create bounded implementation work without leaving a product, interface, invariant, failure-model, support-target, migration, trust-boundary, or accepted-risk decision to an Engineer.
+Architecture is sufficiently settled when the next implementation step has clear behavior, interfaces, invariants, failure handling, and validation. Settle shared boundaries before delegating independent slices.
 
 When a user-owned choice remains, ask one targeted question that includes the current accepted requirement, decisive evidence, options and consequences, and a recommendation.
 

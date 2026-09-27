@@ -2,7 +2,7 @@ import os from "node:os";
 import path from "node:path";
 import { CliError } from "./errors.mjs";
 
-export const ROLE_IDS = Object.freeze(["researcher", "engineer", "verifier", "worker"]);
+export const ROLE_IDS = Object.freeze(["researcher", "engineer", "verifier"]);
 export const HOST_CONFIG = Object.freeze({
   "claude-code": { directory: ".claude/agents", extension: ".md", userRoot: ({ home, env }) => path.resolve(env.CLAUDE_CONFIG_DIR || path.join(home, ".claude")) },
   codex: { directory: ".codex/agents", extension: ".toml", userRoot: ({ home, env }) => path.resolve(env.CODEX_HOME || path.join(home, ".codex")) },

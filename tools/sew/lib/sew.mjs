@@ -35,7 +35,7 @@ Usage:
 Hosts:
   ${HOSTS.join(", ")}
 
-Install replaces only the four SEW role files. Changed files require --force. Repeated installs of current files are safe.
+Install replaces only the three SEW role files. Changed files require --force. Repeated installs of current files are safe.
 Model overrides are syntax-checked from local host schemas. Install and model configuration do not fetch model catalogs or invoke host commands.
 Doctor reads user and project role files and reports what it inspected; it does not verify that a host runs a model successfully.
 `;

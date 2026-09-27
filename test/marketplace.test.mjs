@@ -20,7 +20,7 @@ test("Claude plugin agents resolve to Markdown files inside the plugin", async (
   const { artifacts } = renderHost(plugin, "claude-code");
   const manifest = JSON.parse(artifacts.find((item) => item.path === ".claude-plugin/plugin.json").content);
   assert.deepEqual(manifest.agents, [
-    "./agents/researcher.md", "./agents/engineer.md", "./agents/verifier.md", "./agents/worker.md",
+    "./agents/researcher.md", "./agents/engineer.md", "./agents/verifier.md",
   ]);
   for (const agentPath of manifest.agents) {
     const agent = artifacts.find((item) => item.path === agentPath.slice(2));
@@ -71,8 +71,11 @@ test("canonical marketplace and semantic workflow contract validate", async () =
     await assert.rejects(lstat(path.join(plugin.directory, "skills")), /ENOENT/);
     await assert.rejects(lstat(path.join(plugin.directory, "plugin.json")), /ENOENT/);
   }
-  const contractFiles = result.plugins.flatMap((plugin) => plugin.skills.flatMap((skill) => skill.files.filter((file) => file.relative.endsWith("workflow-contract.yaml"))));
-  assert.ok(contractFiles.length > 0, "a declared skill must carry the workflow contract");
+  const workflow = result.plugins.find((plugin) => plugin.manifest.id === "senior-engineering-workflow");
+  assert.ok(await readFile(path.join(workflow.directory, workflow.manifest.validation.contract)));
+  for (const skill of workflow.skills) {
+    assert.equal(skill.files.some((file) => file.relative.endsWith("workflow-contract.yaml")), false, "internal validation data stays outside the installed skill");
+  }
 });
 
 test("semantic validation and packaging preserve binary skill assets", async (t) => {
@@ -187,7 +190,7 @@ test("Senior Engineering Workflow targets exactly the seven subagent-capable har
   assert.equal(geminiExtension.name, plugin.manifest.id);
   assert.ok(await readFile(path.join(ROOT, "adapters", "gemini-cli", plugin.manifest.id, "skills", plugin.manifest.id, "SKILL.md")));
 
-  for (const role of ["researcher", "engineer", "verifier", "worker"]) {
+  for (const role of ["researcher", "engineer", "verifier"]) {
     assert.ok(await readFile(path.join(ROOT, "adapters", "claude-code", plugin.manifest.id, "agents", `${role}.md`)));
     assert.ok(await readFile(path.join(ROOT, "adapters", "codex", plugin.manifest.id, "companion", "agents", `${plugin.manifest.id}-${role}.toml`)));
     assert.ok(await readFile(path.join(ROOT, "adapters", "cursor", plugin.manifest.id, "agents", `${plugin.manifest.id}-${role}.md`)));
