@@ -55,6 +55,8 @@ npx @oovz/sew models configure --host antigravity --role engineer --model flash
 
 Claude Code uses `effort`, Codex uses `model_reasoning_effort`, OpenCode uses `variant`, and Oh My Pi uses `thinking-level`. Antigravity accepts `inherit`, `flash`, or `pro` model tiers. Model IDs are syntax-checked without a live model-catalog call. The harness reports whether a model is available when it executes the role. Use `--reset` to remove the selected role's model and reasoning overrides.
 
+`--model inherit` uses each harness's native inheritance representation and preserves existing reasoning unless explicitly supplied. It is **not supported for OpenCode**; use `--reset` there to clear model and reasoning overrides. See the [CLI inheritance table](../../tools/sew/README.md#model-and-reasoning-settings) for host behavior and precedence.
+
 ## Doctor
 
 `npx @oovz/sew doctor --host all --project /absolute/path/to/project --json` reads documented user and project role files. It reports required-file presence, role identity and schema/parse validity, configured model fields, required-role coverage, and duplicate definitions in separate user/project inventories. The host resolves effective configuration. Invalid files return a nonzero status. Missing roles are reported as `incomplete` with exit status 0; the explicit project directory must exist. `configuration-valid` covers local checks only and does not mean that a model ran.

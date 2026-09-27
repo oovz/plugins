@@ -136,6 +136,18 @@ async function smoke(artifactDirectory) {
       assert.equal(userEngineer.model, userModel, `${host} user model override`);
       if (REASONING_FIELD[host]) assert.equal(userEngineer[REASONING_FIELD[host]], "high", `${host} user reasoning override`);
       invokeSew(npmBin, ["install", "--host", host, "--scope", "user"], cliEnv);
+      const inheritArgs = ["models", "configure", "--host", host, "--scope", "user", "--role", "engineer", "--model", "inherit", "--json"];
+      if (host === "opencode") {
+        const refused = runResult(npmBin, inheritArgs, { env: cliEnv });
+        assert.equal(refused.status, 2, "OpenCode rejects model inherit");
+        assert.match(JSON.parse(refused.stdout).error, /--model inherit is not supported for OpenCode/u);
+        assert.deepEqual(parseRole(host, await readFile(roleFile(host, userRoot, "engineer"), "utf8")), userEngineer);
+      } else {
+        invokeSew(npmBin, inheritArgs, cliEnv);
+        const inherited = parseRole(host, await readFile(roleFile(host, userRoot, "engineer"), "utf8"));
+        assert.equal(inherited.model, ["codex", "oh-my-pi"].includes(host) ? undefined : "inherit", `${host} native model inheritance`);
+        if (REASONING_FIELD[host]) assert.equal(inherited[REASONING_FIELD[host]], "high", `${host} inheritance preserves reasoning`);
+      }
       invokeSew(npmBin, ["models", "configure", "--host", host, "--scope", "user", "--role", "engineer", "--reset"], cliEnv);
       const resetUserEngineer = parseRole(host, await readFile(roleFile(host, userRoot, "engineer"), "utf8"));
       assert.equal(resetUserEngineer.model, ["gemini-cli", "antigravity"].includes(host) ? "inherit" : undefined, `${host} user reset`);

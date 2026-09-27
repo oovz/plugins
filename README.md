@@ -167,6 +167,8 @@ npx @oovz/sew models configure --host antigravity --role engineer --model flash
 
 Claude Code maps `--reasoning` to `effort`; Codex, OpenCode, and Oh My Pi use their native effort fields. Antigravity accepts `inherit`, `flash`, and `pro` model tiers. The CLI validates model syntax and local file schemas without querying a model catalog. The host determines availability when it runs the agent. `--reset` removes the selected file's model/reasoning overrides and leaves configuration resolution to the host.
 
+`--model inherit` restores native inheritance: it writes `inherit` for Claude Code, Cursor, Gemini CLI, and Antigravity CLI, and removes the model field for Codex and Oh My Pi. Existing reasoning settings are preserved unless `--reasoning` is supplied. **`--model inherit` is not supported for OpenCode**; use `--reset` to clear both overrides and return to host-default resolution.
+
 Use read-only doctor to inspect user/project role files, required-role coverage, and duplicate definitions. Invalid files return a nonzero status; missing roles are reported as `incomplete` with exit status 0. The explicit project directory must exist:
 
 ```text

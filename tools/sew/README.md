@@ -37,7 +37,7 @@ The release smoke verifies file creation, repeat installation, model settings, d
 
 ## Model and reasoning settings
 
-By default, each role inherits the parent session's model. Configure one role by ID:
+By default, each role uses the host's inheritance/default resolution. Invocation settings and host-wide overrides can affect the selected model. Configure one role by ID:
 
 ```text
 npx @oovz/sew models configure --host codex --scope user --role engineer --model YOUR_MODEL_ID --reasoning high
@@ -46,6 +46,22 @@ npx @oovz/sew models configure --host claude-code --role verifier --model sonnet
 npx @oovz/sew models configure --host antigravity --role engineer --model flash
 npx @oovz/sew models configure --host cursor --scope user --role verifier --model composer-2.5
 ```
+
+Use `--model inherit` to restore the harness-native inheritance setting while preserving existing reasoning settings. Supply `--reasoning` to change reasoning in the same operation.
+
+```text
+npx @oovz/sew models configure --host codex --role engineer --model inherit
+```
+
+| Harness | Configuration written by `--model inherit` |
+|---|---|
+| Claude Code, Cursor, Gemini CLI, Antigravity CLI | `model: inherit` |
+| Codex, Oh My Pi | Removes the `model` field so the host resolves it |
+| OpenCode | **Not supported**; the command rejects it without writing |
+
+For OpenCode, use `--reset` to remove both model and reasoning overrides, or configure a concrete `provider/model-id`. OpenCode itself supports inheriting the invoking agent's model when the field is absent; the unsupported option here is SEW's `--model inherit` parameter.
+
+Host precedence still applies: Codex agent defaults or invocation settings and Oh My Pi task settings can take precedence over the parent model. Explicit `inherit` and an omitted field can also differ in Claude Code when environment overrides are set. See [Claude Code](https://code.claude.com/docs/en/sub-agents#choose-a-model), [Codex](https://learn.chatgpt.com/docs/agent-configuration/subagents), [Cursor](https://cursor.com/docs/subagents), [Gemini CLI](https://geminicli.com/docs/core/subagents/#configuration-schema), [Antigravity CLI](https://antigravity.google/docs/subagents?tab=cli), [Oh My Pi](https://github.com/can1357/oh-my-pi/blob/main/docs/task-agent-discovery.md#model-and-structured-output-precedence), and [OpenCode](https://opencode.ai/docs/agents/#model) for native resolution rules.
 
 The command changes only model and host-supported reasoning fields in the selected role file. Existing instructions, descriptions and unrelated frontmatter/TOML fields are preserved. Use `--reset` to remove those override fields from the selected file and let the host resolve configuration normally:
 

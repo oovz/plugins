@@ -28,7 +28,7 @@ Install host-native subagent configuration. Plugin and skill acquisition is mana
 
 Usage:
   sew install --host <host> [--scope <user|project>] [--project <path>] [--force] [--dry-run]
-  sew models configure --host <host> --role <role> [--model <id>] [--reasoning <value>]
+  sew models configure --host <host> --role <role> [--model <id|inherit>] [--reasoning <value>]
   sew models configure --host <host> --role <role> --reset
   sew doctor [--host <all|host,...>] [--project <path>]
 
@@ -37,6 +37,7 @@ Hosts:
 
 Install replaces only the three SEW role files. Changed files require --force. Repeated installs of current files are safe.
 Model overrides are syntax-checked from local host schemas. Install and model configuration do not fetch model catalogs or invoke host commands.
+--model inherit uses native host inheritance and preserves reasoning unless supplied; OpenCode does not support this option. --reset clears both overrides for every host.
 Doctor reads user and project role files and reports what it inspected; it does not verify that a host runs a model successfully.
 `;
 }

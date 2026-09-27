@@ -556,3 +556,60 @@ test("JSON mode survives argument parsing errors", () => {
     assert.equal(typeof JSON.parse(result.stdout).error, "string");
   }
 });
+
+for (const host of ["claude-code", "codex", "cursor", "gemini-cli", "antigravity", "oh-my-pi"]) {
+  test(`host-aware model inheritance: ${host}`, async (t) => {
+    const { env, engineer, configure, project } = await diagnosticFixture(t, host);
+    const reasoningField = { "claude-code": "effort", codex: "model_reasoning_effort", "oh-my-pi": "thinking-level" }[host];
+    const model = host === "antigravity" ? "flash" : "example-model";
+    const configured = runCli([...configure, "--model", model, ...(reasoningField ? ["--reasoning", "high"] : [])], { env });
+    assert.equal(configured.status, 0, configured.stderr);
+    const before = await readFile(engineer, "utf8");
+    const dryRun = runCli([...configure, "--model", "inherit", "--dry-run", "--json"], { env });
+    assert.equal(dryRun.status, 0, dryRun.stdout);
+    assert.equal(await readFile(engineer, "utf8"), before, "dry run preserves the file");
+    const expected = parseRole(host, before);
+    if (["codex", "oh-my-pi"].includes(host)) delete expected.model;
+    else expected.model = "inherit";
+    const inherited = runCli([...configure, "--model", "inherit", "--json"], { env });
+    assert.equal(inherited.status, 0, inherited.stdout);
+    assert.deepEqual(parseRole(host, await readFile(engineer, "utf8")), expected, "only native model selection changes");
+    assert.equal(JSON.parse(inherited.stdout).current.model, expected.model);
+    if (host !== "codex") {
+      assert.equal((await readFile(engineer, "utf8")).split(/\n---\n/u)[1], before.split(/\n---\n/u)[1], "prompt body is preserved");
+    }
+    const repeated = runCli([...configure, "--model", "inherit", "--json"], { env });
+    assert.equal(repeated.status, 0, repeated.stdout);
+    assert.equal(JSON.parse(repeated.stdout).status, "unchanged");
+    const reinstalled = runCli(["install", "--host", host, "--scope", "project", "--project", project], { env });
+    assert.equal(reinstalled.status, 0, reinstalled.stderr);
+    assert.deepEqual(parseRole(host, await readFile(engineer, "utf8")), expected, "repeat install retains inheritance and effort");
+    if (reasoningField) {
+      const explicit = runCli([...configure, "--model", "inherit", "--reasoning", "low"], { env });
+      assert.equal(explicit.status, 0, explicit.stderr);
+      expected[reasoningField] = "low";
+      assert.deepEqual(parseRole(host, await readFile(engineer, "utf8")), expected, "explicit reasoning is applied independently");
+    }
+    const reset = runCli([...configure, "--reset"], { env });
+    assert.equal(reset.status, 0, reset.stderr);
+    const cleared = parseRole(host, await readFile(engineer, "utf8"));
+    assert.equal(cleared.model, ["gemini-cli", "antigravity"].includes(host) ? "inherit" : undefined);
+    if (reasoningField) assert.equal(cleared[reasoningField], undefined, "reset clears effort too");
+  });
+}
+
+test("OpenCode explicitly rejects model inherit without modifying configuration", async (t) => {
+  const { env, engineer, configure } = await diagnosticFixture(t, "opencode");
+  const configured = runCli([...configure, "--model", "provider/model", "--reasoning", "high"], { env });
+  assert.equal(configured.status, 0, configured.stderr);
+  const before = await readFile(engineer);
+  const inherited = runCli([...configure, "--model", "inherit", "--json"], { env });
+  assert.equal(inherited.status, 2);
+  assert.match(JSON.parse(inherited.stdout).error, /--model inherit is not supported for OpenCode.*--reset/u);
+  assert.deepEqual(await readFile(engineer), before);
+  const reset = runCli([...configure, "--reset"], { env });
+  assert.equal(reset.status, 0, reset.stderr);
+  const cleared = parseRole("opencode", await readFile(engineer, "utf8"));
+  assert.equal(cleared.model, undefined);
+  assert.equal(cleared.variant, undefined);
+});

@@ -18,6 +18,9 @@ function normalizeModel(host, model) {
     if (typeof model !== "string") throw new CliError("--model must be a non-empty single-line value.");
     model = model.trim();
     if (!model || /[\r\n\u0000-\u001f\u007f]/u.test(model)) throw new CliError("--model must be a non-empty single-line value.");
+    if (host === "opencode" && model === "inherit") {
+      throw new CliError("--model inherit is not supported for OpenCode. Use --reset to clear model and reasoning overrides.");
+    }
     if (host === "opencode" && !/^[^\s/]+(?:\/[^\s/]+)+$/u.test(model)) {
       throw new CliError(`OpenCode models must use provider/model syntax: ${model}`);
     }
@@ -140,7 +143,8 @@ export function applyRoleOverride(host, content, override) {
       delete parsed.model;
       delete parsed.model_reasoning_effort;
     } else {
-      if (selected.model !== undefined) parsed.model = selected.model;
+      if (selected.model === "inherit") delete parsed.model;
+      else if (selected.model !== undefined) parsed.model = selected.model;
       if (selected.reasoning !== undefined) parsed.model_reasoning_effort = selected.reasoning;
     }
     try { return `${stringifyToml(parsed).trimEnd()}\n`; }
@@ -152,6 +156,7 @@ export function applyRoleOverride(host, content, override) {
     delete value.model;
     if (["gemini-cli", "antigravity"].includes(host)) value.model = "inherit";
   }
+  else if (host === "oh-my-pi" && selected.model === "inherit") delete value.model;
   else if (selected.model !== undefined) value.model = selected.model;
   const reasoningField = REASONING_FIELD[host];
   if (reasoningField) {
