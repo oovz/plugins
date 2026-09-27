@@ -215,7 +215,6 @@ test("active marketplace README versions match canonical manifests", async () =>
   for (const plugin of catalog.plugins) {
     assert.match(readme, new RegExp(`\\| \\[[^\\]]+\\]\\(plugins/${plugin.manifest.id}/\\) \\| ${plugin.manifest.version} \\|`));
   }
-  assert.match(await readFile(path.join(ROOT, "plugins", "tauri-v2-desktop", "README.md"), "utf8"), /evals[\s\S]{0,80}security-guidance\.yaml/);
 });
 
 test("semantic Tauri profile rejects unsafe guidance mutations", async (t) => {

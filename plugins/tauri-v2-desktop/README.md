@@ -2,31 +2,6 @@
 
 Version 1.2.1 is a host-neutral Agent Skill for Tauri v2 desktop development on Windows, macOS, and Linux.
 
-## Release notes
-
-### 1.2.1
-
-- Rewrites skill and reference guidance for clearer, more direct instructions while preserving the supported desktop scope and security boundaries.
-
-### 1.2.0
-
-- Adds a Cursor 2.5+ native plugin projection and direct Agent Skill installation support.
-- Keeps the plugin skill-only; Cursor subagents are not required for this guidance plugin.
-
-### 1.1.0
-
-- Adds an Oh My Pi marketplace projection alongside Claude Code, Codex, Gemini CLI, Antigravity, OpenCode, and the portable Agent Skills export.
-- Keeps the plugin skill-only; it does not require subagent support.
-
-### 1.0.2
-
-- Removes the redundant OpenCode V2 preview projection. This plugin is skill-only, so its V2 output was byte-for-byte equivalent to the stable OpenCode bundle and provided no additional behavior.
-
-### 1.0.1
-
-- Clarifies that bundled local commands and remote-origin IPC follow different Tauri ACL paths, with remote origins on Tauri 2.11.1 and later requiring an explicit, narrowly scoped remote capability.
-- Adds deterministic semantic guidance checks and a platform-safe test launcher for release verification.
-
 ## What it covers
 
 - Secure Rust commands and JavaScript IPC with typed, validated boundaries.
@@ -43,27 +18,6 @@ Per-harness steps are in the [root README](../../README.md#install-plugins-and-s
 ## Scope
 
 The skill covers Windows, macOS, and Linux. It runs directly on every supported host and requires no dependency installation, background process, or subagent.
-
-## Layout
-
-```text
-plugins/tauri-v2-desktop/
-├── LICENSE
-├── manifest.json
-├── README.md
-└── evals/security-guidance.yaml
-
-skills/tauri-v2-desktop/
-├── LICENSE
-├── SKILL.md
-└── references/
-    ├── security-and-ipc.md
-    ├── versions-and-upgrades.md
-    ├── desktop-runtime-and-delivery.md
-    └── testing-and-visual-validation.md
-```
-
-Adapters under `adapters/` are generated and checked in; edit the source and regenerate, never the adapters.
 
 ## Use
 

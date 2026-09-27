@@ -1,6 +1,6 @@
-# Adding a standalone skill
+# Contributing a skill
 
-Canonical skills live at `skills/<skill-id>/` and follow the [Agent Skills specification](https://agentskills.io/specification). Author each skill once, validate it independently, and reference it from any plugin that bundles it for a coding harness.
+Add a skill under `skills/<skill-id>/` following the [Agent Skills specification](https://agentskills.io/specification), then validate it before opening a pull request. Local checks require Node.js 22 or later and `npm ci` from the repository root.
 
 ## 1. Create the skill directory
 
@@ -28,6 +28,12 @@ description: Performs the example workflow. Use when the user asks for an exampl
 Follow the accepted task contract and return observable evidence.
 ```
 
+The name is 1–64 lowercase letters, digits, and hyphens, with no leading, trailing, or consecutive hyphens. The description is 1–1024 characters and explains both the task and when to use the skill. Optional `compatibility` text must be 1–500 characters; optional `metadata` maps string keys to string values.
+
+Use `references/` for detailed instructions the agent needs only for particular tasks, `scripts/` for executable helpers, and `assets/` for templates or other output resources. Link references from `SKILL.md` using paths relative to the skill root and explain when to read them. Keep the entrypoint concise; the specification recommends fewer than 500 lines and avoiding deeply nested reference chains. A reference is part of the skill and may contain technical instructions needed to perform its task.
+
+Keep each skill usable on its own: include its supporting files and document script dependencies. Leave repository maintenance procedures and changelogs out of skill/plugin content.
+
 Every published skill includes its own `LICENSE` because the skill can be distributed without a plugin wrapper.
 
 ## 2. Catalog the skill
@@ -42,7 +48,7 @@ Add its ID to `marketplace.json`:
 }
 ```
 
-Catalog entries contain IDs. Every skill has the fixed location `skills/<skill-id>/`, which gives discovery a single path.
+The catalog ID must match the skill directory name.
 
 ## 3. Bundle it in a plugin when needed
 

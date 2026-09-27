@@ -20,7 +20,7 @@ Plugins, Agent Skills, and host-configuration tools for coding harnesses.
 
 ## Available skills
 
-Canonical skills follow the [Agent Skills specification](https://agentskills.io/specification). Plugins reference these skill sources and package them in their own host distributions.
+These [Agent Skills](https://agentskills.io/specification) are included in the listed plugins.
 
 | Skill | Bundled by |
 |---|---|
@@ -31,21 +31,21 @@ Canonical skills follow the [Agent Skills specification](https://agentskills.io/
 
 ## Harness and platform support
 
-The repository generates native plugin adapters and independently distributes the SEW role-configuration CLI. Plugin marketplace ownership stays with each harness. The SEW CLI writes the agent files below; it does not install plugins, skills, or MCP servers.
+Install plugins through your harness. Use the SEW CLI separately to configure its subagent roles; it does not install plugins, skills, or MCP servers.
 
-| Harness | Native plugin/skill distribution | SEW role files (user / project) | CLI OS | Minimum host version | Last native harness acceptance |
-|---|---|---|---|---|---|
-| Claude Code | Native plugin marketplace | `${CLAUDE_CONFIG_DIR:-~/.claude}/agents` / `<project>/.claude/agents` | Windows/macOS/Linux | Not specified in reviewed upstream agent docs | Not exercised locally |
-| Codex | Native plugin marketplace | `${CODEX_HOME:-~/.codex}/agents` / `<project>/.codex/agents` | Windows/macOS/Linux | Not specified in reviewed upstream agent docs | Not exercised locally |
-| OpenCode | Static `.opencode` configuration | `${OPENCODE_CONFIG_DIR:-${XDG_CONFIG_HOME:-~/.config}/opencode}/agents` / `<project>/.opencode/agents` | Windows/macOS/Linux | Not specified in reviewed upstream agent docs | Not exercised locally |
-| Cursor | Native plugin marketplace and direct agent files | `~/.cursor/agents` / `<project>/.cursor/agents` | Windows/macOS/Linux | 2.5+ for marketplace plugin; direct-role minimum not established here | Not exercised locally |
-| Gemini CLI | Native extension and skills | `${GEMINI_CLI_HOME:-~}/.gemini/agents` / `<project>/.gemini/agents` | Windows/macOS/Linux | Not specified in reviewed upstream agent docs | Not exercised locally |
-| Antigravity CLI (`agy`) | Native CLI plugin and skills | `~/.gemini/config/agents` / `<project>/.agents/agents` | Windows/macOS/Linux | CLI 2.0 custom agents | Not exercised locally |
-| Oh My Pi (`omp`) | Native plugin marketplace | `~/.omp/agent/agents` / `<project>/.omp/agents` | Windows/macOS/Linux | Not specified in reviewed upstream agent docs | Not exercised locally |
+| Harness | Native plugin/skill distribution | SEW role files (user / project) | CLI OS | Minimum host version |
+|---|---|---|---|---|
+| Claude Code | Native plugin marketplace | `${CLAUDE_CONFIG_DIR:-~/.claude}/agents` / `<project>/.claude/agents` | Windows/macOS/Linux | Not specified |
+| Codex | Native plugin marketplace | `${CODEX_HOME:-~/.codex}/agents` / `<project>/.codex/agents` | Windows/macOS/Linux | Not specified |
+| OpenCode | Static `.opencode` configuration | `${OPENCODE_CONFIG_DIR:-${XDG_CONFIG_HOME:-~/.config}/opencode}/agents` / `<project>/.opencode/agents` | Windows/macOS/Linux | Not specified |
+| Cursor | Native plugin marketplace and direct agent files | `~/.cursor/agents` / `<project>/.cursor/agents` | Windows/macOS/Linux | 2.5+ for marketplace plugin; direct-role minimum not established here |
+| Gemini CLI | Native extension and skills | `${GEMINI_CLI_HOME:-~}/.gemini/agents` / `<project>/.gemini/agents` | Windows/macOS/Linux | Not specified |
+| Antigravity CLI (`agy`) | Native CLI plugin and skills | `~/.gemini/config/agents` / `<project>/.agents/agents` | Windows/macOS/Linux | CLI 2.0 custom agents |
+| Oh My Pi (`omp`) | Native plugin marketplace | `~/.omp/agent/agents` / `<project>/.omp/agents` | Windows/macOS/Linux | Not specified |
 
-The release workflow installs and smoke-tests the same npm archive on each native OS with Node 22 and 24. It validates configuration files and package invocation; it does not launch every harness. The repository's generated projections and standalone helper tests also run in its OS validation matrix.
+SEW supports Windows, macOS, and Linux. Native harness execution has not been verified for every listed host.
 
-Windsurf/Cascade can consume the portable skill exports from `.agents/skills`; this repository does not claim a Windsurf-native plugin adapter. Devin CLI/Desktop Local is not a generated target. Its current documented plugin formats include `.devin-plugin`, Claude plugins/marketplaces, and Agent Plugins. See the [Devin plugin overview](https://docs.devin.ai/cli/extensibility/plugins/overview) and [release notes](https://docs.devin.ai/cli/changelog/stable).
+Windsurf/Cascade can consume the portable skill exports from `.agents/skills`; this repository does not claim a Windsurf-native plugin adapter. Devin CLI/Desktop Local is not supported by this repository.
 
 ## Install plugins and skills
 
@@ -122,7 +122,7 @@ npm run build -- --plugin senior-engineering-workflow --host antigravity
 agy plugin install ./dist/antigravity/senior-engineering-workflow
 ```
 
-Use the native manager for CLI plugin registration and discovery. Project plugin discovery through the generic installer's `.agents/plugins` export remains unverified. Direct SEW role files use the documented agent directories in the support table. [Plugin reference](https://antigravity.google/docs/plugins?tab=cli).
+Use the native manager to install the plugin. For standalone SEW roles, use the CLI installation below. [Plugin reference](https://antigravity.google/docs/plugins?tab=cli).
 
 ### Oh My Pi
 
@@ -154,7 +154,7 @@ npx @oovz/sew install --host codex --scope user
 npx @oovz/sew install --host cursor --scope project --project /absolute/path/to/project
 ```
 
-Repeated installation leaves identical files unchanged and preserves valid model/reasoning-only overrides. Other differences require `--force`, which replaces only the three SEW role targets. Other files and host settings remain in place. Run one SEW operation at a time and finish editing the role files before running it. SEW preflights all three targets, then writes them in sequence. A filesystem error can leave earlier writes in place; correct the reported problem and rerun the command.
+Repeated installation leaves identical files unchanged and preserves valid model/reasoning-only overrides. Other differences require `--force`, which replaces only the three SEW role targets. Other files and host settings remain in place. Run one SEW operation at a time and finish editing the role files before running it. An installation error can leave some role files updated; correct the reported problem and rerun the command.
 
 Configure one role's model and, where supported, its host-native reasoning field:
 
@@ -192,15 +192,17 @@ node scripts/migrate-antigravity-ownership.mjs --record "<absolute-path-to-owner
 node scripts/migrate-antigravity-ownership.mjs --record "<absolute-path-to-ownership.json>" --old-root "<absolute-path-to-retired-plugin-directory>" --apply
 ```
 
-The migration removes matching retired Antigravity ownership entries from that one record and removes the obsolete `variant` property from retained entries. It does not install or remove a native plugin.
+The migration cleans the selected ownership record. It does not install or remove a native plugin.
 
-## Repository checks
+## Contributing
+
+Requires Node.js 22 or later. From the repository root:
 
 ```text
 npm ci
 npm run verify
 ```
 
-`verify` checks canonical plugin schemas and generated adapters, runs tests, and builds the native marketplace/extension distributions. The SEW release builds one configuration-only package and gates publication on testing that exact archive across Windows, macOS, and Linux.
+`verify` checks schemas, metadata, content rules, and generated files, then runs tests and builds the supported packages. Pull requests run these checks automatically.
 
-Adding guidance: [standalone skill](docs/adding-a-skill.md) · [marketplace plugin](docs/adding-a-plugin.md).
+Contribution guides: [add a skill](docs/adding-a-skill.md) · [add a plugin](docs/adding-a-plugin.md).
