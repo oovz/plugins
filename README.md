@@ -34,7 +34,7 @@ Canonical skills follow the [Agent Skills specification](https://agentskills.io/
 The repository generates native plugin adapters and independently distributes the SEW role-configuration CLI. Plugin marketplace ownership stays with each harness. The SEW CLI writes the agent files below; it does not install plugins, skills, or MCP servers.
 
 | Harness | Native plugin/skill distribution | SEW role files (user / project) | CLI OS | Minimum host version | Last native harness acceptance |
-|---|---|---|---|---|
+|---|---|---|---|---|---|
 | Claude Code | Native plugin marketplace | `${CLAUDE_CONFIG_DIR:-~/.claude}/agents` / `<project>/.claude/agents` | Windows/macOS/Linux | Not specified in reviewed upstream agent docs | Not exercised locally |
 | Codex | Native plugin marketplace | `${CODEX_HOME:-~/.codex}/agents` / `<project>/.codex/agents` | Windows/macOS/Linux | Not specified in reviewed upstream agent docs | Not exercised locally |
 | OpenCode | Static `.opencode` configuration | `${OPENCODE_CONFIG_DIR:-${XDG_CONFIG_HOME:-~/.config}/opencode}/agents` / `<project>/.opencode/agents` | Windows/macOS/Linux | Not specified in reviewed upstream agent docs | Not exercised locally |
