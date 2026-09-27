@@ -354,7 +354,7 @@ export async function inspectSkill(skill) {
   assert(path.basename(skill.directory) === skill.id, `skill ${skill.id} directory must match its id`);
   assert(typeof parsed.frontmatter.description === "string" && parsed.frontmatter.description.trim().length > 0 && parsed.frontmatter.description.length <= 1024, `skill ${skill.id} must have a 1-1024 character description`);
   if (parsed.frontmatter.license !== undefined) assert(typeof parsed.frontmatter.license === "string" && parsed.frontmatter.license.trim(), `skill ${skill.id} license must be a non-empty string`);
-  if (parsed.frontmatter.compatibility !== undefined) assert(typeof parsed.frontmatter.compatibility === "string" && parsed.frontmatter.compatibility.length <= 500, `skill ${skill.id} compatibility must be a string of at most 500 characters`);
+  if (parsed.frontmatter.compatibility !== undefined) assert(typeof parsed.frontmatter.compatibility === "string" && parsed.frontmatter.compatibility.trim().length > 0 && parsed.frontmatter.compatibility.length <= 500, `skill ${skill.id} compatibility must be a 1-500 character string`);
   if (parsed.frontmatter.metadata !== undefined) {
     assert(parsed.frontmatter.metadata && typeof parsed.frontmatter.metadata === "object" && !Array.isArray(parsed.frontmatter.metadata), `skill ${skill.id} metadata must be a string map`);
     for (const [key, value] of Object.entries(parsed.frontmatter.metadata)) assert(typeof key === "string" && typeof value === "string", `skill ${skill.id} metadata values must be strings`);

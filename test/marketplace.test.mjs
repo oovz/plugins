@@ -904,3 +904,22 @@ test("executable skill support files retain mode in bundles", { skip: process.pl
   const output = path.join(root, "dist", "codex", "script-plugin", "skills", "script-plugin-skill", "scripts", "run.sh");
   assert.notEqual((await lstat(output)).mode & 0o111, 0);
 });
+
+test("Agent Skills compatibility is optional but must contain 1-500 characters when supplied", async (t) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "oovz-skill-compatibility-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  await createFixtureMarketplace(root, [{ id: "compatibility-skill", version: "1.0.0" }]);
+  const catalog = await discoverMarketplace(root);
+  const file = path.join(root, "skills", "compatibility-skill-skill", "SKILL.md");
+  const original = await readFile(file, "utf8");
+  for (const value of ["", "   ", "x".repeat(501)]) {
+    await writeFile(file, original.replace("description:", `compatibility: ${JSON.stringify(value)}\ndescription:`));
+    await assert.rejects(inspectPlugin(catalog.plugins[0]), /compatibility/u);
+  }
+  for (const value of ["x", "x".repeat(500)]) {
+    await writeFile(file, original.replace("description:", `compatibility: ${JSON.stringify(value)}\ndescription:`));
+    await assert.doesNotReject(inspectPlugin(catalog.plugins[0]));
+  }
+  await writeFile(file, original);
+  await assert.doesNotReject(inspectPlugin(catalog.plugins[0]));
+});
