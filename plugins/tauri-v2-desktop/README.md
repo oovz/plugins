@@ -1,6 +1,6 @@
 # Tauri v2 Desktop
 
-Version 1.2.1 is a host-neutral Agent Skill for Tauri v2 desktop development on Windows, macOS, and Linux.
+Build, test, and ship Tauri v2 desktop apps on Windows, macOS, and Linux. This plugin bundles the `tauri-v2-desktop` skill, version 1.2.2.
 
 ## What it covers
 
@@ -9,7 +9,7 @@ Version 1.2.1 is a host-neutral Agent Skill for Tauri v2 desktop development on 
 - Desktop lifecycle guidance for windows, menus, tray items, sidecars, deep links, and local assets.
 - Dependency and upgrade reviews that distinguish compatible release families from historical security floors.
 - Risk-based testing across operating systems, architectures, webviews, packaged artifacts, installers, and updaters.
-- Visual validation that distinguishes image inspection from screenshot capture and pairs visual evidence with interaction and accessibility checks.
+- Visual review using inspected screenshots, interaction tests, and accessibility checks.
 
 ## Install
 
@@ -17,7 +17,7 @@ Per-harness steps are in the [root README](../../README.md#install-plugins-and-s
 
 ## Scope
 
-The skill covers Windows, macOS, and Linux. It runs directly on every supported host and requires no dependency installation, background process, or subagent.
+The skill runs directly in the supported coding harnesses. Installing it adds instructions; the application you work on still needs its own Tauri dependencies and platform tooling.
 
 ## Use
 

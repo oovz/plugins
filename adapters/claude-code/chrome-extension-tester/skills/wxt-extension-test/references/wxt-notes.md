@@ -16,7 +16,7 @@ A sidepanel entrypoint causes WXT to generate side-panel-related manifest config
 
 WXT can open a browser during development through its browser-startup integration. Chrome DevTools MCP can also launch a dedicated Chrome profile. For this plugin's extension tests, treat the MCP-managed Chrome as authoritative so `install_extension`, `reload_extension`, and `trigger_extension_action` are available.
 
-If WXT also launches a browser, do not confuse success in that window with success in the MCP-controlled window.
+If WXT also launches a browser, record which instance each test used. Acceptance for this workflow requires the MCP-controlled instance.
 
 ## Reloading content scripts
 

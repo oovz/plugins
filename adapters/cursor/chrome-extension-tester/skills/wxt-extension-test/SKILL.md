@@ -1,11 +1,13 @@
 ---
 name: wxt-extension-test
-description: Test or debug a WXT-based Chrome extension in its built Chrome runtime through Chrome DevTools MCP. Use when package.json depends on wxt or the repository contains wxt.config.* or WXT entrypoints. Covers output discovery, generated manifests, extension reloads, content-script reinjection, and browser-managed side-panel or popup flows.
+description: Test or debug Chrome runtime behavior in WXT extension projects. Use for generated builds, browser-managed surfaces, and reload or content-script failures.
 ---
 
 # WXT Chrome Extension Test
 
-Use this skill for WXT repositories. Apply the real-surface rule directly: a side panel or popup is not integration-tested if its HTML was merely opened as a normal tab.
+Use this self-contained workflow when the extension repository uses WXT. Testing and diagnosis stay within their requested scope; a requested fix includes rebuilding and retesting.
+
+Classify each UI check as `REAL_SURFACE` when Chrome opens the actual surface through the product flow, or `HTML_ONLY` for direct page navigation. Only `REAL_SURFACE` evidence establishes popup or side-panel integration.
 
 ## 1. Detect the WXT layout
 
@@ -17,19 +19,11 @@ Inspect:
 - `entrypoints/` or a configured `srcDir` / entrypoints directory;
 - generated output manifests under the configured `outDir`.
 
-WXT generates `manifest.json`; do not expect a source manifest to be authoritative.
-
-Useful source indicators include:
-
-- `entrypoints/background.*`;
-- `entrypoints/*.content.*`;
-- `entrypoints/popup/` or `popup.html`;
-- `entrypoints/sidepanel/` or `sidepanel.html`;
-- `defineBackground`, `defineContentScript`, and WXT browser APIs.
+Use WXT’s generated `manifest.json` as the runtime authority.
 
 ## 2. Resolve the actual Chrome build directory
 
-Do not hardcode `.output/chrome-mv3`. WXT defaults to `.output`, but `outDir`, target browser, manifest version, and mode suffix are configurable.
+Discover the generated directory from the build and configuration. Read [WXT output notes](references/wxt-notes.md) when `outDir`, target browser, manifest version, or mode makes the output ambiguous.
 
 Run from this skill directory (the directory containing `SKILL.md`) and pass the WXT project path:
 
@@ -44,7 +38,7 @@ Prefer a candidate that:
 - uses Manifest V3, required by current Chrome;
 - is the build produced by the command you just ran.
 
-Then inspect it:
+Require the helper result to have `compatible: true`, including for an explicit `--output` selection. Then inspect it:
 
 ```bash
 node scripts/inspect-extension.mjs /absolute/path/to/wxt-build
@@ -58,27 +52,27 @@ Prefer package scripts such as `build`, `build:chrome`, or an equivalent existin
 
 For acceptance testing, load a normal Chrome build through Chrome DevTools MCP.
 
-Do not automatically rewrite `web-ext.config.ts` or WXT browser-startup settings. WXT may open its own browser during dev mode; the Chrome DevTools MCP instance used by this plugin is the authoritative browser for these tests.
+Preserve existing WXT browser-startup settings. Use the MCP-managed Chrome as the authoritative test browser; read [WXT browser ownership](references/wxt-notes.md) when a separate dev browser causes ambiguity.
 
 If the user explicitly wants WXT dev/HMR plus MCP testing, keep WXT's build/dev watcher and MCP's Chrome as separate responsibilities. Load the unpacked directory that WXT is updating.
 
 ## 4. Install and test the generated extension
 
-If the extension tools are unavailable in the session, configure the Chrome DevTools MCP server first: check whether one is already configured for your harness and update it in place (see this skill's `references/chrome-devtools-mcp.md`) instead of adding a duplicate server.
+Confirm the session exposes `list_extensions`, `install_extension`, `reload_extension`, `trigger_extension_action`, and `uninstall_extension`. If tools are missing, read [MCP setup](references/chrome-devtools-mcp.md), reuse the existing server entry, and keep configuration changes within authorized setup scope.
 
 Use Chrome DevTools MCP:
 
 1. `list_extensions`;
-2. `install_extension` with the absolute WXT build directory;
+2. `install_extension` with the absolute WXT build directory, or `reload_extension` when already installed;
 3. record the extension ID;
 4. open a representative webpage if content scripts are involved;
 5. use `trigger_extension_action` for the extension action;
-6. interact with the real popup/side panel context, if exposed;
+6. select the resulting popup/side-panel context, verify its extension ID, and interact using fresh snapshots;
 7. inspect console, network, content-script effects, and MV3 worker logs.
 
 ### WXT side panel
 
-If the generated manifest contains `side_panel.default_path`, verify the panel through its real opening path. Do not navigate directly to that generated HTML for integration acceptance.
+If the generated manifest contains `side_panel.default_path`, trigger the configured action or product user gesture that opens it, then select the resulting context. If the real context is unavailable, report integration as unverified; direct HTML diagnostics remain `HTML_ONLY`.
 
 WXT automatically generates/augments extension manifest data from entrypoints and config, so use the generated manifest to determine what Chrome actually receives.
 
@@ -98,8 +92,7 @@ WXT content-script contexts can become invalid when an extension is reloaded. Tr
 
 ## 6. WXT-specific acceptance checks
 
-Run this local checklist for the WXT build (skip only items that are not
-applicable to the extension, and report skipped items):
+For smoke testing, cover the applicable checks below. For focused debugging, cover the failing interaction and affected boundaries, plus required repository gates. Report any requested coverage left untested:
 
 - generated manifest contains the intended WXT entrypoints and permissions;
 - sidepanel entrypoint produces `side_panel.default_path` in the generated Chrome manifest;
@@ -121,4 +114,4 @@ Include:
 - `REAL_SURFACE` versus `HTML_ONLY` provenance;
 - test steps and runtime evidence.
 
-Read `references/wxt-notes.md` when build-output or browser-startup behavior is ambiguous.
+Use a dedicated test profile when available. Preserve unrelated extensions, profile data, and accounts.

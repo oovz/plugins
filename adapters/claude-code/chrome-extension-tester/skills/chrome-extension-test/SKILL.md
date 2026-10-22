@@ -1,24 +1,24 @@
 ---
 name: chrome-extension-test
-description: Test or debug a Chrome extension in a browser-managed extension context through Chrome DevTools MCP. Use for side panels, popups, extension pages, MV3 service workers, content scripts, action flows, and integration bugs. Direct chrome-extension:// navigation is suitable only for explicitly labeled UI diagnostics.
+description: Test or debug Chrome extension runtime behavior through Chrome DevTools MCP, including browser-managed surfaces, content scripts, and service-worker interactions.
 ---
 
 # Chrome Extension Test
 
-Use Chrome DevTools MCP as the browser control plane. It must be started with extension tools enabled via `--categoryExtensions` and `--allowUnrestrictedPaths`.
+Use Chrome DevTools MCP as the browser control plane. Keep source edits within the requested scope: testing and diagnosis produce evidence; a requested fix includes rebuilding and retesting.
 
-Before using extension tools, verify the server. If `list_extensions`, `install_extension`, `reload_extension`, `trigger_extension_action`, or `uninstall_extension` are absent from the session, the Chrome DevTools MCP server is missing or lacks the required flags.
+## Establish the tool connection
 
-Check whether your harness already has a server, using the commands and file locations in `references/troubleshooting.md`, section 2. Update that entry so both flags are present, or add one if none exists. Keep a single server instance because two instances contend for the same Chrome profile and debugging port.
+Confirm the session exposes `list_extensions`, `install_extension`, `reload_extension`, `trigger_extension_action`, and `uninstall_extension`. If any is missing, read [MCP setup and troubleshooting](references/troubleshooting.md), section 2, to inspect the harness's existing server entry and required `--categoryExtensions` and `--allowUnrestrictedPaths` flags. Reuse an existing server; multiple instances can contend for the same Chrome profile or port. Keep configuration changes within the user's authorized setup scope and report unavailable capabilities.
 
-## Non-negotiable test provenance
+## Test provenance
 
 Classify every extension UI verification as one of these:
 
 - `REAL_SURFACE`: Chrome opened the extension surface through the browser-managed flow being tested, such as `trigger_extension_action`, a user click that invokes `chrome.sidePanel.open`, or another product-real interaction.
 - `HTML_ONLY`: the agent navigated directly to `chrome-extension://<id>/<page>.html` or served the UI as a normal web page.
 
-Never report an `HTML_ONLY` check as proof that popup or side-panel browser integration works. Direct extension-page navigation is acceptable for UI-only diagnostics when explicitly labeled `HTML_ONLY`.
+Only `REAL_SURFACE` evidence can establish popup or side-panel integration. Label direct-page diagnostics `HTML_ONLY` and leave browser integration unverified.
 
 ## Workflow
 
@@ -32,7 +32,7 @@ Determine:
 - the manifest version; current Chrome requires Manifest V3;
 - configured surfaces: `action`, `side_panel`, `options_ui`, background service worker, and content scripts.
 
-Prefer existing project scripts. Do not add dependencies or rewrite project configuration merely to run a smoke test.
+Use existing project scripts and dependencies. Report missing build prerequisites before expanding setup scope.
 
 If build output is unclear, run the bundled helper from this skill directory (the directory containing `SKILL.md`) and pass the extension project path:
 
@@ -58,12 +58,12 @@ Require a parseable `manifest.json` in the directory passed to `install_extensio
 
 Use extension tools in this order:
 
-1. `list_extensions` to avoid duplicate installs.
+1. `list_extensions` to identify an existing installation.
 2. `install_extension` with the absolute unpacked extension directory if not installed.
 3. Record the extension ID.
 4. After subsequent rebuilds, use `reload_extension` rather than reinstalling when possible.
 
-Do not manually edit Chrome profile files or use `chrome://extensions` if MCP extension tools are available.
+Use the MCP extension tools for installation and reload while preserving Chrome profile files.
 
 ### 4. Establish a baseline tab
 
@@ -73,26 +73,7 @@ Use a harmless local/test page when the product does not require a specific site
 
 ### 5. Open the real extension surface
 
-#### Side panel
-
-Preferred path:
-
-1. Capture `list_pages` before opening.
-2. Use `trigger_extension_action` if the extension action is configured to open the side panel.
-3. Otherwise reproduce the extension's real user-gesture path that calls the Side Panel API.
-4. Call `list_pages` again and select the resulting extension context when exposed.
-5. Verify the selected context belongs to the installed extension ID.
-6. Mark the test `REAL_SURFACE` only because the surface was opened through the real user/browser flow, not merely because its URL is a `chrome-extension://` URL.
-
-Do **not** use `new_page` or `navigate_page` to the side-panel HTML as a fallback and still call the test successful. If Chrome DevTools MCP cannot expose/interact with the real side-panel context, report the limitation and stop that assertion.
-
-#### Action popup
-
-Use `trigger_extension_action`. Do not navigate directly to the popup HTML for popup-lifecycle verification. After triggering, select the newly exposed extension page/context and interact with it.
-
-#### Options or other standalone extension pages
-
-Prefer the product-real navigation route when the route itself matters. Direct `chrome-extension://` navigation may be used for UI-only checks if reported as `HTML_ONLY`.
+Read [surface opening and acceptance](references/surfaces.md) for the configured surface. Open it through the product's browser/user flow, select the resulting context, and verify its extension ID. If the tool cannot expose that context, stop the affected integration assertion and report the limitation. UI-only diagnostics can still proceed with `HTML_ONLY` provenance.
 
 ### 6. Interact like a user
 
@@ -102,7 +83,7 @@ For each page/context:
 2. Use UIDs from the latest snapshot/action response for `click`, `fill`, `type_text`, `press_key`, and similar tools.
 3. Take a fresh snapshot after meaningful state changes or if a UID becomes stale.
 4. Use `take_screenshot` for visual/layout validation, not as the primary mechanism for locating controls.
-5. Use `evaluate_script` only for state that cannot be observed through normal UI or diagnostics. Do not use it to bypass the user flow being tested.
+5. Use `evaluate_script` only for state that cannot be observed through normal UI or diagnostics. Exercise the tested user flow through its actual controls.
 
 ### 7. Observe all relevant extension contexts
 
@@ -128,11 +109,11 @@ After modifying source:
 6. rerun the failing steps;
 7. inspect console/service-worker output again.
 
-Do not claim a fix based only on static analysis when runtime reproduction is available.
+Confirm the fix by rerunning the available runtime reproduction; report static-only evidence when runtime access is unavailable.
 
 ## Minimum smoke suite
 
-Run the applicable subset:
+For a smoke-test request, run the applicable subset below. For a focused reproduction, select checks that cover the failing flow and affected boundaries; preserve any broader repository-required gate:
 
 1. Extension installs and is enabled.
 2. Background service worker starts without uncaught errors.
@@ -167,4 +148,4 @@ The MCP browser may contain cookies, extension storage, and page data. Avoid ope
 
 ## References
 
-Read `references/surfaces.md` when the distinction between extension surfaces is material. Read `references/troubleshooting.md` for cross-harness MCP server setup instructions, server updates, and debugging.
+Read [troubleshooting](references/troubleshooting.md) when connection, target discovery, reload, or diagnostics fail.

@@ -36,6 +36,18 @@ Keep each skill usable on its own: include its supporting files and document scr
 
 Every published skill includes its own `LICENSE` because the skill can be distributed without a plugin wrapper.
 
+## Write instructions that change decisions
+
+Keep the description a precise discovery cue: the capability and distinct situations that need it. Put tool flags, output formats, and detailed procedures in the body or references. Include exclusions only when they prevent likely misrouting. Preserve supported invocation settings; host-specific invocation controls belong in the appropriate host metadata.
+
+In `SKILL.md`, keep the shared workflow, essential boundaries, and observable completion criteria. Give conditional references a concrete trigger and location, such as “Before changing IPC permissions, read `references/security-and-ipc.md`.” Load those references when the branch applies. Keep detailed guidance in one authoritative location, retaining a short entrypoint guardrail where missing it would materially affect safety or correctness.
+
+Prefer direct actions and explicit outcomes. Keep prohibitions for real boundaries such as destructive writes, secret exposure, or misreported test evidence; pair them with the allowed action. Remove redundant negations, generic advice, and long catalogs of hypothetical failures. Match procedural detail to the operation's risk and fragility, rather than imposing one fixed ceremony on every task.
+
+Preserve the user's scope, existing authorization, and selected workflow. Define how a skill composes with other workflows when that interaction matters: who owns transitions, what evidence is handed off, and which gates remain required. A tool or dependency being available does not itself justify changing configuration, starting another phase, or expanding the task.
+
+Before submission, walk through a representative request and a meaningful boundary case. Check that the skill selects the right branch, reaches its references, and reports completion only with sufficient evidence. Use an isolated behavioral trial when a workflow change warrants it. Schema checks and generated-output consistency establish packaging correctness; they do not establish agent behavior. Add scripts or tests for observable contracts, rather than matching editorial wording.
+
 ## 2. Catalog the skill
 
 Add its ID to `marketplace.json`:

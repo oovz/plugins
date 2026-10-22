@@ -12,7 +12,7 @@
       "source": "./adapters/claude-code/senior-engineering-workflow",
       "description": "Direct engineering ownership with optional research, implementation, and independent verification specialists.",
       "displayName": "Senior Engineering Workflow",
-      "version": "0.14.0",
+      "version": "0.14.1",
       "author": {
         "name": "Otto",
         "url": "https://github.com/oovz/plugins"
@@ -36,7 +36,7 @@
       "source": "./adapters/claude-code/tauri-v2-desktop",
       "description": "Guidance for building, securing, testing, upgrading, and shipping Tauri v2 desktop applications on Windows, macOS, and Linux.",
       "displayName": "Tauri v2 Desktop",
-      "version": "1.2.1",
+      "version": "1.2.2",
       "author": {
         "name": "Otto",
         "url": "https://github.com/oovz/plugins"
@@ -62,7 +62,7 @@
       "source": "./adapters/claude-code/chrome-extension-tester",
       "description": "Test and debug Chrome extensions in Chrome-managed contexts through Chrome DevTools MCP, with extra guidance for WXT projects.",
       "displayName": "Chrome Extension Tester",
-      "version": "0.1.2",
+      "version": "0.1.3",
       "author": {
         "name": "Otto",
         "url": "https://github.com/oovz/plugins"

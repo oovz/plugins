@@ -20,13 +20,13 @@ Common desktop targets are starting points, not a promise to support them:
 | macOS | `aarch64-apple-darwin`, `x86_64-apple-darwin`, or Tauri CLI `universal-apple-darwin` | The universal value is a Tauri CLI pseudo-target combining the two real Rust targets. Verify both slices and exercise both CPU families. Label Rosetta as emulated coverage, not native Intel coverage. |
 | Linux | Usually `x86_64-unknown-linux-gnu` and `aarch64-unknown-linux-gnu`; `armv7-unknown-linux-gnueabihf` only if declared | Test the package on its architecture and oldest supported glibc/WebKitGTK baseline. ARM AppImages require an ARM machine or explicitly labeled emulation. Put specialized ARMv7 native/QEMU coverage in scheduled/release jobs unless the change directly affects it. |
 
-Do not add an architecture merely because it appears in the table. Optimize by declared shipping targets and risk, not the Cartesian product of every dimension.
+Select architectures from the declared shipping targets and risks affected by the change.
 
 ## Test in layers
 
 ### 1. Fast logic checks
 
-On every relevant change, install from the lockfile and run the repository's frontend format/lint/type/unit/build checks plus Rust checks such as:
+Use the repository's required gates and select additional checks for affected code. Install from the lockfile when setting up the environment or changing dependencies. Rust checks commonly include:
 
 ```bash
 cargo fmt --all -- --check
@@ -86,17 +86,17 @@ Use native runners where practical. Emulation is useful but must be labeled. Key
 
 ## Visual QA capability gate
 
-Before asking for, capturing, or reviewing screenshots, determine whether the active agent and its available tools can receive and inspect image pixels. Do not infer image capability merely because a tool can create a screenshot.
+Before asking for, capturing, or reviewing screenshots, verify that the active agent and its available tools can receive and inspect image pixels.
 
 - **Image inspection available:** capture from the actual Tauri app on each affected native target and inspect the original or high-detail image.
 - **Capture available but image inspection unavailable:** retain screenshots as artifacts and use DOM snapshots, accessibility trees, geometry/layout metrics, console logs, and automated assertions for the current pass. Delegate visual inspection to an image-capable agent/person when available.
-- **No inspection route:** report visual inspection as unverified. Do not claim a screenshot passed.
+- **No inspection route:** report visual inspection as unverified.
 
 Do not ask the user to send screenshots unless the current agent can inspect them or a named image-capable reviewer will. Remove secrets and personal data from images before handoff. Never use generated images as evidence of actual application rendering.
 
 ## Visual matrix and evidence
 
-Use risk-based combinations from affected targets, not an exhaustive product:
+Select combinations that cover the affected targets and risks:
 
 - WebView2 on Windows, WKWebView on macOS, and WebKitGTK on Linux;
 - every distributed architecture where rendering or native assets can differ;
@@ -106,7 +106,7 @@ Use risk-based combinations from affected targets, not an exhaustive product:
 - minimum, normal, maximized, fullscreen, and mixed-DPI/multi-monitor states when relevant;
 - loading, empty, populated, validation-error, offline/error, native dialog, tray/menu, permission, and updater states.
 
-Record OS version, architecture, webview version, display scale, theme, locale, window dimensions/state, and app commit with every screenshot. Stabilize data, time, random IDs, animations, caret blinking, network responses, and window dimensions before comparison. Maintain separate baselines when OS/webview/scale rendering differs; never use one OS's pixels as the universal oracle.
+Record OS version, architecture, webview version, display scale, theme, locale, window dimensions/state, and app commit with every screenshot. Stabilize data, time, random IDs, animations, caret blinking, network responses, and window dimensions before comparison. Maintain separate baselines when OS/webview/scale rendering differs.
 
 Use a full-desktop or appropriate system-UI capture for tray icons, native menus, permission prompts, and operating-system dialogs. A webview-window screenshot cannot validate UI outside the application window.
 

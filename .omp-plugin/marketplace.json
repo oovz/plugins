@@ -14,7 +14,7 @@
       "name": "senior-engineering-workflow",
       "source": "./adapters/oh-my-pi/senior-engineering-workflow",
       "description": "Direct engineering ownership with optional research, implementation, and independent verification specialists.",
-      "version": "0.14.0",
+      "version": "0.14.1",
       "author": {
         "name": "Otto",
         "url": "https://github.com/oovz/plugins"
@@ -37,7 +37,7 @@
       "name": "tauri-v2-desktop",
       "source": "./adapters/oh-my-pi/tauri-v2-desktop",
       "description": "Guidance for building, securing, testing, upgrading, and shipping Tauri v2 desktop applications on Windows, macOS, and Linux.",
-      "version": "1.2.1",
+      "version": "1.2.2",
       "author": {
         "name": "Otto",
         "url": "https://github.com/oovz/plugins"
@@ -62,7 +62,7 @@
       "name": "chrome-extension-tester",
       "source": "./adapters/oh-my-pi/chrome-extension-tester",
       "description": "Test and debug Chrome extensions in Chrome-managed contexts through Chrome DevTools MCP, with extra guidance for WXT projects.",
-      "version": "0.1.2",
+      "version": "0.1.3",
       "author": {
         "name": "Otto",
         "url": "https://github.com/oovz/plugins"

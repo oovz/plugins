@@ -1,89 +1,44 @@
 ---
 name: tauri-v2-desktop
-description: Build and maintain Tauri v2 desktop applications for Windows, macOS, and Linux. Use for Rust commands and frontend IPC, capabilities, native integrations, updates, packaging, cross-platform test matrices, and visual validation. Use a mobile-specific skill for Android or iOS.
+description: Build, debug, review, or upgrade Tauri v2 desktop applications, including IPC, native integrations, packaging, and platform validation. Desktop targets are Windows, macOS, and Linux.
 ---
 
 # Tauri v2 desktop
 
-Use this skill for Windows, macOS, and Linux desktop targets. Route mobile setup, permissions, plugins, commands, and CI to a separately requested mobile skill.
+Keep the work within the requested desktop change or investigation. Identify affected shipping targets and preserve the project's package manager, Rust conventions, and security boundaries. Mobile-specific work needs its own guidance.
 
-## Inspect before editing
+## Inspect the affected boundary
 
-Read the project rather than assuming a template:
+Start with applicable instructions, existing changes, and the code/configuration involved. Use `package.json`, Cargo manifests, lockfiles, and native scripts when dependency syntax or validation depends on them. Read capabilities for IPC changes, bundle/updater settings for delivery changes, and release workflows for the affected OS/architecture matrix.
 
-- `package.json`, the lockfile, frontend build configuration, and scripts;
-- `src-tauri/Cargo.toml`, `Cargo.lock`, `build.rs`, Rust modules, and tests;
-- `src-tauri/tauri.conf.json` or its JSON5/TOML equivalent;
-- `src-tauri/capabilities/`, plugin configuration, bundle targets, icons, sidecars, and updater settings;
-- release workflows, supported OS/architecture policy, minimum OS versions, and existing test evidence.
-
-Identify the installed Tauri core, CLI, API, build, and plugin versions before recommending syntax or an upgrade. Preserve the project's package manager, Rust style, command conventions, and security boundary.
+Before recommending API syntax or an upgrade, identify the installed versions of the involved core, CLI, API, build, and plugin packages. A small frontend change needs only its relevant sources and checks.
 
 ## Load only the reference needed
 
-- Read [Security, capabilities, and IPC](references/security-and-ipc.md) for commands, ACLs, scopes, remote content, state, events, and channels.
-- Read [Versions and upgrades](references/versions-and-upgrades.md) for dependency alignment, release review, migrations, and security floors.
-- Read [Desktop runtime and delivery](references/desktop-runtime-and-delivery.md) for plugins, windows, tray, sidecars, deep links, updater, signing, and packaging.
-- Read [Testing and visual validation](references/testing-and-visual-validation.md) for layered tests, OS/architecture coverage, native artifacts, WebDriver, and image-capability-aware visual review.
+- Before changing commands, permissions, remote content, managed state, events, or channels, read [Security, capabilities, and IPC](references/security-and-ipc.md).
+- For dependency selection, upgrades, or advisory review, read [Versions and upgrades](references/versions-and-upgrades.md).
+- For plugins, windows, tray, sidecars, deep links, updater, signing, or packaging, read [Desktop runtime and delivery](references/desktop-runtime-and-delivery.md).
+- When selecting native runtime, artifact, platform, or visual checks, read [Testing and visual validation](references/testing-and-visual-validation.md).
 
 Use the official documentation links in those references for uncommon details. Verify any unstable API, schema, artifact name, platform requirement, or version claim against current official documentation before implementation.
 
-## Security and implementation boundaries
+## Security boundaries
 
-- Register application commands once with `invoke_handler(tauri::generate_handler![...])`; use the command's defining module path when it is not at crate root.
-- Treat every frontend argument as untrusted. Validate shape, length, ranges, paths, URLs, identifiers, authorization, and resource ownership in Rust.
-- Bundled local application content may invoke ordinary custom commands registered through `invoke_handler` by default. To bring those commands into per-command capability control, explicitly declare them through `tauri_build::AppManifest::commands` and define permissions.
-- On Tauri 2.11.1 and later, remote-origin IPC is always ACL-resolved and requires an explicit, narrowly scoped remote capability. Never describe remote origins as bypassing ACL resolution.
-- Grant only the core/plugin permissions, windows/webviews, URL origins, targets, and scopes the feature needs. Capability platform names are `linux`, `macOS`, and `windows`.
-- Treat remote origins and navigated remote content as hostile. Avoid exposing native APIs to them; use narrow remote URL patterns only when unavoidable.
-- Keep secrets and privileged operations in Rust or the operating-system credential store, never in frontend source, logs, events, or updater metadata.
-- Do not hold a synchronous mutex guard across `.await`. Prefer immutable state, short critical sections, or an async mutex when truly required.
-- Use commands for request/response, events for small notifications, and channels for ordered or streaming data. Validate event and channel payloads too.
-- Prefer maintained official plugins over custom native code when they meet the need. Install both Rust and JavaScript halves when a plugin exposes frontend APIs, initialize it, configure it, and grant only its required permissions.
-- Do not weaken CSP, capability scopes, updater signature verification, OS code signing, or installer behavior to make a test pass.
+Keep external-input validation and authorization in Rust. Grant only the permissions and scopes the feature needs; preserve CSP, updater signature verification, and OS signing. Keep secrets in Rust or the operating-system credential store.
 
-## Implementation sequence
+Bundled local application content may invoke ordinary custom commands registered through `invoke_handler` by default. Per-command capability control requires enrollment through `tauri_build::AppManifest::commands` and explicit permissions. On Tauri 2.11.1 and later, remote-origin IPC is always ACL-resolved and requires an explicit, narrowly scoped remote capability. Apply the detailed rules in the security reference before changing this boundary.
 
-1. State the affected desktop targets, architectures, trust boundaries, and native integrations.
-2. Confirm current syntax in official documentation and installed crate/package sources.
-3. Implement the smallest backend contract and return serializable data or stable errors.
-4. Register commands and initialize plugins once; add narrow capabilities and scopes.
-5. Add a typed frontend wrapper and lifecycle cleanup for listeners, windows, child processes, and resources.
-6. Add logic tests, native integration coverage, and release-artifact checks proportional to the change.
-7. Derive the native test matrix from what the project actually ships. Do not treat mocks, a successful cross-build, Rosetta, or CPU emulation as native runtime coverage.
-8. For visual behavior, check whether the current agent and its available tools can inspect image pixels before requesting or capturing screenshots. Inspect native screenshots when capable; otherwise preserve evidence for an image-capable reviewer and report visual inspection as pending.
-9. Report commands run, host and target OS/architectures, artifacts exercised, native versus emulated coverage, visual evidence reviewed, and every untested target.
+## Implement and validate
 
-## Upgrade review
+For an IPC or native feature, settle the backend contract and stable serializable errors, register commands and initialize plugins once, grant narrow capabilities, and connect the frontend using the project's existing conventions. Include lifecycle cleanup for listeners, windows, child processes, and resources the feature creates. Use the security and runtime references for the applicable mechanics.
 
-When upgrading, inspect release notes from the installed version through the proposed version. Separate:
+Keep implementation and immediate tests together. Select logic, native integration, or artifact checks from the changed behavior and required project gates. Run actual repository commands with its package manager and supported Rust feature combinations; `--all-features` is appropriate only when those features coexist.
 
-- security fixes and minimum safe versions;
-- breaking or behavior-changing core, CLI, plugin, schema, and bundler changes;
-- deprecated APIs and required migrations;
-- platform-specific packaging, signing, updater, and webview changes;
-- version coupling between `tauri`, `tauri-build`, `tauri-cli`, `@tauri-apps/api`, and official plugin Rust/JavaScript packages.
+For visual behavior, establish whether the available tools can inspect image pixels. Inspect actual native screenshots when capable; otherwise preserve evidence for an image-capable reviewer and report visual inspection as pending. Follow the testing reference's affected-target matrix for native and delivery changes. Complete release acceptance against installed artifacts on every shipped OS/architecture, or report the unverified targets and required release decision.
 
-Do not blindly replace every Tauri dependency with one shared number. Align core packages by compatible major/minor guidance and keep the two halves of each official plugin on matching releases. Use the project's package manager and `cargo update -p ... --precise ...` or an equivalent controlled update when reproducibility matters.
+## Completion evidence
 
-## Completion gate
-
-Adapt commands to the repository and run all relevant checks:
-
-```bash
-cargo fmt --all -- --check
-cargo clippy --workspace --all-targets -- -D warnings
-cargo test --workspace
-npm run typecheck
-npm test
-npm run tauri build
-```
-
-Do not run an unsupported script merely because it appears above. Use the lockfile's package manager, record skipped checks, and never report success from a command that did not run.
-
-Use the repository's supported Rust feature matrix. Add `--all-features` only when the features are designed to coexist; mutually exclusive or OS-specific features require separate jobs.
-
-Before completion, apply the risk-based matrix in the testing reference. Every released OS/architecture artifact must eventually be installed, launched, and smoke-tested on that native target or be explicitly marked as unverified. UI checks must say whether screenshots were actually inspected by an image-capable agent or person; screenshot existence alone is not visual validation.
+Report the requested outcome, commands and observed results, affected host/target OS and architectures, and remaining gaps. Distinguish logic/mocked, cross-built, emulated, native runtime, and installed-artifact evidence. State whether screenshots were actually inspected; capture alone is insufficient. A local implementation check and release acceptance have different completion boundaries.
 
 ## Primary official sources
 

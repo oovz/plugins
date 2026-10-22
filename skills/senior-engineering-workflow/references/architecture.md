@@ -15,7 +15,7 @@ Cover only applicable topics:
 - test seams for unit, integration, end-to-end, migration, recovery, and operational behavior;
 - real alternatives, decisive trade-offs, one recommendation, and remaining uncertainty.
 
-Prefer the simplest design satisfying the accepted scope. Do not introduce provider-neutral layers, generic frameworks, compatibility paths, thin wrappers, callbacks, retries, fallbacks, or speculative extension points without a named accepted requirement or concrete boundary need.
+Prefer the simplest design satisfying the accepted scope. Justify significant mechanisms with a current requirement, concrete consumer, boundary, or accepted failure model. Preserve current support contracts unless a change is authorized; give temporary migration mechanisms an explicit removal condition.
 
 Use repository and runtime evidence for the current system. Commission a bounded Researcher work item only when an unresolved fact can change the decision. One architecture pass is the default. Reconsider only when new evidence contradicts a material assumption or validation shows that the design cannot satisfy an accepted contract.
 

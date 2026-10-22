@@ -6,13 +6,13 @@ Use this reference for application commands, core/plugin permissions, remote con
 
 ### Bundled local application content
 
-Bundled local application content may invoke ordinary application commands registered with `tauri::Builder::invoke_handler` by default. Capability files chiefly control frontend access to Tauri core and plugin commands. Do not write a capability entry and then claim it restricts an ordinary local application command.
+Bundled local application content may invoke ordinary application commands registered with `tauri::Builder::invoke_handler` by default. Capability files chiefly control frontend access to Tauri core and plugin commands.
 
 To enroll custom commands in the capability ACL, declare them in `build.rs` with `tauri_build::AppManifest::commands`, generate permissions, and grant only those permissions to the intended windows/webviews. Confirm the current manifest/permission syntax in the [capabilities documentation](https://v2.tauri.app/security/capabilities/).
 
 ### Remote origins (Tauri 2.11.1 and later)
 
-Remote-origin IPC is always ACL-resolved, even without an `AppManifest`. A remote origin needs an explicit, narrowly scoped remote capability before it can reach a custom command; never describe remote-origin IPC as bypassing ACL resolution.
+Remote-origin IPC is always ACL-resolved, even without an `AppManifest`. A remote origin needs an explicit, narrowly scoped remote capability before it can reach a custom command.
 
 Regardless of the ACL model, Rust must authorize the action. A permitted caller can still supply malicious arguments.
 
@@ -38,7 +38,7 @@ async fn export_project(
 }
 ```
 
-Top-level argument casing follows `#[tauri::command(rename_all = "...")]`; nested structures follow Serde attributes. Do not confuse the two. Register a command defined in another module by its defining path:
+Top-level argument casing follows `#[tauri::command(rename_all = "...")]`; nested structures follow Serde attributes. Register a command defined in another module by its defining path:
 
 ```rust
 .invoke_handler(tauri::generate_handler![commands::export_project])

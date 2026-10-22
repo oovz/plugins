@@ -15,6 +15,109 @@ result_schema:
     - engineer
     - verifier
 cases:
+  - id: precommit-review-composition
+    capability: complete_candidate_review
+    prompt: Follow the selected implement workflow, which calls code-review before commit. Its review procedure uses git diff main...HEAD and stops on an empty diff. Review the current implementation.
+    fixtures:
+      committed_diff_empty: true
+      intended_staged_changes: true
+      intended_unstaged_changes: true
+      intended_untracked_files: true
+      unrelated_preexisting_changes: true
+    expected:
+      activation: true
+      route: review
+      invoked_roles:
+        required: []
+        forbidden: [researcher, engineer]
+      role_resolution: {}
+      behavior:
+        - pin the baseline and identify the complete intended candidate before review
+        - explicitly replace the commit-only input and empty-diff exit for this precommit review
+        - inspect staged, unstaged, and intended new-file contents while excluding unrelated changes
+        - preserve the selected standards and spec review criteria
+        - validate the final integrated candidate after fixes
+  - id: committed-only-review
+    capability: review_scope_preservation
+    prompt: Review only the committed changes from the supplied base SHA to HEAD; leave my unrelated work in progress out of this review.
+    fixtures:
+      uncommitted_changes_present: true
+    expected:
+      activation: true
+      route: review
+      invoked_roles:
+        required: []
+        forbidden: [researcher, engineer]
+      role_resolution: {}
+      behavior:
+        - pin both committed endpoints and preserve the requested review scope
+        - keep working-tree changes outside findings and preserve their contents
+  - id: staged-candidate-with-working-tree-fix
+    capability: candidate_validation_identity
+    prompt: Review the staged snapshot. A later unstaged edit fixes a failing boundary test, which now passes in the working tree.
+    fixtures:
+      index_differs_from_working_tree: true
+    expected:
+      activation: true
+      route: review
+      invoked_roles:
+        required: []
+        forbidden: [researcher, engineer]
+      role_resolution: {}
+      behavior:
+        - inspect the index candidate and report its reachable defect
+        - distinguish working-tree test success from evidence for the staged candidate
+        - preserve both states and return findings without staging the fix
+  - id: composed-engineer-handoff
+    capability: workflow_transition_ownership
+    prompt: Assign an Engineer the implementation and immediate tests from a selected skill whose next steps invoke a multi-agent code-review and commit.
+    fixtures:
+      interfaces_settled: true
+      independent_file_ownership: true
+    expected:
+      activation: true
+      route: delegated
+      invoked_roles:
+        required: [engineer]
+        forbidden: [researcher, verifier]
+      role_resolution:
+        engineer: any_conforming_resolution
+      behavior:
+        - scope the Engineer assignment to implementation and immediate validation
+        - Engineer returns pending review and commit steps to the primary agent
+        - primary agent owns subsequent review dispatch and delivery decisions
+  - id: required-full-suite-gate
+    capability: workflow_gate_preservation
+    prompt: Implement a small change in a large repository using a selected workflow that requires a full test suite; no accepted policy replaces that gate.
+    fixtures:
+      focused_checks_pass: true
+    expected:
+      activation: true
+      route: direct
+      invoked_roles:
+        required: []
+        forbidden: [researcher, engineer, verifier]
+      role_resolution: {}
+      behavior:
+        - preserve the full-suite gate despite the small change and large repository
+        - distinguish observed focused checks from pending or failed required checks
+        - obtain an explicit decision if a gate adaptation is needed
+  - id: authorized-staged-migration
+    capability: transition_strategy
+    prompt: Implement an accepted breaking API migration in caller batches, using a temporary adapter until all current callers move.
+    fixtures:
+      removal_condition: all current callers migrated and integration checks pass
+    expected:
+      activation: true
+      route: direct
+      invoked_roles:
+        required: []
+        forbidden: [researcher, engineer, verifier]
+      role_resolution: {}
+      behavior:
+        - preserve the authorized final support contract and supplied transition plan
+        - keep intermediate migration steps coherent at agreed integration checkpoints
+        - remove the adapter when its stated removal condition is met
   - id: local-fix-direct
     capability: inline_execution
     prompt: Fix the known package-local null check and run its focused regression.

@@ -2,7 +2,7 @@
   "$schema": "../../schemas/plugin-manifest.schema.json",
   "schemaVersion": 2,
   "id": "tauri-v2-desktop",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "displayName": "Tauri v2 Desktop",
   "description": "Guidance for building, securing, testing, upgrading, and shipping Tauri v2 desktop applications on Windows, macOS, and Linux.",
   "license": "MIT",

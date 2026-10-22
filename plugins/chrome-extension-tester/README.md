@@ -1,13 +1,13 @@
 # Chrome Extension Tester plugin
 
-Testing and debugging workflow for Chrome extensions using Chrome DevTools MCP with extension tooling enabled. Includes a WXT-aware skill.
+Test Chrome extensions through Chrome DevTools MCP, with a separate skill for WXT builds and reloads.
 
 ## What it checks
 
 - Loads the unpacked extension through Chrome DevTools MCP.
 - Uses `trigger_extension_action` for browser-action flows.
 - Distinguishes `REAL_SURFACE` from `HTML_ONLY` tests.
-- Does not treat direct navigation to a side-panel or popup HTML file as proof that Chrome's browser-managed surface works.
+- Reports direct side-panel or popup HTML navigation as UI-only coverage.
 - Checks extension-page UI, content scripts, MV3 service-worker diagnostics, and relevant network/console behavior.
 - Detects WXT output instead of hardcoding `.output/chrome-mv3`.
 
@@ -25,7 +25,7 @@ npx -y chrome-devtools-mcp@latest --categoryExtensions --allowUnrestrictedPaths
 
 Requirements: Node.js LTS, npm/npx, and a supported Google Chrome / Chrome for Testing installation.
 
-Check whether your harness already has a server under the name `chrome-devtools` or `chrome-devtools-mcp`. Update an existing entry in place so both flags are present. Add a new entry only when no server exists. Never run two Chrome DevTools MCP instances: they contend for the same default Chrome profile and shared debugging ports.
+Check for an existing `chrome-devtools` or `chrome-devtools-mcp` server. Update that entry with both flags, or add one when absent. Use a single Chrome DevTools MCP instance to prevent profile and debugging-port contention.
 
 - If you use the Codex plugin and already run your own Chrome DevTools MCP server, disable the plugin's bundled copy instead of running both: `[plugins."chrome-extension-tester@otto-plugins".mcp_servers.chrome-devtools] enabled = false` in your Codex config.
 - Harness-specific check commands, file locations, and setup instructions are in [`skills/chrome-extension-test/references/troubleshooting.md`](../../skills/chrome-extension-test/references/troubleshooting.md). On Windows 11, Codex users should use the `cmd /c npx` server form documented there.

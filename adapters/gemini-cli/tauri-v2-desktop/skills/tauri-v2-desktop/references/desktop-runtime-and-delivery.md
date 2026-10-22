@@ -13,9 +13,9 @@ For an official plugin:
 5. grant only the required permission identifiers and scopes;
 6. test failure paths on every affected desktop system.
 
-Do not infer permission names from function names. Use the plugin's generated permission documentation. Prefer backend-only use when the frontend does not need direct access.
+Use permission identifiers from the plugin's generated permission documentation. Prefer backend-only use when the frontend does not need direct access.
 
-Windows, webviews, menus, and tray objects have lifecycles. Avoid duplicate listeners and duplicate tray/menu creation during hot reload or window recreation. Define close-versus-hide behavior, single-instance behavior, activation on macOS, and cleanup of listeners/resources explicitly.
+Create listeners, tray items, and menus once per lifecycle, including during hot reload or window recreation. Define close-versus-hide behavior, single-instance behavior, activation on macOS, and cleanup of listeners/resources explicitly.
 
 ## Sidecars
 
@@ -30,7 +30,7 @@ For every shipped target:
 - test the bundled copy, with development-binary tests as supporting evidence;
 - include the sidecar in OS signing/notarization and updater verification.
 
-Do not derive a cross-build sidecar name from the host triple.
+Use the explicit build target triple when naming a cross-build sidecar.
 
 ## Deep links and local assets
 

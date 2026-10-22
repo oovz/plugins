@@ -47,6 +47,8 @@ execution:
   concurrent_writers_require_disjoint_ownership_or_isolation: true
   integrated_candidate_requires_validation: true
   inquiries_and_reviews_are_read_only: true
+  selected_workflow_transitions_owned_by: controller
+  selected_workflow_gates: preserve_unless_explicitly_adapted
 
 context:
   advertised_capacity_is_not_a_routing_threshold: true
@@ -87,6 +89,9 @@ verification:
   independent_checks_derive_from: accepted_behavior_and_material_risk
   unavailable_required_independence: disclose_limitation
   verifier_preserves_candidate: true
+  change_review_requires: pinned_baseline_and_stable_scoped_candidate
+  precommit_candidate_includes: [staged, unstaged, intended_new_files]
+  validation_evidence_identifies: actual_candidate_checked
   modes: [acceptance, review, design-challenge, closure]
 
 iteration:

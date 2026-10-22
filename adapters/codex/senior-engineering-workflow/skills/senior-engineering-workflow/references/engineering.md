@@ -2,11 +2,13 @@
 
 The implementation owner carries a coherent change through its focused test loop. This can be the main agent or an Engineer with bounded ownership.
 
-Inspect the affected implementation, existing tests, versions, and commands. Confirm accepted behavior, file ownership, relevant interfaces and invariants. Execute a viable supplied plan directly; revise only what contrary evidence invalidates. Escalate a required scope, support, architecture, risk, dependency, or ownership change to the main agent.
+Inspect the affected implementation, existing tests, and commands; check versions when they affect the change. Confirm accepted behavior, file ownership, relevant interfaces and invariants. Execute a viable supplied plan directly; revise only what contrary evidence invalidates. Escalate a required scope, support, architecture, risk, dependency, or ownership change to the main agent.
 
 ## Scope and design
 
 Prefer direct code serving current requirements and concrete near-term consumers. Add abstraction, configuration, hooks, retry, fallback, or compatibility behavior only for a named requirement or actual boundary. Preserve declared support; remove obsolete paths when a changed contract authorizes their removal. Keep unrelated cleanup out of the change.
+
+Treat support policy and transition strategy separately. An authorized breaking change can use a temporary adapter or expand–contract migration when rollout or caller dependencies require it; name the removal condition. Prototypes, experiments, and incident mitigations need a bounded purpose and exit condition. Require working, validated behavior at agreed integration and delivery checkpoints; intermediate local red tests or incomplete refactor steps are part of the implementation loop.
 
 Preserve required external-input validation, authorization, resource bounds and cleanup, concurrency and data invariants, rollback, and explicit error propagation. Avoid hiding defects with catch-and-continue behavior, silent defaults, unexplained sleeps, or fixture-specific output transformations.
 

@@ -17,11 +17,7 @@ npx -y chrome-devtools-mcp@latest --categoryExtensions --allowUnrestrictedPaths
 
 ## 2. Check first, then configure
 
-Before configuring anything, check whether a Chrome DevTools MCP server is already set up for your harness. It is commonly installed under the name `chrome-devtools` or `chrome-devtools-mcp`, with or without the flags above. Follow these rules:
-
-1. If a server is already configured, update that existing entry so both flags are present; do not add a second entry under another name.
-2. Only add a new entry when no existing server is present.
-3. Never run two Chrome DevTools MCP instances: multiple instances contend for the same default Chrome profile and for any shared debugging port, which causes connection failures.
+Check for an existing Chrome DevTools MCP entry, commonly named `chrome-devtools` or `chrome-devtools-mcp`. Update it with both flags, or add an entry when absent. Use a single Chrome DevTools MCP instance to prevent profile and debugging-port contention.
 
 Each harness section below gives the exact check command or file location first, then the add/update instructions.
 
@@ -231,13 +227,13 @@ If `install_extension`, `list_extensions`, `reload_extension`, and `trigger_exte
 This is expected when the server manages its own dedicated Chrome profile over the stdio/pipe connection. If you prefer to attach to an existing Chrome instead, use `--browserUrl`, `--wsEndpoint`, or `--autoConnect` with Chrome 149+. Note that attaching to a personal browsing profile exposes that session to the MCP client, so a dedicated test profile remains the recommended isolation.
 
 ### The extension is already installed
-Use `list_extensions`, match the extension by ID/name, and prefer `reload_extension`. Avoid repeated `install_extension` calls unless the path changed.
+Use `list_extensions`, match the extension by ID/name, and use `reload_extension`. Reinstall when the unpacked path changes.
 
 ### Side panel does not appear after triggering action
 1. Verify `side_panel.default_path` exists in the generated `manifest.json`.
 2. Check if the extension calls `chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true })`.
 3. Check whether the extension requires an in-page click or context menu rather than the toolbar action.
-4. Reproduce the real user interaction path. Do not replace it with direct navigation to the side-panel HTML.
+4. Reproduce the real user interaction path. Label direct HTML navigation as UI-only diagnostics.
 
 ### Content script is missing after extension reload
 Reloading an unpacked extension invalidates existing content-script execution contexts. Reload or re-navigate the target webpage after `reload_extension` so the content script is reinjected.

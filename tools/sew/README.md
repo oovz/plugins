@@ -1,6 +1,6 @@
 # @oovz/sew
 
-`@oovz/sew` installs the three Senior Engineering Workflow role configuration files for seven coding harnesses. The npm CLI writes host-native agent files and optional model/reasoning settings. Plugin marketplaces, plugins, Agent Skills and MCP installation are separate products managed through each harness.
+`@oovz/sew` configures Researcher, Engineer, and Verifier roles for seven coding harnesses. It writes host-native agent files and optional model/reasoning settings. Use your harness to install plugins, Agent Skills, and MCP servers.
 
 ## Install
 
@@ -85,11 +85,11 @@ JSON reports each inventory's scope and each role's path, resolved identity, par
 
 The host controls plugin and marketplace installation. Install the marketplace's SEW plugin separately when you want its plugin distribution and skill; use `@oovz/sew` when you want the direct role configuration files. If both define the same active role in a harness, disable one through that harness before relying on the other.
 
-SEW 0.13 removes `update`, `uninstall`, and marketplace management commands. Existing native marketplace installations remain owned by their harness; the new CLI does not edit or remove them. Install role files from the new package and review any conflicts with `--force`.
+For installations made with 0.12.x, replace `update` with `install` and manage native plugins through the harness. The current CLI provides role configuration; `update`, `uninstall`, and marketplace management commands are unavailable. Review role-file conflicts before using `--force`.
 
 ## Migration from 0.13.x
 
-Version 0.14 packages Researcher, Engineer, and Verifier. Worker is retired. Existing `senior-engineering-workflow-worker.md` or `.toml` files are preserved by install, including `--force`; doctor inventories only the three current roles. Review and remove or disable the retired file in each applicable user/project scope. `models configure --role worker` is rejected.
+When upgrading from 0.13.x, review and remove or disable `senior-engineering-workflow-worker.md` or `.toml` in each applicable user/project scope. Worker is retired; installation preserves those old files, even with `--force`, and doctor checks only Researcher, Engineer, and Verifier. `models configure --role worker` is rejected.
 
 The retained role prompts have changed. Review conflicts and use `install --force` for the intended scope to replace them. Force restores packaged defaults, including model settings; record and reapply any overrides you want to keep. Native plugin installations remain managed by their harness.
 

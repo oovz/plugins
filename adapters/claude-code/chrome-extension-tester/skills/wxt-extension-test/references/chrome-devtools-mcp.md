@@ -6,7 +6,7 @@ The WXT smoke suite requires one Chrome DevTools MCP server with extension tools
 npx -y chrome-devtools-mcp@latest --categoryExtensions --allowUnrestrictedPaths
 ```
 
-Before adding a server, check the harness's existing MCP entries. Update an existing `chrome-devtools` or `chrome-devtools-mcp` entry so it has both flags; do not start a second server because two instances can contend for the same Chrome profile or debugging port. Restart the harness session after changing the entry.
+Check the harness's existing MCP entries. Update an existing `chrome-devtools` or `chrome-devtools-mcp` entry so it has both flags, or add one when absent. Use a single Chrome DevTools MCP instance to prevent profile and debugging-port contention. Restart the harness session after changing the entry.
 
 Common setup commands are:
 
