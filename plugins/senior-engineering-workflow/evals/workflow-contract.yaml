@@ -2,7 +2,7 @@ schema_version: "3.0.0"
 contract_id: senior-engineering-workflow
 contract_version: "3.0.0"
 profile: engineering-delivery-v3
-description: Structural policy for direct engineering ownership and optional specialists.
+description: Reference policy for direct engineering ownership and optional specialists; reviewed alongside the skill and role instructions.
 
 controller:
   kind: primary_engineering_owner

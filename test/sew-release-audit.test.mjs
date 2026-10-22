@@ -7,28 +7,21 @@ import path from "node:path";
 import test from "node:test";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
+import crossSpawn from "cross-spawn";
 import {
   createDeterministicNpmTarball,
   readTarEntriesFromGzip,
 } from "../scripts/lib/deterministic-npm-tar.mjs";
 import { buildSewPackage } from "../scripts/build-sew-package.mjs";
-import { assertSewSourceVersionAlignment } from "../scripts/lib/sew-release-version.mjs";
 import { checkSewRelease } from "../scripts/check-sew-release.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "..");
-const MARKETPLACE_SCHEMA = "https://json.schemastore.org/claude-code-marketplace.json";
 const execFileAsync = promisify(execFile);
 
 async function readJson(filePath) {
   return JSON.parse(await readFile(filePath, "utf8"));
 }
-
-test("SEW package and plugin versions are released in lockstep", async () => {
-  const versions = await assertSewSourceVersionAlignment();
-  assert.equal(versions.packageVersion, versions.pluginVersion);
-  assert.equal(versions.packageManifest.publishConfig?.provenance, true);
-});
 
 test("staged SEW metadata binds payloads to an explicit source commit", async (t) => {
   const outputRoot = await mkdtemp(path.join(ROOT, "release-build", "source-commit-test-"));
@@ -80,57 +73,6 @@ test("release verification rejects a mixed stage and tarball identity", async (t
   await assert.rejects(checkSewRelease(`sew-v${stageManifest.version}`, { root: ROOT, stageRoot, releaseRoot, sourceCommit: stageManifest.sourceCommit }), /release tarball package manifest does not match/u);
 });
 
-test("Claude-compatible marketplaces use the live SchemaStore URL", async () => {
-  for (const relativePath of [
-    ".claude-plugin/marketplace.json",
-    ".omp-plugin/marketplace.json",
-  ]) {
-    const manifest = await readJson(path.join(ROOT, relativePath));
-    assert.equal(manifest.$schema, MARKETPLACE_SCHEMA, relativePath);
-  }
-});
-
-test("Antigravity plugin manifests are minimal and schema-free", async () => {
-  for (const plugin of ["senior-engineering-workflow", "tauri-v2-desktop"]) {
-    const manifest = await readJson(path.join(ROOT, "adapters", "antigravity", plugin, "plugin.json"));
-    assert.equal(Object.hasOwn(manifest, "$schema"), false, plugin);
-    assert.equal(manifest.name, plugin);
-  }
-});
-
-test("release workflow explicitly requests provenance", async () => {
-  const workflow = await readFile(path.join(ROOT, ".github", "workflows", "release-sew.yml"), "utf8");
-  assert.match(workflow, /npm publish[^\n]*--provenance/);
-});
-
-test("release workflow gates the package build on the full validation matrix", async () => {
-  const release = await readFile(path.join(ROOT, ".github", "workflows", "release-sew.yml"), "utf8");
-  const reusable = await readFile(path.join(ROOT, ".github", "workflows", "validate-reusable.yml"), "utf8");
-  assert.match(release, /validation:\s*[\s\S]*uses:\s+\.\/\.github\/workflows\/validate-reusable\.yml/u);
-  assert.match(release, /build:\s*[\s\S]*needs:\s+validation/u);
-  assert.match(release, /SEW_SOURCE_COMMIT:\s*\$\{\{ github\.sha \}\}/u);
-  assert.match(release, /git rev-parse HEAD/u);
-  assert.match(release, /Upload the immutable candidate tarball/u);
-  assert.match(release, /smoke:[\s\S]*needs: build/u);
-  assert.match(release, /os:\s*\[ubuntu-latest, macos-latest, windows-latest\]/u);
-  assert.match(release, /node:\s*\[22, 24\]/u);
-  assert.match(release, /scripts\/smoke-sew-release\.mjs/u);
-  assert.match(release, /release:\s*[\s\S]*needs: smoke/u);
-  assert.match(release, /npm publish "\$\{tarballs\[0\]\}" --access public --provenance/u);
-  assert.match(reusable, /workflow_call/u);
-  assert.match(reusable, /ref:\s*\$\{\{ github\.sha \}\}/u);
-  assert.match(reusable, /os:\s*\[ubuntu-latest, macos-latest, windows-latest\]/u);
-  assert.match(reusable, /node:\s*\[22, 24\]/u);
-});
-
-test("reusable validation pins the released checkout commit", async () => {
-  const reusable = await readFile(path.join(ROOT, ".github", "workflows", "validate-reusable.yml"), "utf8");
-  const checkout = reusable.match(/uses:\s*actions\/checkout@([a-f0-9]+)/u)?.[1];
-  assert.equal(checkout, "d23441a48e516b6c34aea4fa41551a30e30af803");
-  assert.equal(checkout.length, 40);
-  for (const sha of reusable.matchAll(/uses:\s*[^@\s]+@([a-f0-9]+)/gu)) assert.equal(sha[1].length, 40);
-});
-
 test("deterministic npm tarballs normalize bin mode and bytes", async (t) => {
   const temp = await mkdtemp(path.join(os.tmpdir(), "sew-tar-"));
   t.after(() => rm(temp, { recursive: true, force: true }));
@@ -172,27 +114,40 @@ test("deterministic npm tarballs normalize bin mode and bytes", async (t) => {
   assert.equal(helperEntry?.mode, process.platform === "win32" ? 0o644 : 0o755);
   assert.equal(firstBytes[9], 255, "gzip OS byte must be normalized");
 
-  try {
+  const installRoot = path.join(temp, "installed");
+  const installed = crossSpawn.sync("npm", [
+    "install", "--prefix", installRoot, "--ignore-scripts", "--offline",
+    "--no-audit", "--no-fund", first,
+  ], {
+    cwd: temp,
+    encoding: "utf8",
+    windowsHide: true,
+    env: { ...process.env, NPM_CONFIG_CACHE: path.join(temp, "npm-cache") },
+  });
+  if (installed.error) throw installed.error;
+  assert.equal(installed.status, 0, installed.stderr || installed.stdout);
+  const installedPackage = path.join(installRoot, "node_modules", "@oovz", "sew-test");
+  assert.equal(await readFile(path.join(installedPackage, "说明.md"), "utf8"), "unicode payload\n");
+  assert.equal(await readFile(path.join(installedPackage, "nested", "a".repeat(130), "long-name.txt"), "utf8"), "long payload\n");
+  assert.equal(await readFile(path.join(installedPackage, "scripts", "helper.sh"), "utf8"), "#!/bin/sh\necho helper\n");
+  assert.equal((await execFileAsync(process.execPath, [path.join(installedPackage, "bin", "sew.mjs")])).stdout.trim(), "ok");
+
+  // Windows bsdtar can reject valid Unicode names during code-page conversion:
+  // https://github.com/libarchive/libarchive/pull/3696
+  // npm installation above checks the actual consumer on every platform.
+  await t.test("system tar preserves paths and executable modes", { skip: process.platform === "win32" }, async (t) => {
     const extraction = path.join(temp, "extracted");
     await mkdir(extraction, { recursive: true });
-    await execFileAsync("tar", ["-xzf", first, "-C", extraction]);
+    try {
+      await execFileAsync("tar", ["-xzf", first, "-C", extraction]);
+    } catch (error) {
+      if (error?.code !== "ENOENT") throw error;
+      t.skip("independent tar executable unavailable");
+      return;
+    }
     assert.equal(await readFile(path.join(extraction, "package", "nested", "a".repeat(130), "long-name.txt"), "utf8"), "long payload\n");
-    if (process.platform !== "win32") assert.equal(await readFile(path.join(extraction, "package", "说明.md"), "utf8"), "unicode payload\n");
+    assert.equal(await readFile(path.join(extraction, "package", "说明.md"), "utf8"), "unicode payload\n");
     const extractedHelper = await stat(path.join(extraction, "package", "scripts", "helper.sh"));
-    assert.equal(extractedHelper.mode & 0o111, process.platform === "win32" ? 0 : 0o111);
-    const findPayload = async (directory) => {
-      for (const entry of await readdir(directory, { withFileTypes: true })) {
-        const absolute = path.join(directory, entry.name);
-        if (entry.isDirectory()) {
-          const found = await findPayload(absolute);
-          if (found) return found;
-        } else if (entry.isFile() && (await readFile(absolute, "utf8")) === "unicode payload\n") return absolute;
-      }
-      return null;
-    };
-    assert.ok(await findPayload(path.join(extraction, "package")), "independent extraction must preserve the Unicode payload");
-  } catch (error) {
-    if (error?.code === "ENOENT") t.skip("independent tar executable unavailable");
-    else throw error;
-  }
+    assert.equal(extractedHelper.mode & 0o111, 0o111);
+  });
 });

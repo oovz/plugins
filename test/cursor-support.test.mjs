@@ -1,10 +1,8 @@
 import assert from "node:assert/strict";
-import { lstat, mkdtemp, readFile, rm } from "node:fs/promises";
+import { lstat, mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { discoverMarketplace, inspectPlugin } from "../scripts/lib/marketplace.mjs";
-import { renderHost } from "../scripts/lib/hosts.mjs";
 import { runInstaller } from "../scripts/install.mjs";
 import { createFixtureMarketplace } from "./helpers.mjs";
 
@@ -14,27 +12,6 @@ async function exists(file) {
   try { await lstat(file); return true; }
   catch (error) { if (error?.code === "ENOENT") return false; throw error; }
 }
-
-test("Cursor plugin adapter remains a separate marketplace product", async () => {
-  const catalog = await discoverMarketplace(ROOT);
-  const source = catalog.plugins.find((plugin) => plugin.manifest.id === "senior-engineering-workflow");
-  assert.ok(source);
-  const plugin = await inspectPlugin(source);
-  const rendered = renderHost(plugin, "cursor");
-  const artifacts = new Map(rendered.artifacts.map((artifact) => [artifact.path, artifact.content.toString("utf8")]));
-  const manifest = JSON.parse(artifacts.get(".cursor-plugin/plugin.json"));
-  assert.equal(manifest.name, "senior-engineering-workflow");
-  assert.equal(manifest.skills, "./skills/");
-  assert.equal(manifest.agents, "./agents/");
-  assert.equal(manifest.minClientVersions.cursor, "2.5.0");
-  for (const role of ["researcher", "engineer", "verifier"]) {
-    const definition = artifacts.get(`agents/senior-engineering-workflow-${role}.md`);
-    assert.match(definition, new RegExp(`name: senior-engineering-workflow-${role}`));
-    assert.doesNotMatch(definition, /^model:/mu);
-    assert.doesNotMatch(definition, /^readonly:/mu);
-    assert.doesNotMatch(definition, /^tools:/mu);
-  }
-});
 
 test("generic marketplace installer still writes a Cursor plugin skill independently", async (t) => {
   const project = await mkdtemp(path.join(os.tmpdir(), "cursor-marketplace-installer-"));

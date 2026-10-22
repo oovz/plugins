@@ -2,7 +2,7 @@
   "$schema": "../../schemas/plugin-manifest.schema.json",
   "schemaVersion": 2,
   "id": "senior-engineering-workflow",
-  "version": "0.14.1",
+  "version": "0.14.2",
   "displayName": "Senior Engineering Workflow",
   "description": "Direct engineering ownership with optional research, implementation, and independent verification specialists.",
   "license": "MIT",
@@ -20,11 +20,6 @@
     "workflow"
   ],
   "category": "Productivity",
-  "validation": {
-    "profile": "engineering-delivery-v3",
-    "contract": "evals/workflow-contract.yaml",
-    "evals": "evals/workflow-routing.yaml"
-  },
   "components": {
     "skills": [
       "senior-engineering-workflow"

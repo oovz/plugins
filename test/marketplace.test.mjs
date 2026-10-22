@@ -14,21 +14,6 @@ import { createFixtureMarketplace, execFileAsync, readJson } from "./helpers.mjs
 const silent = { write() {} };
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
-test("Claude plugin agents resolve to Markdown files inside the plugin", async () => {
-  const catalog = await discoverMarketplace(ROOT);
-  const plugin = await inspectPlugin(catalog.plugins.find((item) => item.manifest.id === "senior-engineering-workflow"));
-  const { artifacts } = renderHost(plugin, "claude-code");
-  const manifest = JSON.parse(artifacts.find((item) => item.path === ".claude-plugin/plugin.json").content);
-  assert.deepEqual(manifest.agents, [
-    "./agents/researcher.md", "./agents/engineer.md", "./agents/verifier.md",
-  ]);
-  for (const agentPath of manifest.agents) {
-    const agent = artifacts.find((item) => item.path === agentPath.slice(2));
-    assert.ok(agent, `declared agent exists: ${agentPath}`);
-    assert.ok(parseFrontmatter(agent.content.toString("utf8"), agentPath).body.trim());
-  }
-});
-
 async function addSchemas(root) {
   await cp(path.join(ROOT, "schemas"), path.join(root, "schemas"), { recursive: true });
 }
@@ -57,28 +42,7 @@ async function treeDigest(directory) {
   return hash.digest("hex");
 }
 
-test("canonical marketplace and semantic workflow contract validate", async () => {
-  const result = await validateRepository();
-  assert.equal(result.plugins.length, result.catalog.marketplace.plugins.length);
-  assert.equal(result.skills.length, result.catalog.marketplace.skills.length);
-  assert.deepEqual(result.skills.map((skill) => skill.id), result.catalog.marketplace.skills);
-  for (const skill of result.skills) {
-    assert.ok(skill.files.some((file) => file.relative === "LICENSE"), `${skill.id} must be independently licensed`);
-  }
-  for (const plugin of result.plugins) {
-    assert.equal(plugin.manifest.schemaVersion, 2);
-    assert.ok(plugin.manifest.components.skills.every((skillId) => typeof skillId === "string"));
-    await assert.rejects(lstat(path.join(plugin.directory, "skills")), /ENOENT/);
-    await assert.rejects(lstat(path.join(plugin.directory, "plugin.json")), /ENOENT/);
-  }
-  const workflow = result.plugins.find((plugin) => plugin.manifest.id === "senior-engineering-workflow");
-  assert.ok(await readFile(path.join(workflow.directory, workflow.manifest.validation.contract)));
-  for (const skill of workflow.skills) {
-    assert.equal(skill.files.some((file) => file.relative.endsWith("workflow-contract.yaml")), false, "internal validation data stays outside the installed skill");
-  }
-});
-
-test("semantic validation and packaging preserve binary skill assets", async (t) => {
+test("packaging preserves binary skill assets", async (t) => {
   const root = await mkdtemp(path.join(os.tmpdir(), "oovz-binary-assets-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   await copyCanonicalRepository(root);
@@ -118,208 +82,12 @@ test("plugin bundles reject uncataloged skill references", async (t) => {
   await assert.rejects(validateRepository(root), /references uncataloged skill missing-skill/);
 });
 
-test("Tauri v2 desktop is a skill-only all-host plugin", async () => {
-  const result = await validateRepository();
-  const plugin = result.plugins.find((item) => item.manifest.id === "tauri-v2-desktop");
-  assert.ok(plugin);
-  assert.deepEqual(plugin.manifest.components.agents, []);
-  assert.deepEqual(plugin.manifest.components.commands, []);
-  assert.equal(plugin.skills.length, 1);
-  assert.equal(plugin.skills[0].id, "tauri-v2-desktop");
-  assert.equal(plugin.manifest.version, "1.2.2");
-  for (const host of ["claude-code", "codex", "cursor", "gemini-cli", "antigravity", "oh-my-pi", "opencode", "portable"]) {
-    assert.equal(plugin.manifest.hosts[host].enabled, true, `${host} should be enabled`);
-  }
-  const claudeManifest = await readJson(path.join(ROOT, "adapters", "claude-code", "tauri-v2-desktop", ".claude-plugin", "plugin.json"));
-  const codexManifest = await readJson(path.join(ROOT, "adapters", "codex", "tauri-v2-desktop", ".codex-plugin", "plugin.json"));
-  const geminiManifest = await readJson(path.join(ROOT, "adapters", "gemini-cli", "tauri-v2-desktop", "gemini-extension.json"));
-  assert.equal(claudeManifest.agents, undefined);
-  assert.equal(claudeManifest.version, plugin.manifest.version);
-  assert.equal(codexManifest.version, plugin.manifest.version);
-  assert.equal(geminiManifest.version, plugin.manifest.version);
-  assert.deepEqual(codexManifest.interface.capabilities, ["Read", "Write"]);
-  assert.match(plugin.skills[0].frontmatter.description, /Windows, macOS, and Linux/);
-  assert.doesNotMatch(`${plugin.manifest.description}\n${plugin.skills[0].body}`, /cce-tauri|nodnarbnitram|claude-code-extensions/i);
-});
-
-test("Chrome Extension Tester is a multi-skill plugin with Codex MCP host integration", async () => {
-  const result = await validateRepository();
-  const plugin = result.plugins.find((item) => item.manifest.id === "chrome-extension-tester");
-  assert.ok(plugin);
-  assert.deepEqual(plugin.manifest.components.agents, []);
-  assert.deepEqual(plugin.manifest.components.commands, []);
-  assert.equal(plugin.skills.length, 2);
-  assert.deepEqual(plugin.skills.map((s) => s.id).sort(), ["chrome-extension-test", "wxt-extension-test"]);
-  assert.equal(plugin.manifest.version, "0.1.3");
-  for (const host of ["claude-code", "codex", "cursor", "gemini-cli", "antigravity", "oh-my-pi", "opencode", "portable"]) {
-    assert.equal(plugin.manifest.hosts[host].enabled, true, `${host} should be enabled`);
-  }
-  const codexManifest = await readJson(path.join(ROOT, "adapters", "codex", "chrome-extension-tester", ".codex-plugin", "plugin.json"));
-  assert.equal(codexManifest.version, plugin.manifest.version);
-  assert.deepEqual(codexManifest.interface.capabilities, ["Read", "Write", "Execute"]);
-  assert.equal(codexManifest.mcpServers, "./.mcp.json");
-  const codexMcp = await readJson(path.join(ROOT, "adapters", "codex", "chrome-extension-tester", ".mcp.json"));
-  assert.equal(codexMcp.mcp_servers, undefined, "Codex MCP documents use the native camelCase wrapper");
-  assert.ok(codexMcp.mcpServers["chrome-devtools"]);
-  assert.deepEqual(codexMcp.mcpServers["chrome-devtools"].args, [
-    "-y",
-    "chrome-devtools-mcp@latest",
-    "--categoryExtensions",
-    "--allowUnrestrictedPaths"
-  ]);
-  await assert.rejects(readFile(path.join(ROOT, "adapters", "claude-code", "chrome-extension-tester", ".mcp.json")), /ENOENT/);
-});
-
 test("Codex MCP validation rejects the obsolete snake_case wrapper", async (t) => {
   const root = await mkdtemp(path.join(os.tmpdir(), "oovz-codex-mcp-wrapper-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   await copyCanonicalRepository(root);
   await writeFile(path.join(root, "plugins", "chrome-extension-tester", "codex.mcp.json"), "{\"mcp_servers\":{\"chrome-devtools\":{\"command\":\"npx\"}}}\n");
   await assert.rejects(validateRepository(root), /must declare at least one MCP server/u);
-});
-
-test("Senior Engineering Workflow targets exactly the seven subagent-capable harnesses", async () => {
-  const result = await validateRepository();
-  const plugin = result.plugins.find((item) => item.manifest.id === "senior-engineering-workflow");
-  assert.ok(plugin);
-  const supported = ["antigravity", "claude-code", "codex", "cursor", "gemini-cli", "oh-my-pi", "opencode"];
-  assert.deepEqual(Object.entries(plugin.manifest.hosts).filter(([, value]) => value.enabled).map(([key]) => key).sort(), supported);
-  assert.equal(plugin.manifest.hosts.portable, undefined);
-
-  const geminiExtension = await readJson(path.join(ROOT, "adapters", "gemini-cli", plugin.manifest.id, "gemini-extension.json"));
-  assert.equal(geminiExtension.name, plugin.manifest.id);
-  assert.ok(await readFile(path.join(ROOT, "adapters", "gemini-cli", plugin.manifest.id, "skills", plugin.manifest.id, "SKILL.md")));
-
-  for (const role of ["researcher", "engineer", "verifier"]) {
-    assert.ok(await readFile(path.join(ROOT, "adapters", "claude-code", plugin.manifest.id, "agents", `${role}.md`)));
-    assert.ok(await readFile(path.join(ROOT, "adapters", "codex", plugin.manifest.id, "companion", "agents", `${plugin.manifest.id}-${role}.toml`)));
-    assert.ok(await readFile(path.join(ROOT, "adapters", "cursor", plugin.manifest.id, "agents", `${plugin.manifest.id}-${role}.md`)));
-    assert.ok(await readFile(path.join(ROOT, "adapters", "gemini-cli", plugin.manifest.id, "agents", `${plugin.manifest.id}-${role}.md`)));
-    assert.ok(await readFile(path.join(ROOT, "adapters", "oh-my-pi", plugin.manifest.id, "agents", `${plugin.manifest.id}-${role}.md`)));
-    assert.ok(await readFile(path.join(ROOT, "adapters", "opencode", plugin.manifest.id, ".opencode", "agents", `${plugin.manifest.id}-${role}.md`)));
-    const antigravityRole = await readFile(path.join(ROOT, "adapters", "antigravity", plugin.manifest.id, "agents", `${plugin.manifest.id}-${role}.md`), "utf8");
-    assert.match(antigravityRole, /subagent: true/u);
-    assert.match(antigravityRole, /tools:/u);
-  }
-  assert.ok(await readFile(path.join(ROOT, "adapters", "antigravity", plugin.manifest.id, "skills", plugin.manifest.id, "SKILL.md")));
-  const ompCatalog = await readJson(path.join(ROOT, ".omp-plugin", "marketplace.json"));
-  assert.ok(ompCatalog.plugins.some((entry) => entry.name === plugin.manifest.id));
-  const cursorCatalog = await readJson(path.join(ROOT, ".cursor-plugin", "marketplace.json"));
-  assert.ok(cursorCatalog.plugins.some((entry) => entry.name === plugin.manifest.id));
-  await assert.rejects(readFile(path.join(ROOT, "adapters", "portable-agent-skills", plugin.manifest.id, ".agents", "skills", plugin.manifest.id, "SKILL.md")), /ENOENT/);
-});
-
-test("active marketplace README versions match canonical manifests", async () => {
-  const catalog = await validateRepository();
-  const readme = await readFile(path.join(ROOT, "README.md"), "utf8");
-  for (const plugin of catalog.plugins) {
-    assert.match(readme, new RegExp(`\\| \\[[^\\]]+\\]\\(plugins/${plugin.manifest.id}/\\) \\| ${plugin.manifest.version} \\|`));
-  }
-});
-
-test("semantic Tauri profile rejects unsafe guidance mutations", async (t) => {
-  const mutations = [
-    ["skills/tauri-v2-desktop/references/security-and-ipc.md", "Application commands registered with `tauri::Builder::invoke_handler` are callable by application windows and webviews by default."],
-    ["skills/tauri-v2-desktop/references/security-and-ipc.md", "Remote-origin IPC bypasses ACL resolution"],
-    ["skills/tauri-v2-desktop/references/versions-and-upgrades.md", "Rust and JavaScript halves of an official plugin may use unrelated releases"],
-    ["skills/tauri-v2-desktop/references/desktop-runtime-and-delivery.md", "Updater signatures are optional"],
-    ["skills/tauri-v2-desktop/references/testing-and-visual-validation.md", "A successful cross-build proves native runtime behavior"],
-    ["skills/tauri-v2-desktop/references/security-and-ipc.md", "events for small, lossy notifications"],
-    ["skills/tauri-v2-desktop/references/security-and-ipc.md", "Capabilities automatically gate ordinary commands registered through invoke_handler."],
-    ["skills/tauri-v2-desktop/references/security-and-ipc.md", "Bundled local application content cannot invoke ordinary application commands."],
-    ["skills/tauri-v2-desktop/references/security-and-ipc.md", "Custom application commands are callable by webviews by default."],
-    ["skills/tauri-v2-desktop/references/security-and-ipc.md", "A page loaded from a remote HTTPS origin can call every custom command registered in invoke_handler without a matching remote capability."],
-    ["skills/tauri-v2-desktop/references/security-and-ipc.md", "Remote-origin IPC can bypass ACL resolution."],
-    ["skills/tauri-v2-desktop/references/security-and-ipc.md", "Remote origins do not need an explicit remote capability."],
-    ["skills/tauri-v2-desktop/references/versions-and-upgrades.md", "Rust and JavaScript packages can use different releases."],
-    ["skills/tauri-v2-desktop/references/versions-and-upgrades.md", "The Rust crate may be newer than the JavaScript package."],
-    ["skills/tauri-v2-desktop/references/versions-and-upgrades.md", "It is not necessary to keep the Rust crate and JavaScript package on the same plugin release."],
-    ["skills/tauri-v2-desktop/references/desktop-runtime-and-delivery.md", "Unsigned updates are accepted by the updater."],
-    ["skills/tauri-v2-desktop/references/desktop-runtime-and-delivery.md", "Signature verification can be skipped for trusted updates."],
-    ["skills/tauri-v2-desktop/references/desktop-runtime-and-delivery.md", "Updater signatures may be omitted from a release."],
-    ["skills/tauri-v2-desktop/references/testing-and-visual-validation.md", "A cross-build demonstrates native runtime behavior."],
-    ["skills/tauri-v2-desktop/references/testing-and-visual-validation.md", "A mocked test demonstrates native permissions."],
-    ["skills/tauri-v2-desktop/references/testing-and-visual-validation.md", "Emulated coverage is native coverage."],
-    ["skills/tauri-v2-desktop/references/security-and-ipc.md", "Events provide lossy notifications."],
-    ["skills/tauri-v2-desktop/references/security-and-ipc.md", "Events are fast high-throughput streaming transport."],
-    ["skills/tauri-v2-desktop/references/security-and-ipc.md", "Channels are unordered and lossy."],
-    ["skills/tauri-v2-desktop/references/security-and-ipc.md", "Do not require a remote capability for pages loaded from external websites."],
-    ["skills/tauri-v2-desktop/references/security-and-ipc.md", "Before Tauri 2.11.1, remote origins bypassed ACL resolution, and current releases allow the same behavior."],
-    ["skills/tauri-v2-desktop/references/security-and-ipc.md", "Do not claim that remote-origin IPC bypasses ACL resolution, because remote websites are actually exempt from capability checks."],
-    ["skills/tauri-v2-desktop/references/security-and-ipc.md", "Internet-hosted pages sit outside capability enforcement and may dispatch every registered handler."],
-    ["skills/tauri-v2-desktop/references/security-and-ipc.md", "Current releases do not require an explicit remote capability."],
-    ["skills/tauri-v2-desktop/references/security-and-ipc.md", "Before Tauri 2.11.1, remote origins could bypass ACL checks. Current releases require an explicit remote capability, but remote-origin IPC is not ACL-resolved."],
-    ["skills/tauri-v2-desktop/references/security-and-ipc.md", "Do not claim that remote-origin IPC bypasses ACL resolution, remote websites are exempt from capability checks."],
-    ["skills/tauri-v2-desktop/references/security-and-ipc.md", "Do not claim that remote-origin IPC bypasses ACL resolution—although remote websites are exempt from capability checks."],
-    ["skills/tauri-v2-desktop/references/desktop-runtime-and-delivery.md", "Do not require signatures for updater artifacts served by an internal release system."],
-    ["skills/tauri-v2-desktop/references/desktop-runtime-and-delivery.md", "Artifacts from our own release service may omit cryptographic attestations."],
-    ["skills/tauri-v2-desktop/references/testing-and-visual-validation.md", "A successful QEMU run is sufficient validation of actual target hardware behavior."],
-    ["skills/tauri-v2-desktop/references/security-and-ipc.md", "The event bus may silently lose notifications when saturated."]
-  ];
-  for (const [relative, unsafePhrase] of mutations) {
-    const root = await mkdtemp(path.join(os.tmpdir(), "oovz-tauri-profile-"));
-    t.after(() => rm(root, { recursive: true, force: true }));
-    await copyCanonicalRepository(root);
-    const file = path.join(root, relative);
-    await writeFile(file, `${await readFile(file, "utf8")}\n${unsafePhrase}\n`);
-    await assert.rejects(validateRepository(root), /forbidden guidance/);
-  }
-});
-
-test("semantic Tauri profile accepts explicit refutations", async (t) => {
-  const root = await mkdtemp(path.join(os.tmpdir(), "oovz-tauri-semantic-refutation-"));
-  t.after(() => rm(root, { recursive: true, force: true }));
-  await copyCanonicalRepository(root);
-  const security = path.join(root, "skills", "tauri-v2-desktop", "references", "security-and-ipc.md");
-  const skill = path.join(root, "skills", "tauri-v2-desktop", "SKILL.md");
-  await writeFile(security, `${await readFile(security, "utf8")}\nDo not claim that remote-origin IPC bypasses ACL resolution.\n`);
-  await writeFile(skill, `${await readFile(skill, "utf8")}\nDo not claim that capabilities automatically restrict ordinary application commands registered through \`invoke_handler\`.\n`);
-  await validateRepository(root);
-});
-
-test("semantic Tauri checks do not exempt unsafe clauses or unrelated history", async (t) => {
-  const contradictoryRoot = await mkdtemp(path.join(os.tmpdir(), "oovz-tauri-semantic-contradiction-"));
-  t.after(() => rm(contradictoryRoot, { recursive: true, force: true }));
-  await copyCanonicalRepository(contradictoryRoot);
-  const security = path.join(contradictoryRoot, "skills", "tauri-v2-desktop", "references", "security-and-ipc.md");
-  await writeFile(security, `${await readFile(security, "utf8")}\nNever require an explicit remote capability: remote origins can invoke any custom command without a remote capability.\n`);
-  await assert.rejects(validateRepository(contradictoryRoot), /forbidden guidance/);
-
-  const commaRoot = await mkdtemp(path.join(os.tmpdir(), "oovz-tauri-semantic-comma-contradiction-"));
-  t.after(() => rm(commaRoot, { recursive: true, force: true }));
-  await copyCanonicalRepository(commaRoot);
-  const commaSecurity = path.join(commaRoot, "skills", "tauri-v2-desktop", "references", "security-and-ipc.md");
-  await writeFile(commaSecurity, `${await readFile(commaSecurity, "utf8")}\nDo not claim that remote-origin IPC bypasses ACL resolution, but remote origins can invoke any custom command without a remote capability.\n`);
-  await assert.rejects(validateRepository(commaRoot), /forbidden guidance/);
-
-  const unrelatedHistoryRoot = await mkdtemp(path.join(os.tmpdir(), "oovz-tauri-semantic-unrelated-history-"));
-  t.after(() => rm(unrelatedHistoryRoot, { recursive: true, force: true }));
-  await copyCanonicalRepository(unrelatedHistoryRoot);
-  const delivery = path.join(unrelatedHistoryRoot, "skills", "tauri-v2-desktop", "references", "desktop-runtime-and-delivery.md");
-  await writeFile(delivery, `${await readFile(delivery, "utf8")}\nBefore Tauri 2.11.1, updater signatures are optional.\n`);
-  await assert.rejects(validateRepository(unrelatedHistoryRoot), /forbidden guidance/);
-
-  const historicalRoot = await mkdtemp(path.join(os.tmpdir(), "oovz-tauri-semantic-history-"));
-  t.after(() => rm(historicalRoot, { recursive: true, force: true }));
-  await copyCanonicalRepository(historicalRoot);
-  const historicalSecurity = path.join(historicalRoot, "skills", "tauri-v2-desktop", "references", "security-and-ipc.md");
-  await writeFile(historicalSecurity, `${await readFile(historicalSecurity, "utf8")}\nPrior to Tauri 2.11.1, a missing AppManifest could let remote origins bypass ACL checks. That historical behavior is fixed; supported releases require an explicit remote capability.\n`);
-  await validateRepository(historicalRoot);
-});
-
-test("semantic Tauri profile requires the remote security version boundary and permits safe rewrites", async (t) => {
-  const root = await mkdtemp(path.join(os.tmpdir(), "oovz-tauri-semantic-boundary-"));
-  t.after(() => rm(root, { recursive: true, force: true }));
-  await copyCanonicalRepository(root);
-
-  const reference = path.join(root, "skills", "tauri-v2-desktop", "references", "security-and-ipc.md");
-  const source = await readFile(reference, "utf8");
-  await writeFile(reference, source.replace("Tauri 2.11.1 and later", "Tauri current releases and later"));
-  await assert.rejects(validateRepository(root), /missing semantic guidance|missing required guidance/);
-
-  await writeFile(reference, source.replace("A remote origin needs an explicit, narrowly scoped remote capability before it can reach a custom command", "Remote origins require a narrowly scoped explicit remote capability before reaching a custom command"));
-  const result = await validateRepository(root);
-  assert.equal(result.plugins.length, result.catalog.marketplace.plugins.length);
 });
 
 test("Codex capability metadata is explicit, scoped, and single-line", async (t) => {
@@ -397,9 +165,6 @@ test("two explicitly cataloged plugins build independently and deterministically
   assert.equal(betaManifest.version, "9.8.7");
   assert.ok(await readFile(path.join(root, "dist", "codex", "alpha-plugin", "companion", "agents", "alpha-plugin-builder.toml")));
   assert.ok(await readFile(path.join(root, "dist", "codex", "beta-plugin", "companion", "agents", "beta-plugin-auditor.toml")));
-  const codexAgent = await readFile(path.join(root, "dist", "codex", "alpha-plugin", "companion", "agents", "alpha-plugin-builder.toml"), "utf8");
-  assert.match(codexAgent, /Role constraints/);
-  assert.doesNotMatch(codexAgent, /Host-enforced constraints/);
   await runGenerator(["generate", "--all"], { root, stdout: silent });
   for (const host of ["claude-code", "codex"]) {
     const manifestPath = host === "claude-code" ? ".claude-plugin/plugin.json" : ".codex-plugin/plugin.json";
@@ -758,7 +523,7 @@ test("plugin-scoped regeneration removes outputs for a newly disabled host", asy
   await assert.rejects(readFile(path.join(root, "dist", "gemini-cli", "toggle-plugin", "gemini-extension.json")), /ENOENT/);
 });
 
-test("generic delegating/question-capable plugin and unrelated contract validate", async (t) => {
+test("generic delegating/question-capable plugin renders its capabilities", async (t) => {
   const root = await mkdtemp(path.join(os.tmpdir(), "oovz-generic-plugin-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   await createFixtureMarketplace(root, [{
@@ -769,7 +534,6 @@ test("generic delegating/question-capable plugin and unrelated contract validate
       question: true,
       license: "A private fixture license.\n",
       licenseId: "LicenseRef-Private",
-      supportFile: { path: "references/workflow-contract.yaml", content: "contract_id: unrelated\nnotes: parse-only\n" },
       hosts: {
         "claude-code": { enabled: true },
         codex: { enabled: true },

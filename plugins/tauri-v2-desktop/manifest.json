@@ -29,10 +29,6 @@
     "agents": [],
     "commands": []
   },
-  "validation": {
-    "profile": "semantic-guidance-v1",
-    "evals": "evals/security-guidance.yaml"
-  },
   "hosts": {
     "claude-code": {
       "enabled": true

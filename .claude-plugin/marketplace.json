@@ -12,7 +12,7 @@
       "source": "./adapters/claude-code/senior-engineering-workflow",
       "description": "Direct engineering ownership with optional research, implementation, and independent verification specialists.",
       "displayName": "Senior Engineering Workflow",
-      "version": "0.14.1",
+      "version": "0.14.2",
       "author": {
         "name": "Otto",
         "url": "https://github.com/oovz/plugins"

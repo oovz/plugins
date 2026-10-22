@@ -331,11 +331,6 @@ export function validatePluginManifest(manifest, directoryName) {
   for (const file of codexComponents.invalidDestinations) {
     assert(false, `Codex host file ${file.id} must target a declared skill support path or a supported native component and must not overwrite SKILL.md or LICENSE: ${file.destination}`);
   }
-  if (manifest.validation !== undefined) {
-    assert(manifest.validation && typeof manifest.validation.profile === "string" && manifest.validation.profile, "validation.profile is required");
-    if (manifest.validation.contract !== undefined) assertRelative(manifest.validation.contract, "validation.contract");
-    assertRelative(manifest.validation.evals, "validation.evals");
-  }
 }
 
 export async function inspectSkill(skill) {

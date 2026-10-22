@@ -2,7 +2,7 @@ schema_version: 3.0.0
 suite_id: senior-engineering-workflow-routing-v3
 profile: engineering-delivery-v3
 contract_ref: ./workflow-contract.yaml
-description: Behavioral scenarios for direct ownership, optional specialists, and long-context judgment. Structural validation does not execute these scenarios.
+description: Behavioral scenarios for direct ownership, optional specialists, and long-context judgment. Run these scenarios with an agent and compare observed decisions with the referenced workflow contract.
 result_schema:
   required_fields:
     - activation
