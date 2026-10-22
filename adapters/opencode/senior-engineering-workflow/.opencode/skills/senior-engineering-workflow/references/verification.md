@@ -37,6 +37,17 @@ Supported purposes:
 
 Verifier inspects files and runs validation within authority, retaining large logs as artifacts. It leaves production and test files unchanged; missing or defective tests become findings for the implementation owner. Findings identify severity, affected requirement, location or reproduction, evidence, and practical consequence. Report only supported, actionable issues; record uncertain concerns as unknowns needing a decisive check.
 
+## Code and test quality
+
+Assess the implementation's responsibilities, interfaces, and reuse of existing code against the accepted scope. Apply [engineering](engineering.md) when assessing validation. Check both missing evidence and unnecessary new tests:
+
+- Identify changed behavior or material failure paths that existing checks do not cover.
+- Ask which plausible broken implementation each new test would reject. Challenge assertions that would still pass that implementation, expected results copied from production logic, and mocks that replace the claimed behavior.
+- Check whether new cases add a distinct failure signal or improve diagnosis or reliability. Adequate existing coverage can be reused.
+- Reject tests that merely preserve documentation wording, incidental formatting, or copied settings. Exercise configuration through its supported consumer. Exact assertions need an independently established machine contract; the current text alone is insufficient.
+
+Report actionable findings and their practical consequences to the implementation owner. Keep remediation within the assigned scope; a weak existing test does not authorize broad suite cleanup or removal of reference contracts. This assessment is part of the selected review route and does not require a separate reviewer for every edit.
+
 ## Failure and repair
 
 Classify the failure before editing: production defect, test defect, environment issue, or contract/design ambiguity. Establish a causal hypothesis and the smallest decisive reproduction or diagnostic check. The implementation owner repairs within scope and reruns that check plus affected broader validation.

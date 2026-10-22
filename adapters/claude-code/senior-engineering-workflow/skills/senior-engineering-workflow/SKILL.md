@@ -23,7 +23,7 @@ Keep implementation and its immediate test loop with the same owner. Plan only e
 
 Resolve unknowns using current repository/runtime evidence and version-matched official sources. For external research or conflicting evidence, consult [evidence and research](references/evidence-and-research.md). Stop searching when additional evidence is unlikely to change the decision.
 
-Implement the smallest coherent change that fits the current architecture and accepted requirements. Preserve trust boundaries, data invariants, resource cleanup, and explicit failure behavior. Use [engineering](references/engineering.md) for implementation and regression checks.
+Implement the smallest coherent change that fits the current architecture and accepted requirements. Preserve trust boundaries, data invariants, resource cleanup, and explicit failure behavior. Read [engineering](references/engineering.md) for implementation and before adding or requesting tests, including for documentation and configuration changes.
 
 ## Delegate when it earns its cost
 
@@ -41,7 +41,9 @@ Before delegating, read [delegation and state](references/delegation-and-state.m
 
 ## Validate and adapt
 
-Choose checks from accepted behavior and reachable failures. For defects, establish a decisive reproduction and regression coverage where feasible. Use integration checks where the behavior crosses a real boundary. Inspect the final diff and run the repository-required affected checks. Stop expanding validation once the evidence is sufficient; broaden it when changes, failures, or unresolved concerns justify doing so.
+Choose checks from accepted behavior, credible failures, and gaps in existing coverage. Reuse adequate checks; a changed file does not automatically require a new test. For defects, use or add a decisive regression when feasible. Inspect the final candidate and run required repository and selected-workflow gates.
+
+Do not add tests that merely pin documentation or instruction wording, incidental formatting, or copied configuration settings. Test configuration through its supported consumer and observable effects. Use existing validators for mechanical properties and editorial review for prose. Apply the independently established exact-contract exceptions in [engineering](references/engineering.md). Stop expanding validation when the changed obligations and required gates have sufficient evidence.
 
 Before reviewing changes, use [verification](references/verification.md) to pin the baseline and complete candidate, including intended uncommitted and new files. Also read it for ambiguous failures or repeated unsuccessful repairs. Independently verify consequential security, data-loss, migration, or similarly high-impact changes when the capability is available. Give that reviewer the accepted behavior and candidate, letting it derive its own checks. Routine work can finish with direct checks.
 

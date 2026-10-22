@@ -21,7 +21,7 @@ Choose a plugin for your coding harness, or use its skills on their own. Senior 
 
 | Plugin | Version | Purpose |
 |---|---:|---|
-| [Senior Engineering Workflow](plugins/senior-engineering-workflow/) | 0.14.2 | Carry engineering work through implementation and review, with optional specialists. |
+| [Senior Engineering Workflow](plugins/senior-engineering-workflow/) | 0.14.3 | Carry engineering work through implementation and review, with optional specialists. |
 | [Tauri v2 Desktop](plugins/tauri-v2-desktop/) | 1.2.2 | Build, test, upgrade, and package Tauri v2 desktop apps. |
 | [Chrome Extension Tester](plugins/chrome-extension-tester/) | 0.1.3 | Test Chrome and WXT extensions through their real browser flows. |
 

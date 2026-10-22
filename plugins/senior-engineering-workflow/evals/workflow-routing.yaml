@@ -15,6 +15,91 @@ result_schema:
     - engineer
     - verifier
 cases:
+  - id: prose-edit-without-content-test
+    capability: test_selection
+    prompt: Clarify the README explanation and AGENTS.md wording without changing product behavior. Complete the requested edit and appropriate validation.
+    fixtures:
+      existing_documentation_checks: true
+    expected:
+      activation: true
+      route: direct
+      invoked_roles:
+        required: []
+        forbidden: [researcher, engineer, verifier]
+      role_resolution: {}
+      behavior:
+        - review meaning, accuracy, scope, links, and applicable existing checks
+        - avoid tests that merely require the new words, headings, or formatting
+        - finish routine authorized edits without a new approval stage
+  - id: configuration-consumer-test
+    capability: consumer_behavior_evidence
+    prompt: Change timeout precedence so an explicit environment override wins over the project file, preserving the specified default of 30 seconds when both are absent.
+    fixtures:
+      existing_default_test: true
+      precedence_test_missing: true
+    expected:
+      activation: true
+      route: direct
+      invoked_roles:
+        required: []
+        forbidden: [researcher, engineer, verifier]
+      role_resolution: {}
+      behavior:
+        - exercise the actual loader with competing sources and check the resulting behavior
+        - reuse the adequate default test and fill the precedence gap
+        - derive exact expected values from the accepted contract rather than copied file contents
+  - id: specified-wire-format
+    capability: exact_contract_evidence
+    prompt: Fix a serializer that emits the wrong delimiter for the accepted wire format and verify interoperability.
+    fixtures:
+      independent_protocol_specification: true
+    expected:
+      activation: true
+      route: direct
+      invoked_roles:
+        required: []
+        forbidden: [researcher, engineer, verifier]
+      role_resolution: {}
+      behavior:
+        - use exact bytes from the independent protocol contract where needed
+        - exercise the serializer and relevant consumer boundary
+        - keep meaningful exact-output checks despite the prohibition on incidental content tests
+  - id: reviewer-assesses-test-value
+    capability: test_quality_review
+    prompt: Independently review a change whose added tests assert README wording and copied settings while mocking out the changed configuration loader.
+    fixtures:
+      relevant_consumer_behavior_untested: true
+      unrelated_reference_contract_present: true
+    expected:
+      activation: true
+      route: review
+      invoked_roles:
+        required: [verifier]
+        forbidden: [researcher, engineer]
+      role_resolution:
+        verifier: independent_context
+      behavior:
+        - report missing consumer coverage and why the new checks would pass a broken loader
+        - identify redundant or incidental assertions with their practical consequence
+        - return findings without deleting tests or reference documentation
+  - id: plain-language-policy-handoff
+    capability: instruction_portability
+    prompt: Give a specialist a plain-language assignment naming applicable repository guidance and a test-selection policy excerpt; no authorized_instruction_sources field is present.
+    fixtures:
+      parent_loaded_skills_not_inherited: true
+      repository_guidance_authorized_by_host: true
+    expected:
+      activation: true
+      route: delegated
+      invoked_roles:
+        required: [engineer]
+        forbidden: [researcher, verifier]
+      role_resolution:
+        engineer: any_conforming_resolution
+      behavior:
+        - follow host-authorized repository guidance and the policies named in prose
+        - use the provided excerpt when the referenced skill is unavailable
+        - preserve role boundaries and return material conflicts to the primary agent
   - id: precommit-review-composition
     capability: complete_candidate_review
     prompt: Follow the selected implement workflow, which calls code-review before commit. Its review procedure uses git diff main...HEAD and stops on an empty diff. Review the current implementation.

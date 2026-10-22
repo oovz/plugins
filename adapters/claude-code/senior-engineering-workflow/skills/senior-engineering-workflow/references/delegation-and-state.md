@@ -7,12 +7,14 @@ Delegate a result that can be judged independently. Include enough task-relevant
 Use plain language or a small structured packet with:
 
 - **Objective and acceptance:** the bounded result, why it matters, and observable success or evidence requirements.
-- **Scope and authority:** owned and forbidden files, permitted tools/actions, and applicable repository policies and selected skills (`authorized_instruction_sources`). Identify existing concurrent work and require its preservation. Inherited tool permission does not broaden task authority.
+- **Scope and authority:** owned and forbidden files, permitted tools/actions, and applicable repository policies and selected skills. Name additional instruction sources in prose or an optional `authorized_instruction_sources` field. Identify existing concurrent work and require its preservation. Inherited tool permission does not broaden task authority.
 - **Context:** relevant code, sources, constraints, settled contracts, and unknowns. For review, identify the candidate or diff baseline and accepted behavior separately from the author's explanation.
-- **Checks and stop conditions:** relevant commands, completion criteria, and circumstances requiring return to the main agent. Set time, cost, or attempt limits when the operation needs a bound.
+- **Checks and stop conditions:** changed behavior, existing coverage, required gates, and circumstances requiring return to the main agent. Include the relevant test-selection policy reference or excerpt when the specialist may not receive it automatically. Set time, cost, or attempt limits when the operation needs a bound.
 - **Return:** conclusion or changes, decisive evidence, exact observed checks, uncertainties, and any needed decision.
 
 Stable identifiers are useful for concurrent candidates, findings, or resumable work; a simple handoff needs no packet version, invocation counter, or full ledger. Follow-ups can send only changed evidence, scope, and the next authorized action when shared context remains current.
+
+Follow the host's instruction hierarchy and applicable repository guidance authorized by the user or host. Plain-language work orders can authorize additional policies and skills; the field name is optional. Return material instruction conflicts to the primary agent. Check available capabilities rather than assuming that a host passes the parent's loaded skills, global instructions, or tools into each specialist context.
 
 The expected deliverable specifies evidence form, not a predetermined conclusion. Ask whether a hypothesis is supported and request counterevidence. Specialists run searches, builds, tests, and log processing directly within scope and return compact evidence. Each specialist reports to the main agent and does not spawn peers or start an automatic next phase.
 

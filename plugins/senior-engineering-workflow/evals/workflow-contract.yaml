@@ -1,6 +1,6 @@
 schema_version: "3.0.0"
 contract_id: senior-engineering-workflow
-contract_version: "3.0.0"
+contract_version: "3.1.0"
 profile: engineering-delivery-v3
 description: Reference policy for direct engineering ownership and optional specialists; reviewed alongside the skill and role instructions.
 
@@ -12,6 +12,7 @@ controller:
     - architecture and integration
     - proportionate delegation and verification
     - evidence-based iteration and completion
+    - validation selection and policy handoff
 
 leaf_role_count: 3
 leaf_roles:
@@ -66,11 +67,14 @@ delegation:
   minimum_specialist_packet:
     - objective_and_acceptance
     - scope_and_authority
-    - authorized_instruction_sources
+    - applicable_policies_and_authorized_skills
     - relevant_context
     - checks_and_stop_conditions
     - evidence_and_limitations_return
   identifiers: when_needed_for_concurrent_or_resumable_work
+  work_order_format: plain_language_or_structured
+  policy_handoff: relevant_reference_or_excerpt_when_not_inherited
+  instruction_authority: host_hierarchy_and_applicable_user_or_host_authorized_guidance
 
 runtime_permissions:
   canonical_policy: inherit
@@ -92,6 +96,13 @@ verification:
   change_review_requires: pinned_baseline_and_stable_scoped_candidate
   precommit_candidate_includes: [staged, unstaged, intended_new_files]
   validation_evidence_identifies: actual_candidate_checked
+  test_selection: accepted_behavior_credible_failures_and_coverage_gaps
+  reuse_adequate_checks: true
+  prose_and_copied_settings_assertions: reject_incidental_representation_checks
+  configuration_evidence: supported_consumer_and_observable_effects
+  exact_assertions_require: independently_established_machine_contract
+  review_test_quality: missing_evidence_and_unnecessary_new_tests
+  required_gates_remain_required: true
   modes: [acceptance, review, design-challenge, closure]
 
 iteration:

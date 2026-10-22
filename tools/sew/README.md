@@ -17,6 +17,8 @@ Run one SEW operation at a time, and finish editing the selected role files befo
 
 The SEW installer requires no authentication and does not invoke a harness CLI or model API.
 
+Each installed role includes SEW's core code- and test-quality guidance. The main workflow skill and its detailed references are installed separately through the harness. After a role-prompt update, review installation conflicts and use `--force` when ready to replace the prompt; record and reapply model/reasoning overrides that should survive the replacement. No project hook or test-quality scanner is installed.
+
 ## Locations and platform support
 
 The CLI supports Windows, macOS and Linux.
