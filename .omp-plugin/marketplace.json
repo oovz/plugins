@@ -14,7 +14,7 @@
       "name": "senior-engineering-workflow",
       "source": "./adapters/oh-my-pi/senior-engineering-workflow",
       "description": "Direct engineering ownership with optional research, implementation, and independent verification specialists.",
-      "version": "0.14.1",
+      "version": "0.14.2",
       "author": {
         "name": "Otto",
         "url": "https://github.com/oovz/plugins"

@@ -17,7 +17,7 @@ The SEW workflow skill and CLI are separate installations. Updating CLI role fil
 | `marketplace.json` | Catalog IDs, marketplace identity, and registered skills/plugins. |
 | `skills/<skill-id>/` | Canonical portable instructions and supporting resources. |
 | `plugins/<plugin-id>/manifest.json` | Plugin version, component references, host support, and agent capabilities. |
-| `plugins/<plugin-id>/agents/` and `evals/` | Role prompts and workflow/content evaluation cases. |
+| `plugins/<plugin-id>/agents/` and `evals/` | Role prompts and manual workflow scenarios. |
 | `schemas/` | Catalog, plugin, and installation-ownership schemas. |
 | `scripts/lib/marketplace.mjs` | Catalog loading, source discovery, and component validation. |
 | `scripts/lib/hosts.mjs` | Native manifests, role frontmatter, component layouts, and host capability mappings. |
@@ -81,7 +81,7 @@ Keep obsolete files out of active paths after a replacement is complete. Retain 
 
 Follow the [OpenAI testing and verification guidance](https://developers.openai.com/api/docs/guides/latest-model#gpt-6-astra-testing-and-verification): choose meaningful checks for the changed behavior and complete required gates. Once those pass, broaden or repeat checks only for a subsequent change, failure, or unresolved concern. Reuse evidence for an unchanged candidate; rewriting a commit message alone does not require another test run.
 
-Test observable outcomes and reachable failures at the lowest effective layer. Add a decisive regression for a defect when feasible. Use integration checks for real process, persistence, security, filesystem, or host boundaries. Reversible prose edits need accuracy, link, and whitespace checks rather than tests that mirror wording.
+Test observable outcomes and reachable failures at the lowest effective layer. Add a decisive regression for a defect when feasible. Use integration checks for real process, persistence, security, filesystem, or host boundaries. Review prose and checked-in settings directly. Automated tests must cover executable behavior rather than documentation wording, fixed string content, or configuration snapshots. Retain tests for parsing, generated artifacts, file writes, refused writes, and data preservation.
 
 | Change | Relevant checks |
 |---|---|
@@ -95,7 +95,7 @@ Test observable outcomes and reachable failures at the lowest effective layer. A
 
 Node.js 22 or later is required. Use `npm ci` for initial setup or dependency changes. `npm run verify` combines canonical validation, generated drift checks, tests, and native distribution builds. `npm test` and `npm run test:sew` stage SEW through their pretest hooks; before directly running a staged CLI test with `node --test`, run `npm run bundle:sew`.
 
-The workflow cases in `plugins/senior-engineering-workflow/evals/` and content checks in `plugins/tauri-v2-desktop/evals/` establish structural consistency and guidance constraints. Observed agent behavior needs a real task or isolated trial. For comparisons, hold the task revision, model, host, permissions, and tools constant; record outcomes and limitations.
+The scenarios in `plugins/senior-engineering-workflow/evals/workflow-routing.yaml` are inputs for manual agent trials. Evaluate observed decisions and outcomes; these files are not assertions about prompt wording or configuration. For comparisons, hold the task revision, model, host, permissions, and tools constant, and record limitations.
 
 Report exact checks and observed results. Distinguish pre-existing/environmental failures, unrun checks, configuration checks, native execution, and release acceptance. Stop when the requested outcome has sufficient evidence.
 

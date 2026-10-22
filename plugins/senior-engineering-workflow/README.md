@@ -1,6 +1,6 @@
 # Senior Engineering Workflow
 
-SEW 0.14.1 provides an engineering workflow and three optional specialists: Researcher, Engineer, and Verifier. The main agent owns the task, architecture, integration, and completion; specialists return results for their assigned work.
+SEW 0.14.2 provides an engineering workflow and three optional specialists: Researcher, Engineer, and Verifier. The main agent owns the task, architecture, integration, and completion; specialists return results for their assigned work.
 
 Use it for direct engineering work, or alongside another delivery skill. Keep related implementation and validation together. Delegate when parallel work, specialized investigation, or independent review justifies the coordination. Each specialist runs its own tools.
 

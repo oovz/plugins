@@ -141,26 +141,6 @@
           "$ref": "#/$defs/host"
         }
       }
-    },
-    "validation": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "profile",
-        "evals"
-      ],
-      "properties": {
-        "profile": {
-          "type": "string",
-          "minLength": 1
-        },
-        "contract": {
-          "$ref": "#/$defs/relativePath"
-        },
-        "evals": {
-          "$ref": "#/$defs/relativePath"
-        }
-      }
     }
   },
   "$defs": {
