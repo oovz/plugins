@@ -24,6 +24,7 @@
     "ajv": "^8.20.0",
     "ajv-formats": "^3.0.1",
     "cross-spawn": "7.0.6",
+    "semver": "^7.8.5",
     "smol-toml": "1.9.1",
     "yaml": "^2.9.1"
   },

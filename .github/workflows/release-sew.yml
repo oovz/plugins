@@ -4,6 +4,12 @@ on:
   push:
     tags:
       - "sew-v*"
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Existing stable release tag to restore as npm latest
+        required: true
+        type: string
 
 concurrency:
   group: release-sew-${{ github.ref }}
@@ -11,7 +17,7 @@ concurrency:
 
 jobs:
   validation:
-    if: github.repository == 'oovz/plugins'
+    if: github.repository == 'oovz/plugins' && github.event_name == 'push'
     uses: ./.github/workflows/validate-reusable.yml
 
   build:
@@ -104,10 +110,20 @@ jobs:
     needs: smoke
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    concurrency:
+      group: sew-release-publication
+      queue: max
+      cancel-in-progress: false
     permissions:
       contents: write
       id-token: write
     steps:
+      - name: Check out tagged source and release history
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+
       - name: Set up Node.js for npm trusted publishing
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
@@ -117,6 +133,9 @@ jobs:
 
       - name: Use a trusted-publishing-capable npm CLI
         run: npm install --global npm@11.5.1
+
+      - name: Install locked release-tool dependencies
+        run: npm ci
 
       - name: Download the candidate tarball tested on every platform
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
@@ -128,25 +147,104 @@ jobs:
         working-directory: release-build/sew/artifacts
         run: sha256sum --check SHA256SUMS.txt
 
+      - name: Prepare commit notes and version-aware publication
+        id: metadata
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          SEW_SOURCE_COMMIT: ${{ github.sha }}
+        run: |
+          gh api --paginate --slurp "repos/$GH_REPO/releases?per_page=100" > release-build/sew/releases.json
+          npm view @oovz/sew versions --json > release-build/sew/npm-versions.json
+          node scripts/prepare-sew-release.mjs "$GITHUB_REF_NAME" "$GH_REPO" \
+            release-build/sew/releases.json release-build/sew/npm-versions.json \
+            release-build/sew/metadata
+
       - name: Publish the tested CI-built tarball to npm
         shell: bash
+        env:
+          NPM_RELEASE_TAG: ${{ steps.metadata.outputs.npm_tag }}
         run: |
           mapfile -t tarballs < <(find release-build/sew/artifacts -maxdepth 1 -type f -name '*.tgz' -print)
           test "${#tarballs[@]}" -eq 1
-          npm publish "${tarballs[0]}" --access public --provenance
+          npm publish "${tarballs[0]}" --access public --provenance --tag "$NPM_RELEASE_TAG"
 
       - name: Create GitHub Release from the same tested bundle
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
+          RELEASE_VERSION: ${{ steps.metadata.outputs.version }}
+          RELEASE_SOURCE: ${{ steps.metadata.outputs.source_commit }}
+          RELEASE_LATEST: ${{ steps.metadata.outputs.make_latest }}
+          RELEASE_PRERELEASE: ${{ steps.metadata.outputs.prerelease }}
         run: |
           mapfile -t tarballs < <(find release-build/sew/artifacts -maxdepth 1 -type f -name '*.tgz' -print)
           test "${#tarballs[@]}" -eq 1
-          version="${GITHUB_REF_NAME#sew-v}"
           gh release create "$GITHUB_REF_NAME" \
             "${tarballs[0]}" \
             release-build/sew/artifacts/SHA256SUMS.txt \
             --verify-tag \
-            --generate-notes \
-            --title "@oovz/sew $version"
+            --target "$RELEASE_SOURCE" \
+            --notes-file release-build/sew/metadata/notes.md \
+            --latest="$RELEASE_LATEST" \
+            --prerelease="$RELEASE_PRERELEASE" \
+            --title "@oovz/sew $RELEASE_VERSION"
+
+  promote:
+    name: Repair npm latest for a published release
+    if: github.repository == 'oovz/plugins' && github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    concurrency:
+      group: sew-release-publication
+      queue: max
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Check out release tooling and tag history
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+
+      - name: Set up Node.js for trusted publishing
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+
+      - name: Install npm with OIDC dist-tag support
+        run: npm install --global npm@11.21.0
+
+      - name: Install locked release-tool dependencies
+        run: npm ci
+
+      - name: Resolve the published version and source
+        id: metadata
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          mkdir -p release-build/sew
+          gh api --paginate --slurp "repos/$GH_REPO/releases?per_page=100" > release-build/sew/releases.json
+          npm view @oovz/sew versions --json > release-build/sew/npm-versions.json
+          node scripts/prepare-sew-release.mjs "$RELEASE_TAG" "$GH_REPO" \
+            release-build/sew/releases.json release-build/sew/npm-versions.json \
+            release-build/sew/metadata
+
+      - name: Verify package identity and repair npm latest
+        shell: bash
+        env:
+          RELEASE_VERSION: ${{ steps.metadata.outputs.version }}
+        run: |
+          npm view "@oovz/sew@$RELEASE_VERSION" name version sourceCommit roleSourceVersion --json > release-build/sew/published-package.json
+          node scripts/check-sew-promotion.mjs release-build/sew/metadata/plan.json release-build/sew/published-package.json
+          npm dist-tag add "@oovz/sew@$RELEASE_VERSION" latest
+          test "$(npm view @oovz/sew dist-tags.latest)" = "$RELEASE_VERSION"

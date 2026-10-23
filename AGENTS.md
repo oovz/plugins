@@ -27,6 +27,7 @@ The SEW workflow skill and CLI are separate installations. Updating CLI role fil
 | `tools/sew/lib/` | CLI commands, host paths, role schemas, and model/reasoning updates. |
 | `scripts/build-sew-package.mjs` and `scripts/finalize-sew-package.mjs` | Publishable CLI staging and runtime dependencies. |
 | `scripts/pack-sew.mjs`, `scripts/check-sew-release.mjs`, and `scripts/smoke-sew-release.mjs` | Archive creation, release identity checks, and installed-package smoke tests. |
+| `scripts/prepare-sew-release.mjs`, `scripts/check-sew-promotion.mjs`, and `scripts/lib/sew-release-metadata.mjs` | Tagged-source notes and version/identity checks for publication or promotion. |
 | `test/` and `.github/workflows/` | Automated checks and CI/release execution. |
 
 ## Generation and packaging
@@ -116,4 +117,8 @@ node scripts/smoke-sew-release.mjs release-build/sew/artifacts
 
 [release-sew.yml](.github/workflows/release-sew.yml) validates the repository, builds a candidate with the tagged source SHA, checks its identity, and smokes that same archive across six OS/Node cells. The publish job verifies its downloaded checksum, publishes with npm provenance, and attaches the archive and checksum to the GitHub release.
 
-For publication, use a clean source commit and an unpublished matching version. Verify npm trusted-publisher binding for package `@oovz/sew`, owner `oovz`, repository `plugins`, and workflow `release-sew.yml`; configure an environment only when the workflow names one. The workflow uses Node 24 and npm 11.5.1 for publishing, with `id-token: write` confined to the release job. Check account binding and hosted results directly before publication.
+Publication jobs share one queue across SEW tags. Within that queue, release planning reads published GitHub releases and npm versions. Only the newest stable version in each service is eligible for its latest marker; older and prerelease npm publications use `release-<version>` tags. Notes list commits from the highest lower published GitHub release to the tagged source, excluding prereleases as the baseline for stable releases. Tag identity and the package version at that commit must agree. Preserve published tags and package bytes when repairing notes or latest markers.
+
+To repair npm's latest marker, manually dispatch `release-sew.yml` with `release_tag` set to the existing newest stable tag. This mode verifies the registry package's version and source against the tag and uses OIDC to update the marker without republishing. It shares the publication queue and requires the npm trusted publisher's **Allow npm dist-tag** permission. The repair job uses npm 11.21.0 for OIDC dist-tag support.
+
+For publication, use a clean source commit and an unpublished matching version. Verify npm trusted-publisher binding for package `@oovz/sew`, owner `oovz`, repository `plugins`, and workflow `release-sew.yml`; configure an environment only when the workflow names one. The workflow uses Node 24 and npm 11.5.1 for publishing, with `id-token: write` confined to the release and promotion jobs. Check account binding and hosted results directly before publication.
