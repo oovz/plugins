@@ -8,7 +8,7 @@ Use plain language or a small structured packet with:
 
 - **Objective and acceptance:** the bounded result, why it matters, and observable success or evidence requirements.
 - **Scope and authority:** owned and forbidden files, permitted tools/actions, and applicable repository policies and selected skills. Name additional instruction sources in prose or an optional `authorized_instruction_sources` field. Identify existing concurrent work and require its preservation. Inherited tool permission does not broaden task authority.
-- **Context:** relevant code, sources, constraints, settled contracts, and unknowns. For review, identify the candidate or diff baseline and accepted behavior separately from the author's explanation.
+- **Context:** relevant code and authoritative decisions, supported callers and environments, accepted limitations, deferred capabilities, settled contracts, and required evidence. Preserve the distinction between requirements, accepted limitations, open questions, and optional suggestions. Include a relevant excerpt when the recipient may not inherit the source context. For review, identify the candidate or diff baseline and accepted behavior separately from the author's explanation.
 - **Checks and stop conditions:** changed behavior, existing coverage, required gates, and circumstances requiring return to the main agent. Include the relevant test-selection policy reference or excerpt when the specialist may not receive it automatically. Set time, cost, or attempt limits when the operation needs a bound.
 - **Return:** conclusion or changes, decisive evidence, exact observed checks, uncertainties, and any needed decision.
 
@@ -34,7 +34,7 @@ For independent verification, use a fresh context where available. Supply scope,
 
 Keep state in the conversation for continuous work. When interruption, compaction, or a session boundary is likely, use an authorized task note containing:
 
-- objective, accepted decisions, and current branch/candidate;
+- objective, authoritative decisions and their relevant support limits, deferrals and agreed verification, and current branch/candidate;
 - completed work, active ownership, and pending dependencies;
 - exact validation results and evidence/log locations;
 - unresolved findings, rejected hypotheses, and next decisive action.

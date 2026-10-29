@@ -15,11 +15,106 @@ result_schema:
     - engineer
     - verifier
 cases:
+  - id: accepted-limits-across-contexts
+    capability: decision_continuity
+    prompt: Continue the accepted specification through tickets, an Engineer handoff, and review in fresh contexts. It supports one explicitly named configuration file; directory discovery and merge precedence are deferred. The loader's public seam is approved. A later workflow asks for every branch and the highest possible test seam.
+    fixtures:
+      authoritative_specification_available: true
+      recipient_lacks_prior_conversation: true
+      materially_new_evidence: false
+    expected:
+      activation: true
+      route: delegated
+      invoked_roles:
+        required: [engineer]
+        forbidden: [researcher]
+      role_resolution:
+        engineer: any_conforming_resolution
+      behavior:
+        - carry the source decision and relevant limits and agreed verification into tickets and the handoff
+        - keep deferred capabilities settled across grilling, specification, implementation, and review
+        - reuse the approved public seam without inventing a new approval request or higher-level test
+        - preserve workflow decision checkpoints for genuinely new decisions
+  - id: optional-review-hardening
+    capability: finding_disposition
+    prompt: Disposition a review suggestion to add automatic retry and provider failover. The accepted behavior is one attempt, an explicit failure result, and manual retry. Required checks pass and the reviewer identifies no unmet requirement or boundary defect.
+    fixtures:
+      original_review_assessment_available: true
+    expected:
+      activation: true
+      route: direct
+      invoked_roles:
+        required: []
+        forbidden: [researcher, engineer, verifier]
+      role_resolution: {}
+      behavior:
+        - preserve the original review assessment and separately classify the suggestion as optional
+        - recognize that existing explicit failure behavior satisfies the contract
+        - finish without adding recovery mechanisms or asking for acceptance of ordinary uncertainty
+  - id: new-supported-boundary-defect
+    capability: material_defect_preservation
+    prompt: Review a loader that accepts one user-selected configuration file. Directory discovery is deferred, but a reproduction shows its included-file field can read outside the authorized project directory. The accepted security invariant confines all reads to that directory.
+    fixtures:
+      reproduction_available: true
+      source_context: untrusted_user_configuration
+    expected:
+      activation: true
+      route: review
+      invoked_roles:
+        required: [verifier]
+        forbidden: [researcher, engineer]
+      role_resolution:
+        verifier: independent_context
+      behavior:
+        - report the reachable trust-boundary defect with its violated invariant and consequence
+        - keep the directory-discovery deferral distinct from unauthorized reads
+        - require repair or explicit decision-owner acceptance instead of inventing an accepted limitation
+        - return findings to the primary agent without editing the candidate
+  - id: mixed-engineering-deliverables
+    capability: artifact_evidence
+    prompt: Assign bounded Engineer tickets for an approved Linux PR verification workflow, a deployment preparation plan, a design description, and a usage guide. Scope, interfaces, and file ownership are settled; hosted execution and rollout are outside this assignment.
+    fixtures:
+      existing_verification_command: true
+      existing_documentation_checks: true
+      independent_file_ownership: true
+    expected:
+      activation: true
+      route: delegated
+      invoked_roles:
+        required: [engineer]
+        forbidden: [researcher, verifier]
+      role_resolution:
+        engineer: any_conforming_resolution
+      behavior:
+        - define complete outcomes through each deliverable's relevant layers
+        - validate CI triggers, conditions, and invoked commands while preserving Linux-only scope
+        - inspect deployment targets and recovery requirements and report preparation separately from rollout
+        - review design scenarios and constraints and documentation accuracy and references
+        - reuse appropriate existing checks without fabricated runtime or prose-pinning tests
+        - retain deployment authority and workflow transitions with the primary agent
+  - id: documentation-with-explicit-repository-gate
+    capability: artifact_gate_preservation
+    prompt: Update distributed skill documentation. The repository explicitly requires regeneration and full verification for every distributed instruction change, and the focused editorial checks have passed.
+    fixtures:
+      executable_behavior_affected: false
+    expected:
+      activation: true
+      route: direct
+      invoked_roles:
+        required: []
+        forbidden: [researcher, engineer, verifier]
+      role_resolution: {}
+      behavior:
+        - run the explicit regeneration and full-verification gates
+        - use editorial review for meaning without adding wording assertions
+        - report actual results and unrun gates separately
   - id: prose-edit-without-content-test
     capability: test_selection
-    prompt: Clarify the README explanation and AGENTS.md wording without changing product behavior. Complete the requested edit and appropriate validation.
+    prompt: Clarify the README explanation and AGENTS.md wording without changing product behavior. The service makes one attempt and callers retry manually; upgrading requires running the documented migration. Complete the requested edit and appropriate validation under the selected implement workflow.
     fixtures:
       existing_documentation_checks: true
+      explicit_repository_full_suite_gate: false
+      executable_behavior_affected: false
     expected:
       activation: true
       route: direct
@@ -31,6 +126,9 @@ cases:
         - review meaning, accuracy, scope, links, and applicable existing checks
         - avoid tests that merely require the new words, headings, or formatting
         - finish routine authorized edits without a new approval stage
+        - state supported behavior directly while retaining the actionable migration requirement
+        - keep internal agent workflow guidance in agent instructions
+        - apply standalone documentation evidence instead of the code-specific full-suite loop
   - id: configuration-consumer-test
     capability: consumer_behavior_evidence
     prompt: Change timeout precedence so an explicit environment override wins over the project file, preserving the specified default of 30 seconds when both are absent.
@@ -121,6 +219,8 @@ cases:
         - explicitly replace the commit-only input and empty-diff exit for this precommit review
         - inspect staged, unstaged, and intended new-file contents while excluding unrelated changes
         - preserve the selected standards and spec review criteria
+        - retain separate original assessments and required independence while dispositioning required actions separately
+        - use the selected review for the corresponding SEW review need
         - validate the final integrated candidate after fixes
   - id: committed-only-review
     capability: review_scope_preservation
@@ -173,7 +273,7 @@ cases:
         - primary agent owns subsequent review dispatch and delivery decisions
   - id: required-full-suite-gate
     capability: workflow_gate_preservation
-    prompt: Implement a small change in a large repository using a selected workflow that requires a full test suite; no accepted policy replaces that gate.
+    prompt: Implement a small runtime change in a large repository using a selected workflow that requires a full test suite; no accepted policy replaces that gate.
     fixtures:
       focused_checks_pass: true
     expected:

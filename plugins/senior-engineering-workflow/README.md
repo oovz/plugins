@@ -1,6 +1,6 @@
 # Senior Engineering Workflow
 
-SEW 0.14.3 provides an engineering workflow and three optional specialists: Researcher, Engineer, and Verifier. The main agent owns the task, architecture, integration, and completion; specialists return results for their assigned work.
+SEW 0.14.4 provides an engineering workflow and three optional specialists: Researcher, Engineer, and Verifier. The main agent owns the task, architecture, integration, and completion; specialists return results for their assigned work.
 
 Use it for direct engineering work, or alongside another delivery skill. Keep related implementation and validation together. Delegate when parallel work, specialized investigation, or independent review justifies the coordination. Each specialist runs its own tools.
 
@@ -80,9 +80,11 @@ The portable policy uses the host's instruction hierarchy and accepts plain-lang
 
 ## Use with other delivery skills
 
-Keep the selected workflow (including `mattpocock/skills`) with the main agent. SEW supplies bounded delegation, evidence, integration, and verification; an Engineer receives only its implementation/test slice and returns before the next phase.
+Keep the selected workflow (including `mattpocock/skills`) with the main agent. SEW carries accepted limits, deferrals, and agreed verification through specifications, tickets, delegation, and review. Engineers can implement or author bounded code, configuration, CI and deployment artifacts, design, or documentation, then return their evidence before the next phase.
 
 For review before commit, SEW explicitly supplies the pinned baseline and complete intended candidate: staged, unstaged, and new files. This replaces a commit-only review input while preserving the selected review's standards and spec criteria. See [workflow composition](../../skills/senior-engineering-workflow/references/workflow-composition.md). Required workflow checks remain required unless accepted project policy or a user decision explicitly changes the gate.
+
+The composition reference defines SEW's standing adaptations for Matt's workflow: completeness follows the accepted increment, testing uses approved reliable public seams, and standalone design/documentation use artifact evidence while preserving explicit repository and release gates. Original review assessments remain available; the primary agent separately decides which findings require changes. Optional improvements stay outside acceptance until scope is expanded.
 
 Install the SEW skill through a [skill or plugin route](../../README.md#install-plugins-and-skills) to give the main agent this procedure. The CLI installs role prompts only; updating it alone does not update the main agent's skills. Review and update copied operating instructions as well, especially retired Worker routing.
 

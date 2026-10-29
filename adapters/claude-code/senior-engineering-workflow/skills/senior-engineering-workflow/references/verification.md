@@ -20,13 +20,13 @@ Replace placeholders with the pinned SHA and explicit task paths. The first diff
 
 Compare with the initial status/diff to distinguish task changes from pre-existing work. Exclude unrelated edits from findings and delivery; if ownership overlaps within a file, identify the intended hunks without discarding the surrounding context needed to review behavior. Surface an unresolved scope ambiguity before accepting the review.
 
-Keep writers paused during review or provide an immutable snapshot in an authorized isolated location. Record baseline and candidate identity, included paths/new files, and exclusions. Check that the candidate is unchanged before accepting findings. After repairs, create a new candidate and rerun affected checks and review. A staged-only review covers the index; validation against a differing working tree must be labeled separately.
+Keep writers paused during review or provide an immutable snapshot in an authorized isolated location. Record baseline and candidate identity, included paths/new files, and exclusions. Check that the candidate is unchanged before accepting findings. After repairs, identify the updated candidate and recheck named findings and affected behavior; broaden review when the change or remaining concern supplies a concrete reason. A staged-only review covers the index; validation against a differing working tree must be labeled separately.
 
 ## Independent verification
 
 Use Verifier for an explicit request, consequential security/data-loss/migration risk, disputed acceptance, or a candidate near the model's demonstrated capability limits. Routine changes with decisive checks can complete directly. Independence is a separate context and evidence derivation; using a different model is optional and does not itself establish correctness.
 
-Give the verifier accepted behavior, relevant policies, changed paths, candidate identity or diff baseline, and observed checks. Ask it to derive checks and seek counterexamples. Use one focused review of a coherent candidate by default; add earlier design review for consequential irreversible choices or milestone reviews for independently risky boundaries.
+Give the verifier accepted behavior and its established limitations, relevant policies, changed paths, candidate identity or diff baseline, and observed checks. Ask it to derive checks and seek counterexamples. Use one focused review of a coherent candidate by default; add earlier design review for consequential irreversible choices or milestone reviews for independently risky boundaries. A selected workflow's review can satisfy the corresponding SEW review need while preserving its required axes and independence.
 
 Supported purposes:
 
@@ -35,7 +35,20 @@ Supported purposes:
 - **design-challenge:** challenge a consequential decision before implementation;
 - **closure:** recheck named findings on the changed candidate.
 
-Verifier inspects files and runs validation within authority, retaining large logs as artifacts. It leaves production and test files unchanged; missing or defective tests become findings for the implementation owner. Findings identify severity, affected requirement, location or reproduction, evidence, and practical consequence. Report only supported, actionable issues; record uncertain concerns as unknowns needing a decisive check.
+Verifier inspects files and runs validation within authority, retaining large logs as artifacts. It leaves production and test files unchanged; missing or defective tests become findings for the implementation owner. Findings identify severity, affected requirement or invariant, a condition reachable through supported use or a relevant boundary, location or reproduction, evidence, and practical consequence. Evaluate security findings against the actual trust boundary.
+
+## Disposition findings
+
+Preserve the reviewer's evidence and original assessment, including separate Standards and Spec reports when selected. The primary agent determines required action under the accepted task, recording its disposition separately:
+
+| Finding | Treatment |
+|---|---|
+| Defect | Establish the violated requirement or invariant, reachable condition or relevant boundary, evidence, and consequence. Resolve material in-scope defects or obtain the decision owner's explicit acceptance. |
+| Accepted limitation | Reference the actual prior decision or support boundary. Reopen it when materially new evidence changes the decision. |
+| Optional improvement | Explain the benefit and keep it outside completion requirements unless scope is deliberately expanded. |
+| Unresolved question | Identify the smallest useful investigation and whether its answer is necessary for acceptance or authority. |
+
+A clean review is a valid outcome. Accepted limitations require an established decision; inventing acceptance cannot close a newly discovered defect. Ordinary uncertainty about undiscovered defects permits completion after the accepted outcome and required evidence are established.
 
 ## Code and test quality
 
@@ -58,6 +71,6 @@ Keep valid tests intact. Changes to accepted behavior, support, destructive acti
 
 ## Completion evidence
 
-Inspect the final candidate and run repository-required checks plus the selected workflow's required gates. Choose additional formatting, static checks, builds, and tests from changed behavior and remaining uncertainty. After sufficient evidence, stop redundant reruns; a subsequent edit or new concern may require another check.
+Inspect the final candidate and run repository-required checks plus the selected workflow's applicable gates under [workflow composition](workflow-composition.md#preserve-gates-and-authority). Choose additional evidence using [engineering](engineering.md#evidence-by-deliverable). After sufficient evidence, stop redundant reruns; a subsequent edit or new concern may require another check.
 
 Report exact commands and terminal results, accepted criteria coverage, and limitations. Distinguish local structural/schema checks, actual behavioral agent runs, native host execution, and release/production acceptance. Material unresolved findings block an unqualified completion claim.

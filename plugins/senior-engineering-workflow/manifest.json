@@ -2,7 +2,7 @@
   "$schema": "../../schemas/plugin-manifest.schema.json",
   "schemaVersion": 2,
   "id": "senior-engineering-workflow",
-  "version": "0.14.3",
+  "version": "0.14.4",
   "displayName": "Senior Engineering Workflow",
   "description": "Direct engineering ownership with optional research, implementation, and independent verification specialists.",
   "license": "MIT",
@@ -43,7 +43,7 @@
       {
         "id": "engineer",
         "path": "agents/engineer.md",
-        "description": "Implements and tests an independently owned slice with settled interfaces and acceptance criteria.",
+        "description": "Implements or authors a bounded engineering deliverable with settled decisions and validation appropriate to its accepted outcome.",
         "workspace": "workspace-write",
         "shell": true,
         "external": false,

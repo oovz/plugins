@@ -1,6 +1,6 @@
 schema_version: "3.0.0"
 contract_id: senior-engineering-workflow
-contract_version: "3.1.0"
+contract_version: "3.2.0"
 profile: engineering-delivery-v3
 description: Reference policy for direct engineering ownership and optional specialists; reviewed alongside the skill and role instructions.
 
@@ -13,6 +13,7 @@ controller:
     - proportionate delegation and verification
     - evidence-based iteration and completion
     - validation selection and policy handoff
+    - preserve accepted decisions and disposition reviewer findings
 
 leaf_role_count: 3
 leaf_roles:
@@ -32,6 +33,7 @@ leaf_roles:
     may_write_production_files: true
     may_write_test_files: true
     runs_own_tools: true
+    deliverables: [code, configuration, ci, deployment_artifacts, design, documentation]
   verifier:
     logical_agent_id: verifier
     is_leaf: true
@@ -50,6 +52,11 @@ execution:
   inquiries_and_reviews_are_read_only: true
   selected_workflow_transitions_owned_by: controller
   selected_workflow_gates: preserve_unless_explicitly_adapted
+  accepted_decisions_survive_workflow_transitions: true
+  reopen_decisions_for: new_evidence_changing_consequences_contradictions_or_evidence_gaps
+  additional_mechanisms_require: accepted_requirement_supported_path_failure_or_relevant_boundary
+  additional_failure_handling_requires: existing_failure_behavior_is_inadequate
+  established_internal_invariants: rely_unless_evidence_shows_bypass_or_invalid_assumption
 
 context:
   advertised_capacity_is_not_a_routing_threshold: true
@@ -74,6 +81,7 @@ delegation:
   identifiers: when_needed_for_concurrent_or_resumable_work
   work_order_format: plain_language_or_structured
   policy_handoff: relevant_reference_or_excerpt_when_not_inherited
+  decision_handoff: authoritative_source_with_relevant_limits_deferrals_and_agreed_evidence
   instruction_authority: host_hierarchy_and_applicable_user_or_host_authorized_guidance
 
 runtime_permissions:
@@ -103,6 +111,17 @@ verification:
   exact_assertions_require: independently_established_machine_contract
   review_test_quality: missing_evidence_and_unnecessary_new_tests
   required_gates_remain_required: true
+  evidence_selection: accepted_outcome_deliverable_and_remaining_gaps
+  standalone_design_and_documentation: artifact_evidence_preserving_explicit_repository_release_and_affected_executable_gates
+  composed_test_seam: lowest_reliable_public_boundary_reusing_approved_seams
+  selected_review_satisfies_corresponding_sew_need: true
+  selected_review_axes_and_independence: preserve
+  finding_dispositions: [defect, accepted_limitation, optional_improvement, unresolved_question]
+  defect_requires: reachable_condition_violated_requirement_or_invariant_evidence_and_consequence
+  accepted_limitation_requires: established_decision_or_support_boundary
+  disposition_owner: controller_preserving_original_reviewer_assessment
+  repair_review_scope: named_findings_and_affected_behavior_broaden_for_concrete_reason
+  clean_review_is_valid: true
   modes: [acceptance, review, design-challenge, closure]
 
 iteration:
@@ -124,3 +143,11 @@ completion:
   unrun_checks_may_not_be_reported_as_passed: true
   material_findings_require_resolution_or_explicit_acceptance: true
   distinguish_structural_behavioral_native_and_release_evidence: true
+  ordinary_undiscovered_defect_uncertainty_permits_completion: true
+  optional_improvements_do_not_block: true
+
+writing:
+  target: actual_behavior_decisions_reasons_and_required_actions
+  qualifications: when_affecting_reader_decisions_or_resolving_ambiguity
+  product_documentation: audience_relevant_behavior
+  internal_workflow_guidance: agent_instructions_or_relevant_engineering_notes

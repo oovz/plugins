@@ -1,6 +1,6 @@
 {
   "name": "@oovz/sew",
-  "version": "0.14.3",
+  "version": "0.14.4",
   "description": "Install Senior Engineering Workflow role configuration across supported coding harnesses.",
   "type": "module",
   "bin": {

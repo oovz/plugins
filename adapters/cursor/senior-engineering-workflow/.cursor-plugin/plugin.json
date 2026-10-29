@@ -1,7 +1,7 @@
 {
   "name": "senior-engineering-workflow",
   "displayName": "Senior Engineering Workflow",
-  "version": "0.14.3",
+  "version": "0.14.4",
   "description": "Direct engineering ownership with optional research, implementation, and independent verification specialists.",
   "author": {
     "name": "Otto"
