@@ -1,0 +1,4 @@
+{
+  "name": "chrome-extension-debugger",
+  "description": "Develop and debug Chrome extensions in a live browser, with guidance for unpacked builds, extension surfaces, service workers, and WXT hot reload."
+}

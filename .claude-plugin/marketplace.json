@@ -58,11 +58,11 @@
       "category": "Developer Tools"
     },
     {
-      "name": "chrome-extension-tester",
-      "source": "./adapters/claude-code/chrome-extension-tester",
-      "description": "Test and debug Chrome extensions in Chrome-managed contexts through Chrome DevTools MCP, with extra guidance for WXT projects.",
-      "displayName": "Chrome Extension Tester",
-      "version": "0.1.3",
+      "name": "chrome-extension-debugger",
+      "source": "./adapters/claude-code/chrome-extension-debugger",
+      "description": "Develop and debug Chrome extensions in a live browser, with guidance for unpacked builds, extension surfaces, service workers, and WXT hot reload.",
+      "displayName": "Chrome Extension Debugger",
+      "version": "0.2.0",
       "author": {
         "name": "Otto",
         "url": "https://github.com/oovz/plugins"
@@ -76,8 +76,7 @@
         "mcp",
         "side-panel",
         "wxt",
-        "e2e",
-        "testing"
+        "debugging"
       ],
       "category": "Developer Tools"
     }

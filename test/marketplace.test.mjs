@@ -86,7 +86,7 @@ test("Codex MCP validation rejects the obsolete snake_case wrapper", async (t) =
   const root = await mkdtemp(path.join(os.tmpdir(), "oovz-codex-mcp-wrapper-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   await copyCanonicalRepository(root);
-  await writeFile(path.join(root, "plugins", "chrome-extension-tester", "codex.mcp.json"), "{\"mcp_servers\":{\"chrome-devtools\":{\"command\":\"npx\"}}}\n");
+  await writeFile(path.join(root, "plugins", "chrome-extension-debugger", "codex.mcp.json"), "{\"mcp_servers\":{\"chrome-devtools\":{\"command\":\"npx\"}}}\n");
   await assert.rejects(validateRepository(root), /must declare at least one MCP server/u);
 });
 

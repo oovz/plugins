@@ -26,9 +26,9 @@
       }
     },
     {
-      "name": "chrome-extension-tester",
-      "source": "./adapters/cursor/chrome-extension-tester",
-      "description": "Test and debug Chrome extensions in Chrome-managed contexts through Chrome DevTools MCP, with extra guidance for WXT projects.",
+      "name": "chrome-extension-debugger",
+      "source": "./adapters/cursor/chrome-extension-debugger",
+      "description": "Develop and debug Chrome extensions in a live browser, with guidance for unpacked builds, extension surfaces, service workers, and WXT hot reload.",
       "minClientVersions": {
         "cursor": "2.5.0"
       }

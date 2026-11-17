@@ -1,4 +1,0 @@
-{
-  "name": "chrome-extension-tester",
-  "description": "Test and debug Chrome extensions in Chrome-managed contexts through Chrome DevTools MCP, with extra guidance for WXT projects."
-}

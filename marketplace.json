@@ -12,12 +12,12 @@
   "plugins": [
     "senior-engineering-workflow",
     "tauri-v2-desktop",
-    "chrome-extension-tester"
+    "chrome-extension-debugger"
   ],
   "skills": [
     "senior-engineering-workflow",
     "tauri-v2-desktop",
-    "chrome-extension-test",
-    "wxt-extension-test"
+    "chrome-extension-debug",
+    "wxt-extension-debug"
   ]
 }

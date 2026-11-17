@@ -21,8 +21,8 @@ async function fixture() {
 }
 
 for (const script of [
-  "skills/chrome-extension-test/scripts/find-extension-build.mjs",
-  "skills/wxt-extension-test/scripts/find-extension-build.mjs",
+  "skills/chrome-extension-debug/scripts/find-extension-build.mjs",
+  "skills/wxt-extension-debug/scripts/find-extension-build.mjs",
 ]) {
   test(`${script} identifies MV2-only output as incompatible with current Chrome`, async (t) => {
     const root = await mkdtemp(path.join(os.tmpdir(), "extension-mv2-selection-"));

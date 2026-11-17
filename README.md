@@ -12,7 +12,7 @@ Engineering workflows, desktop-development guidance, and browser-extension testi
 
 </div>
 
-Choose a plugin for your coding harness, or use its skills on their own. Senior Engineering Workflow (SEW) adds an engineering workflow and optional specialist roles; Tauri and Chrome Extension Tester provide guidance for those development tasks.
+Choose a plugin for your coding harness, or use its skills on their own. Senior Engineering Workflow (SEW) adds an engineering workflow and optional specialist roles. Tauri and Chrome Extension Debugger provide guidance for those development tasks.
 
 > [!NOTE]
 > Install the SEW skill through your harness to use its workflow. The separate `@oovz/sew` CLI configures Researcher, Engineer, and Verifier role files, including model and reasoning settings.
@@ -23,7 +23,7 @@ Choose a plugin for your coding harness, or use its skills on their own. Senior 
 |---|---:|---|
 | [Senior Engineering Workflow](plugins/senior-engineering-workflow/) | 0.14.5 | Carry engineering work through implementation and review, with optional specialists. |
 | [Tauri v2 Desktop](plugins/tauri-v2-desktop/) | 1.2.2 | Build, test, upgrade, and package Tauri v2 desktop apps. |
-| [Chrome Extension Tester](plugins/chrome-extension-tester/) | 0.1.3 | Test Chrome and WXT extensions through their real browser flows. |
+| [Chrome Extension Debugger](plugins/chrome-extension-debugger/) | 0.2.0 | Develop and debug Chrome and WXT extensions in a live browser. |
 
 ## Available skills
 
@@ -33,8 +33,8 @@ These [Agent Skills](https://agentskills.io/specification) are included in the l
 |---|---|
 | [Senior Engineering Workflow](skills/senior-engineering-workflow/) | `senior-engineering-workflow` |
 | [Tauri v2 Desktop](skills/tauri-v2-desktop/) | `tauri-v2-desktop` |
-| [Chrome Extension Test](skills/chrome-extension-test/) | `chrome-extension-tester` |
-| [WXT Extension Test](skills/wxt-extension-test/) | `chrome-extension-tester` |
+| [Chrome Extension Debugging](skills/chrome-extension-debug/) | `chrome-extension-debugger` |
+| [WXT Extension Debugging](skills/wxt-extension-debug/) | `chrome-extension-debugger` |
 
 ## Harness and platform support
 
@@ -61,7 +61,7 @@ Windsurf/Cascade can load the portable Agent Skills export under `.agents/skills
 
 ## Install plugins and skills
 
-Choose a plugin ID: `senior-engineering-workflow`, `tauri-v2-desktop`, or `chrome-extension-tester`. The examples below use SEW unless the route is skill-only.
+Choose a plugin ID: `senior-engineering-workflow`, `tauri-v2-desktop`, or `chrome-extension-debugger`. The examples below use SEW unless the route is skill-only.
 
 Commands using `npm run` or `node scripts/` require Node.js 22 or later and a local checkout. Run them from the repository root:
 
@@ -79,7 +79,7 @@ Run these commands in Claude Code. [Native marketplace reference](https://code.c
 /plugin marketplace add oovz/plugins
 /plugin install senior-engineering-workflow@otto-plugins
 /plugin install tauri-v2-desktop@otto-plugins
-/plugin install chrome-extension-tester@otto-plugins
+/plugin install chrome-extension-debugger@otto-plugins
 ```
 
 ### Codex
@@ -147,7 +147,7 @@ Start a new session to load the installed plugin. [Marketplace reference](https:
 
 ### Windsurf/Cascade portable Agent Skills
 
-Install Tauri's skill or replace its ID with `chrome-extension-tester` to install both extension-testing skills:
+Install Tauri's skill or replace its ID with `chrome-extension-debugger` to install both extension-debugging skills:
 
 ```text
 node scripts/install.mjs install --plugin tauri-v2-desktop --host portable-agent-skills --scope project --project /absolute/path/to/project
@@ -155,7 +155,7 @@ node scripts/install.mjs install --plugin tauri-v2-desktop --host portable-agent
 
 This writes `.agents/skills` for [Cascade skill discovery](https://docs.devin.ai/desktop/cascade/skills). Use one of the subagent-capable host routes above for SEW.
 
-Chrome Extension Tester bundles MCP configuration for Codex. For other hosts, finish the [MCP setup](skills/chrome-extension-test/references/troubleshooting.md) after installing its skills.
+Chrome Extension Debugger bundles MCP configuration for Codex. Use the [MCP setup guide](skills/chrome-extension-debug/references/troubleshooting.md) to enable extension tools on other hosts or authorize a build directory.
 
 ## Install SEW role configuration
 
@@ -207,5 +207,5 @@ The migration cleans the selected ownership record. It does not install or remov
 
 - [SEW workflow and examples](plugins/senior-engineering-workflow/README.md), including use with other delivery skills.
 - [Tauri desktop guide](plugins/tauri-v2-desktop/README.md).
-- [Chrome Extension Tester setup and examples](plugins/chrome-extension-tester/README.md).
+- [Chrome Extension Debugger setup and examples](plugins/chrome-extension-debugger/README.md).
 - Authoring guides: [add a skill](docs/adding-a-skill.md) or [add a plugin](docs/adding-a-plugin.md).
