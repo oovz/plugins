@@ -135,7 +135,6 @@ function renderCodex(plugin) {
       description: agent.description,
       developer_instructions: leafGuard(agent)
     };
-    if (!inheritsPermissions(agent)) config.sandbox_mode = agent.workspace;
     artifacts.push({
       path: `companion/agents/${flatId}.toml`,
       content: stringifyToml(config)

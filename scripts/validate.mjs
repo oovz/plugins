@@ -85,8 +85,7 @@ function validateRenderedAgent(plugin, agent, target, artifacts) {
   } else if (target.id === "codex") {
     const value = parseToml(artifacts.get(`companion/agents/${flat}.toml`).toString("utf8"));
     assert(value.name === flat, `Codex agent ${agent.id} has incorrect id`);
-    if (inheritsPermissions) assert(value.sandbox_mode === undefined, `Codex permission-inheriting agent ${agent.id} must not override sandbox_mode`);
-    else assert(value.sandbox_mode === agent.workspace, `Codex agent ${agent.id} has incorrect sandbox`);
+    assert(value.sandbox_mode === undefined, `Codex agent ${agent.id} inherits the parent session's sandbox`);
     assert(value.model === undefined && value.model_reasoning_effort === undefined, `Codex agent ${agent.id} must inherit model and reasoning`);
   } else if (target.id === "gemini-cli") {
     const parsed = parseMarkdownArtifact(artifacts.get(`agents/${flat}.md`), `Gemini agent ${agent.id}`);

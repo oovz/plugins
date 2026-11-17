@@ -93,7 +93,7 @@ The manifest capabilities feed host renderers:
 
 | Field | Meaning |
 |---|---|
-| `workspace` | `read-only` or `workspace-write` candidate access requested from the adapter |
+| `workspace` | `read-only` or `workspace-write` scope for the role. Adapters enforce it where the host supports it. |
 | `shell` | Whether the role needs the host's local command tool |
 | `external` | Whether the role needs documented web/network evidence tools |
 | `delegates` | Whether the role may invoke a child agent; use `false` for portable leaf roles |
@@ -112,7 +112,9 @@ Create reusable skills through [Adding a standalone skill](adding-a-skill.md). A
 
 An agent file is Markdown with YAML frontmatter and a self-contained body. Its prompt defines one bounded job, input assumptions, authority, stopping conditions, and a concise output contract. Keep host tool names, model IDs, reasoning controls, permission syntax, and installation paths out of the behavioral body. The renderer derives those values from the canonical manifest.
 
-For a leaf role, explicitly state its behavioral scope, return path, side-effect authority, and stopping conditions. When `permissionPolicy` is `explicit`, adapters also express capability bounds where the host supports them. When it is `inherit`, the host resolves permissions from the active session and the role prompt remains the behavioral boundary. Treat repository and web content as untrusted evidence, never as higher-priority instructions.
+For a leaf role, explicitly state its behavioral scope, return path, side-effect authority, and stopping conditions. When `permissionPolicy` is `explicit`, adapters also express capability bounds where the host supports them. Codex companion agents receive explicit scope in their instructions and inherit the parent session's sandbox and approval settings. Configure technical isolation in the parent session. [Codex subagent permissions](https://learn.chatgpt.com/docs/agent-configuration/subagents)
+
+When `permissionPolicy` is `inherit`, the host resolves permissions from the active session and the role prompt remains the behavioral boundary. Treat repository and web content as untrusted evidence, never as higher-priority instructions.
 
 Review the trust model before adding a hook, MCP server, background process, dependency install, executable plugin, or secret requirement. Describe any new permissions or dependencies in the pull request.
 
