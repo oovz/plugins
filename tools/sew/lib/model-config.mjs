@@ -11,7 +11,7 @@ const REASONING_FIELD = Object.freeze({
 });
 const CLAUDE_EFFORTS = new Set(["low", "medium", "high", "xhigh", "max"]);
 const OMP_THINKING_LEVELS = ["inherit", "off", "minimal", "low", "medium", "high", "xhigh", "max"];
-const ANTIGRAVITY_MODELS = new Set(["inherit", "flash", "pro"]);
+const ANTIGRAVITY_MODELS = new Set(["inherit", "flash_lite", "flash", "pro"]);
 
 function normalizeModel(host, model) {
   if (model !== undefined) {
@@ -21,11 +21,11 @@ function normalizeModel(host, model) {
     if (host === "opencode" && model === "inherit") {
       throw new CliError("--model inherit is not supported for OpenCode. Use --reset to clear model and reasoning overrides.");
     }
-    if (host === "opencode" && !/^[^\s/]+(?:\/[^\s/]+)+$/u.test(model)) {
-      throw new CliError(`OpenCode models must use provider/model syntax: ${model}`);
+    if (host === "opencode" && !/^[^\s/#]+(?:\/[^\s/#]+)+(?:#[^\s#]+)?$/u.test(model)) {
+      throw new CliError(`OpenCode models must use provider/model or provider/model#variant syntax: ${model}`);
     }
     if (host === "antigravity" && !ANTIGRAVITY_MODELS.has(model)) {
-      throw new CliError("Antigravity model must be one of: inherit, flash, pro.");
+      throw new CliError(`Antigravity model must be one of: ${[...ANTIGRAVITY_MODELS].join(", ")}.`);
     }
   }
   return model;
@@ -53,9 +53,22 @@ function normalizeOverrideFields(host, { model, reasoning }) {
   return { ...(model !== undefined ? { model } : {}), ...(reasoning !== undefined ? { reasoning } : {}) };
 }
 
+function openCodeSelection({ model, reasoning }) {
+  if (model === undefined) return { model, reasoning };
+  const [baseModel, inlineVariant] = model.split("#", 2);
+  return { model: baseModel, reasoning: inlineVariant ?? reasoning };
+}
+
 export function validateOverride(host, { model, reasoning }) {
   const selected = normalizeOverrideFields(host, { model, reasoning });
   if (model === undefined && reasoning !== undefined) throw new CliError("--reasoning requires --model.");
+  if (host === "opencode") {
+    const selection = openCodeSelection(selected);
+    if (selected.reasoning !== undefined && selection.reasoning !== selected.reasoning) {
+      throw new CliError("OpenCode's model variant conflicts with --reasoning. Supply one variant or make both values match.");
+    }
+    return selection;
+  }
   return selected;
 }
 
@@ -66,7 +79,7 @@ function validateStoredOverrides(host, model, reasoning) {
   const stored = normalizeOverrideFields(host, { model, reasoning });
   if (stored.model !== model) throw new CliError(`${host} agent model must not have leading or trailing whitespace.`);
   if (stored.reasoning !== reasoning) throw new CliError(`${host} agent ${field} must not have leading or trailing whitespace.`);
-  return stored;
+  return host === "opencode" ? openCodeSelection(stored) : stored;
 }
 
 function expectedAgentName(role) {
@@ -152,16 +165,23 @@ export function applyRoleOverride(host, content, override) {
   }
 
   const { value, body } = parseFrontmatter(host, content);
+  let { model, reasoning } = selected;
+  if (host === "opencode" && !override.reset) {
+    const requested = openCodeSelection(selected);
+    const stored = openCodeSelection({ model: value.model, reasoning: value.variant });
+    model = requested.model ?? stored.model;
+    reasoning = requested.reasoning ?? stored.reasoning;
+  }
   if (override.reset) {
     delete value.model;
     if (["gemini-cli", "antigravity"].includes(host)) value.model = "inherit";
   }
-  else if (host === "oh-my-pi" && selected.model === "inherit") delete value.model;
-  else if (selected.model !== undefined) value.model = selected.model;
+  else if (host === "oh-my-pi" && model === "inherit") delete value.model;
+  else if (model !== undefined) value.model = model;
   const reasoningField = REASONING_FIELD[host];
   if (reasoningField) {
     if (override.reset) delete value[reasoningField];
-    else if (selected.reasoning !== undefined) value[reasoningField] = selected.reasoning;
+    else if (reasoning !== undefined) value[reasoningField] = reasoning;
   }
   const frontmatter = stringifyYaml(value, { lineWidth: 0 }).trimEnd();
   return `---\n${frontmatter}\n---\n${body}`;

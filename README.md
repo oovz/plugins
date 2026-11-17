@@ -21,7 +21,7 @@ Choose a plugin for your coding harness, or use its skills on their own. Senior 
 
 | Plugin | Version | Purpose |
 |---|---:|---|
-| [Senior Engineering Workflow](plugins/senior-engineering-workflow/) | 0.14.4 | Carry engineering work through implementation and review, with optional specialists. |
+| [Senior Engineering Workflow](plugins/senior-engineering-workflow/) | 0.14.5 | Carry engineering work through implementation and review, with optional specialists. |
 | [Tauri v2 Desktop](plugins/tauri-v2-desktop/) | 1.2.2 | Build, test, upgrade, and package Tauri v2 desktop apps. |
 | [Chrome Extension Tester](plugins/chrome-extension-tester/) | 0.1.3 | Test Chrome and WXT extensions through their real browser flows. |
 
@@ -47,10 +47,15 @@ SEW's CLI runs on Windows, macOS, and Linux. Plugin installation and role discov
 | OpenCode | Static `.opencode` configuration | Not specified |
 | Cursor | Native marketplace or direct skill and role files | 2.5+ for marketplace plugins; direct-role minimum not established |
 | Gemini CLI | Native extension | Not specified |
-| Antigravity CLI (`agy`) | Native CLI plugin | CLI 2.0 custom agents |
+| Antigravity CLI (`agy`) | Native CLI plugin | Not specified |
 | Oh My Pi | Native plugin marketplace | Not specified |
 
-See the [SEW CLI guide](tools/sew/README.md#locations-and-platform-support) for user/project role locations and environment overrides. Native harness execution has not been verified for every listed host; after installation, start a session to confirm discovery.
+See the [SEW CLI guide](tools/sew/README.md#locations-and-platform-support) for user/project role locations and environment overrides. Use the installed harness to confirm discovery and model execution. The local compatibility checks for SEW 0.14.5 covered the following:
+
+| Host | Route checked | Native result |
+|---|---|---|
+| OpenCode 2.2.7 | SEW project role files | `opencode --standalone debug agents` found Engineer and resolved its configured model and variant. |
+| Antigravity CLI 1.5.10 | Local native plugin bundle | `agy plugin install` installed the bundle and `agy plugin list --json` found all three roles. `agy plugin validate` accepted a test bundle with Engineer configured to use `flash_lite`. |
 
 Windsurf/Cascade can load the portable Agent Skills export under `.agents/skills`. Devin CLI/Desktop Local is not supported by this repository.
 

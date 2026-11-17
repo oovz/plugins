@@ -391,11 +391,17 @@ test("invalid Antigravity model tiers fail before writing and doctor rejects sto
   const install = runCli(["install", "--host", "antigravity", "--scope", "project", "--project", project], { env });
   assert.equal(install.status, 0, install.stderr);
   const engineer = path.join(project, ".agents", "agents", "senior-engineering-workflow-engineer.md");
-  for (const model of ["inherit", "flash", "pro"]) {
+  for (const model of ["inherit", "flash", "pro", "flash_lite"]) {
     const configured = runCli(["models", "configure", "--host", "antigravity", "--scope", "project", "--project", project, "--role", "engineer", "--model", model], { env });
     assert.equal(configured.status, 0, configured.stderr);
     assert.equal(parseRole("antigravity", await readFile(engineer, "utf8")).model, model);
   }
+  const report = runCli(["doctor", "--host", "antigravity", "--project", project, "--json"], { env });
+  assert.equal(report.status, 0, report.stdout);
+  assert.equal(JSON.parse(report.stdout).hosts[0].project.roles.find((item) => item.role === "engineer").model, "flash_lite");
+  const reset = runCli(["models", "configure", "--host", "antigravity", "--scope", "project", "--project", project, "--role", "engineer", "--reset"], { env });
+  assert.equal(reset.status, 0, reset.stderr);
+  assert.equal(parseRole("antigravity", await readFile(engineer, "utf8")).model, "inherit");
   const original = await readFile(engineer);
   const refused = runCli(["models", "configure", "--host", "antigravity", "--scope", "project", "--project", project, "--role", "engineer", "--model", "example-model"], { env });
   assert.equal(refused.status, 2);
@@ -612,4 +618,45 @@ test("OpenCode explicitly rejects model inherit without modifying configuration"
   const cleared = parseRole("opencode", await readFile(engineer, "utf8"));
   assert.equal(cleared.model, undefined);
   assert.equal(cleared.variant, undefined);
+});
+
+test("OpenCode rejects conflicting reasoning flags without modifying the role", async (t) => {
+  const { env, engineer, configure } = await diagnosticFixture(t, "opencode");
+  const before = await readFile(engineer);
+  const rejected = runCli([...configure, "--model", "provider/model#low", "--reasoning", "high", "--json"], { env });
+  assert.equal(rejected.status, 2, rejected.stdout);
+  assert.match(JSON.parse(rejected.stdout).error, /conflicts/u);
+  assert.deepEqual(await readFile(engineer), before);
+
+  const agreed = runCli([...configure, "--model", "provider/model#low", "--reasoning", "low", "--json"], { env });
+  assert.equal(agreed.status, 0, agreed.stdout);
+  const saved = parseRole("opencode", await readFile(engineer, "utf8"));
+  assert.equal(saved.model, "provider/model");
+  assert.equal(saved.variant, "low");
+});
+
+test("OpenCode doctor and model updates follow the variant selected by native V2 files", async (t) => {
+  const { env, engineer, configure, doctor, project } = await diagnosticFixture(t, "opencode");
+  const source = await readFile(engineer, "utf8");
+  for (const legacyVariant of ["", "variant: high\n"]) {
+    await writeFile(engineer, source.replace("---\n", `---\nmodel: provider/model#low\n${legacyVariant}`));
+    const report = runCli([...doctor, "--json"], { env });
+    assert.equal(report.status, 0, report.stdout);
+    const configured = JSON.parse(report.stdout).hosts[0].project.roles.find((item) => item.role === "engineer");
+    assert.equal(configured.model, "provider/model");
+    assert.equal(configured.reasoning, "low");
+  }
+
+  const updated = runCli([...configure, "--model", "provider/new-model", "--json"], { env });
+  assert.equal(updated.status, 0, updated.stdout);
+  assert.deepEqual(JSON.parse(updated.stdout).previous, { model: "provider/model", reasoning: "low" });
+  const reinstalled = runCli(["install", "--host", "opencode", "--scope", "project", "--project", project], { env });
+  assert.equal(reinstalled.status, 0, reinstalled.stderr);
+  const saved = parseRole("opencode", await readFile(engineer, "utf8"));
+  assert.equal(saved.model, "provider/new-model");
+  assert.equal(saved.variant, "low");
+
+  const changed = runCli([...configure, "--model", "provider/new-model#high", "--json"], { env });
+  assert.equal(changed.status, 0, changed.stdout);
+  assert.equal(JSON.parse(changed.stdout).current.reasoning, "high");
 });

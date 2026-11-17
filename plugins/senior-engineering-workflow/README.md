@@ -1,6 +1,6 @@
 # Senior Engineering Workflow
 
-SEW 0.14.4 provides an engineering workflow and three optional specialists: Researcher, Engineer, and Verifier. The main agent owns the task, architecture, integration, and completion; specialists return results for their assigned work.
+SEW 0.14.5 provides an engineering workflow and three optional specialists: Researcher, Engineer, and Verifier. The main agent owns the task, architecture, integration, and completion; specialists return results for their assigned work.
 
 Use it for direct engineering work, or alongside another delivery skill. Keep related implementation and validation together. Delegate when parallel work, specialized investigation, or independent review justifies the coordination. Each specialist runs its own tools.
 
@@ -53,7 +53,7 @@ npx @oovz/sew models configure --host claude-code --role verifier --model sonnet
 npx @oovz/sew models configure --host antigravity --role engineer --model flash
 ```
 
-Claude Code uses `effort`, Codex uses `model_reasoning_effort`, OpenCode uses `variant`, and Oh My Pi uses `thinking-level`. Antigravity accepts `inherit`, `flash`, or `pro` model tiers. Model IDs are syntax-checked without a live model-catalog call. The harness reports whether a model is available when it executes the role. Use `--reset` to remove the selected role's model and reasoning overrides.
+Use `--reset` to clear the selected role's overrides. See the [CLI model and reasoning settings](../../tools/sew/README.md#model-and-reasoning-settings) for OpenCode variants, supported Antigravity tiers, and host precedence.
 
 `--model inherit` uses each harness's native inheritance representation and preserves existing reasoning unless explicitly supplied. It is **not supported for OpenCode**; use `--reset` there to clear model and reasoning overrides. See the [CLI inheritance table](../../tools/sew/README.md#model-and-reasoning-settings) for host behavior and precedence.
 

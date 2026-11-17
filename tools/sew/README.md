@@ -30,7 +30,7 @@ The CLI supports Windows, macOS and Linux.
 | OpenCode | `${OPENCODE_CONFIG_DIR:-${XDG_CONFIG_HOME:-~/.config}/opencode}/agents` | `<project>/.opencode/agents` | Windows/macOS/Linux | Not specified |
 | Cursor | `~/.cursor/agents` | `<project>/.cursor/agents` | Windows/macOS/Linux | Not specified |
 | Gemini CLI | `${GEMINI_CLI_HOME:-~}/.gemini/agents` | `<project>/.gemini/agents` | Windows/macOS/Linux | Not specified |
-| Antigravity CLI (`agy`) | `~/.gemini/config/agents` | `<project>/.agents/agents` | Windows/macOS/Linux | CLI 2.0 custom agents |
+| Antigravity CLI (`agy`) | `~/.gemini/config/agents` | `<project>/.agents/agents` | Windows/macOS/Linux | See model tier notes below |
 | Oh My Pi (`omp`) | `~/.omp/agent/agents` | `<project>/.omp/agents` | Windows/macOS/Linux | Not specified |
 
 The Gemini CLI's `GEMINI_CLI_HOME` is a parent directory. It contains `.gemini`; SEW appends that directory before writing `agents/`. See the [official Gemini CLI configuration reference](https://geminicli.com/docs/reference/configuration/#gemini_cli_home). Antigravity CLI user and project agent locations follow its [official custom-agent documentation](https://antigravity.google/docs/cli/commands/agents).
@@ -61,7 +61,7 @@ npx @oovz/sew models configure --host codex --role engineer --model inherit
 | Codex, Oh My Pi | Removes the `model` field so the host resolves it |
 | OpenCode | **Not supported**; the command rejects it without writing |
 
-For OpenCode, use `--reset` to remove both model and reasoning overrides, or configure a concrete `provider/model-id`. OpenCode itself supports inheriting the invoking agent's model when the field is absent; the unsupported option here is SEW's `--model inherit` parameter.
+For OpenCode, use `--reset` to remove both overrides, or provide a concrete `provider/model-id`. To set reasoning, pass either `--model provider/model-id#high` or `--model provider/model-id --reasoning high`. If you provide both variant values, they must match. A model-only update preserves the existing variant. SEW writes separate `model` and `variant` fields that OpenCode V1 and V2 read. When reading an existing file with both an inline and a separate variant, SEW reports the inline variant that OpenCode V2 selects. [OpenCode V2 migration guide](https://opencode.ai/docs/migrate-v1/#agent-files)
 
 Host precedence still applies: Codex agent defaults or invocation settings and Oh My Pi task settings can take precedence over the parent model. Explicit `inherit` and an omitted field can also differ in Claude Code when environment overrides are set. See [Claude Code](https://code.claude.com/docs/en/sub-agents#choose-a-model), [Codex](https://learn.chatgpt.com/docs/agent-configuration/subagents), [Cursor](https://cursor.com/docs/subagents), [Gemini CLI](https://geminicli.com/docs/core/subagents/#configuration-schema), [Antigravity CLI](https://antigravity.google/docs/subagents?tab=cli), [Oh My Pi](https://github.com/can1357/oh-my-pi/blob/main/docs/task-agent-discovery.md#model-and-structured-output-precedence), and [OpenCode](https://opencode.ai/docs/agents/#model) for native resolution rules.
 
@@ -71,7 +71,11 @@ The command changes only model and host-supported reasoning fields in the select
 npx @oovz/sew models configure --host codex --role engineer --reset
 ```
 
-Claude Code uses `effort`, Codex uses `model_reasoning_effort`, OpenCode uses `variant`, and Oh My Pi uses `thinking-level`. Antigravity model values are the documented tiers `inherit`, `flash`, and `pro`. Other supported role formats have no reasoning field; `--reasoning` is rejected for them. Model values are checked for valid host syntax without a live catalog query. Host availability is determined by the harness when the role runs. Oh My Pi accepts `inherit`, `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`, and `auto`. Except for exact `auto`, unambiguous prefixes of at least two characters are accepted, such as `hi`; values are case-sensitive.
+Claude Code uses `effort`, Codex uses `model_reasoning_effort`, OpenCode uses `variant`, and Oh My Pi uses `thinking-level`. Those four hosts support `--reasoning`. SEW validates local syntax and the harness resolves availability when it runs the role.
+
+Antigravity accepts `inherit`, `flash_lite`, `flash`, and `pro`. Use `flash_lite` with an Antigravity build that supports this tier. Local agent discovery for `flash_lite` was verified with `agy` 1.5.10. Use `flash`, `pro`, or `inherit` on builds that do not recognize it. [Antigravity plugin authoring guide](https://antigravity.google/docs/build-plugins)
+
+Oh My Pi accepts `inherit`, `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`, and `auto`. Except for exact `auto`, unambiguous prefixes of at least two characters are accepted, such as `hi`. Values are case-sensitive.
 
 ## Doctor
 
