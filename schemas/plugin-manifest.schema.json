@@ -180,6 +180,9 @@
             "experimental"
           ]
         },
+        "icon": {
+          "$ref": "#/$defs/relativePath"
+        },
         "capabilities": {
           "type": "array",
           "minItems": 1,

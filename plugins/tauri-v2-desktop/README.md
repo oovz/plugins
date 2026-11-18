@@ -1,6 +1,6 @@
 # Tauri v2 Desktop
 
-Build, test, and ship Tauri v2 desktop apps on Windows, macOS, and Linux. This plugin bundles the `tauri-v2-desktop` skill, version 1.2.2.
+Build, test, and ship Tauri v2 desktop apps on Windows, macOS, and Linux. This plugin bundles the `tauri-v2-desktop` skill.
 
 ## What it covers
 

@@ -43,7 +43,7 @@ function compact(text, maximum) {
 
 export function codexPluginManifest(plugin, repository = plugin.marketplace?.repository ?? plugin.manifest.author.url) {
   const firstSkill = plugin.skills[0]?.id;
-  const capabilities = plugin.manifest.hosts?.codex?.capabilities;
+  const { capabilities, icon } = plugin.manifest.hosts?.codex ?? {};
   const codexComponents = classifyCodexComponents(plugin.manifest.components);
   assert(codexComponents.invalidDestinations.length === 0, `${plugin.manifest.id} has unsupported Codex host-file destinations: ${codexComponents.invalidDestinations.map((file) => file.id).join(", ")}`);
   if (plugin.manifest.hosts?.codex?.enabled === true && capabilities === undefined) {
@@ -72,6 +72,7 @@ export function codexPluginManifest(plugin, repository = plugin.marketplace?.rep
       developerName: plugin.manifest.author.name,
       category: plugin.manifest.category ?? "Other",
       ...(capabilities === undefined ? {} : { capabilities }),
+      ...(icon === undefined ? {} : { logo: `./${icon}`, composerIcon: `./${icon}` }),
       defaultPrompt: [compact(firstSkill ? `Use $${firstSkill} for this task.` : `Use ${plugin.manifest.displayName} for this task.`, 128)],
       websiteURL: repository
     }
@@ -128,6 +129,7 @@ function renderCodex(plugin) {
     },
     ...skills(plugin)
   ];
+  if (plugin.codexIcon) artifacts.push(plugin.codexIcon);
   for (const agent of plugin.agents) {
     const flatId = flatAgentId(plugin.manifest.id, agent.id);
     const config = {

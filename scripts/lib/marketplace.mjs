@@ -302,6 +302,13 @@ export function validatePluginManifest(manifest, directoryName) {
     const categories = new Set(["Productivity", "Creativity", "Developer Tools", "Business & Operations", "Data & Analytics", "Communication", "Education & Research", "Security", "Finance", "Healthcare", "Travel", "Entertainment", "Other"]);
     assert(categories.has(manifest.category ?? "Other"), `unsupported Codex category: ${manifest.category}`);
   }
+  const codexIcon = manifest.hosts.codex?.icon;
+  if (codexIcon !== undefined) {
+    assert(manifest.hosts.codex.enabled, "hosts.codex.icon requires the Codex host to be enabled");
+    assertRelative(codexIcon, "hosts.codex.icon");
+    assert(codexIcon.startsWith("assets/") && /\.(png|jpe?g|webp|svg)$/iu.test(codexIcon),
+      "hosts.codex.icon must name a PNG, JPEG, WebP, or SVG file under assets/");
+  }
   const commandHosts = new Set(["claude-code", "cursor", "gemini-cli", "oh-my-pi", "opencode"]);
   for (const command of manifest.components.commands) {
     assert(Array.isArray(command.hosts) && command.hosts.length > 0, `command ${command.id} must declare supported hosts`);
@@ -426,7 +433,15 @@ export async function inspectPlugin(plugin) {
     hostFile.codexNativeKind = component.nativeKind;
     hostFile.codexNativeFunctional = true;
   }
-  return { ...plugin, license, skills, agents, commands, hostFiles };
+  const iconPath = plugin.manifest.hosts.codex?.icon;
+  let codexIcon;
+  if (iconPath !== undefined) {
+    const label = `${plugin.manifest.id} Codex icon`;
+    const file = await assertSecureSourcePath(plugin.directory, path.join(plugin.directory, iconPath), label);
+    assert((await lstat(file)).isFile(), `${label} must be a regular file`);
+    codexIcon = { path: iconPath, content: await readFile(file) };
+  }
+  return { ...plugin, license, skills, agents, commands, hostFiles, codexIcon };
 }
 
 export async function walkFiles(directory, containmentRoot = directory) {

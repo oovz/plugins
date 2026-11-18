@@ -1,6 +1,6 @@
 {
   "name": "chrome-extension-debugger",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Develop and debug Chrome extensions in a live browser, with guidance for unpacked builds, extension surfaces, service workers, and WXT hot reload.",
   "author": {
     "name": "Otto",
@@ -30,6 +30,8 @@
       "Write",
       "Execute"
     ],
+    "logo": "./assets/icon.svg",
+    "composerIcon": "./assets/icon.svg",
     "defaultPrompt": [
       "Use $chrome-extension-debug for this task."
     ],

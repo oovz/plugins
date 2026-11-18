@@ -214,6 +214,11 @@ async function validatePlugin(plugin) {
         && manifest.mcpServers === (mcpServers ? `./${mcpServers.destination}` : undefined)
         && manifest.agents === undefined,
       `Codex manifest for ${plugin.manifest.id} is not native`);
+      const icon = plugin.manifest.hosts.codex.icon;
+      if (icon !== undefined) {
+        assert(manifest.interface.logo === `./${icon}` && manifest.interface.composerIcon === `./${icon}` && artifacts.has(icon),
+          `Codex branding for ${plugin.manifest.id} must reference the packaged icon in the listing and composer`);
+      }
       for (const file of plugin.hostFiles.filter((entry) => entry.hosts.includes("codex"))) {
         assert(artifacts.has(file.destination), `Codex bundle for ${plugin.manifest.id} omits ${file.destination}`);
       }

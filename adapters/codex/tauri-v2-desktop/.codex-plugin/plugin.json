@@ -1,6 +1,6 @@
 {
   "name": "tauri-v2-desktop",
-  "version": "1.2.2",
+  "version": "1.2.3",
   "description": "Guidance for building, securing, testing, upgrading, and shipping Tauri v2 desktop applications on Windows, macOS, and Linux.",
   "author": {
     "name": "Otto",
@@ -31,6 +31,8 @@
       "Read",
       "Write"
     ],
+    "logo": "./assets/icon.svg",
+    "composerIcon": "./assets/icon.svg",
     "defaultPrompt": [
       "Use $tauri-v2-desktop for this task."
     ],

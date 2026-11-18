@@ -104,6 +104,8 @@ The manifest capabilities feed host renderers:
 
 For a Codex-enabled plugin, `hosts.codex.capabilities` is required. These single-line listing labels describe the install surface only; they do not grant runtime tools or override sandbox or approval policy. Do not place `capabilities` under another host, and do not derive the list from agent workspace settings.
 
+To display a plugin icon in ChatGPT, save a square image under the source plugin's `assets/` directory and set `hosts.codex.icon` to its plugin-relative path, such as `assets/icon.svg`. The Codex bundle includes the image and references it through `interface.logo` and `interface.composerIcon`. Use SVG, PNG, JPEG, or WebP at 48 × 48 pixels or larger. [OpenAI icon requirements](https://developers.openai.com/plugins/deploy/submission#icons)
+
 Use a semantic version in the plugin manifest.
 
 ## 3. Write host-neutral canonical components

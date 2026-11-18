@@ -1,6 +1,6 @@
 {
   "name": "senior-engineering-workflow",
-  "version": "0.14.5",
+  "version": "0.14.6",
   "description": "Direct engineering ownership with optional research, implementation, and independent verification specialists.",
   "author": {
     "name": "Otto",
@@ -29,6 +29,8 @@
       "Read",
       "Write"
     ],
+    "logo": "./assets/icon.svg",
+    "composerIcon": "./assets/icon.svg",
     "defaultPrompt": [
       "Use $senior-engineering-workflow for this task."
     ],

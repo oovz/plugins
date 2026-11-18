@@ -2,7 +2,7 @@
   "$schema": "../../schemas/plugin-manifest.schema.json",
   "schemaVersion": 2,
   "id": "chrome-extension-debugger",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "displayName": "Chrome Extension Debugger",
   "shortDescription": "Develop and debug Chrome extensions in a live browser.",
   "description": "Develop and debug Chrome extensions in a live browser, with guidance for unpacked builds, extension surfaces, service workers, and WXT hot reload.",
@@ -44,6 +44,7 @@
     },
     "codex": {
       "enabled": true,
+      "icon": "assets/icon.svg",
       "capabilities": [
         "Read",
         "Write",
