@@ -9,6 +9,7 @@ import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 import { readTarEntriesFromGzip } from "./lib/deterministic-npm-tar.mjs";
+import { SEW_CLI_TAG_PREFIX } from "./lib/sew-release-metadata.mjs";
 
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -37,7 +38,7 @@ export async function checkSewRelease(tag, options = {}) {
   const stageRoot = path.resolve(options.stageRoot ?? path.join(root, "release-build", "sew", "package"));
   const releaseRoot = path.resolve(options.releaseRoot ?? path.join(root, "release-build", "sew", "artifacts"));
   const source = JSON.parse(await readFile(path.join(sourceRoot, "package.json"), "utf8"));
-  const expectedTag = `sew-v${source.version}`;
+  const expectedTag = `${SEW_CLI_TAG_PREFIX}${source.version}`;
   if (tag !== expectedTag) throw new Error(`Release tag ${tag} does not match package version ${source.version}; expected ${expectedTag}.`);
   if (source.private !== true) throw new Error("tools/sew must remain a private source workspace.");
   for (const generated of ["payloads", "templates"]) {
@@ -114,7 +115,7 @@ export async function checkSewRelease(tag, options = {}) {
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const tag = process.argv[2];
   if (!tag) {
-    process.stderr.write("usage: node scripts/check-sew-release.mjs sew-v<version>\n");
+    process.stderr.write(`usage: node scripts/check-sew-release.mjs ${SEW_CLI_TAG_PREFIX}<version>\n`);
     process.exitCode = 2;
   } else {
     checkSewRelease(tag).then((result) => {

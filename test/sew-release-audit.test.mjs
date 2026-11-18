@@ -65,12 +65,13 @@ test("release verification rejects a mixed stage and tarball identity", async (t
   await writeFile(stageManifestPath, `${JSON.stringify(stageManifest, null, 2)}\n`);
   await writeFile(stagePayloadPath, `${JSON.stringify(stagePayload, null, 2)}\n`);
   await (await import("../scripts/pack-sew.mjs")).packSew({ packageRoot: stageRoot, releaseRoot });
-  await assert.doesNotReject(checkSewRelease(`sew-v${stageManifest.version}`, { root: ROOT, stageRoot, releaseRoot, sourceCommit }));
+  await assert.doesNotReject(checkSewRelease(`sew-cli-v${stageManifest.version}`, { root: ROOT, stageRoot, releaseRoot, sourceCommit }));
+  await assert.rejects(checkSewRelease(`sew-v${stageManifest.version}`, { root: ROOT, stageRoot, releaseRoot, sourceCommit }), /expected sew-cli-v/u);
   stageManifest.sourceCommit = "b".repeat(40);
   stagePayload.sourceCommit = stageManifest.sourceCommit;
   await writeFile(stageManifestPath, `${JSON.stringify(stageManifest, null, 2)}\n`);
   await writeFile(stagePayloadPath, `${JSON.stringify(stagePayload, null, 2)}\n`);
-  await assert.rejects(checkSewRelease(`sew-v${stageManifest.version}`, { root: ROOT, stageRoot, releaseRoot, sourceCommit: stageManifest.sourceCommit }), /release tarball package manifest does not match/u);
+  await assert.rejects(checkSewRelease(`sew-cli-v${stageManifest.version}`, { root: ROOT, stageRoot, releaseRoot, sourceCommit: stageManifest.sourceCommit }), /release tarball package manifest does not match/u);
 });
 
 test("deterministic npm tarballs normalize bin mode and bytes", async (t) => {

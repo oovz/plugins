@@ -102,11 +102,35 @@ Report exact checks and observed results. Distinguish pre-existing/environmental
 
 ## CI and release details
 
-[validate.yml](.github/workflows/validate.yml) calls [validate-reusable.yml](.github/workflows/validate-reusable.yml) on pushes and pull requests. The matrix runs `npm ci` and `npm run verify` on Windows, macOS, and Linux with Node 22 and 24. Local checks and unpushed commits do not establish hosted CI results.
+[validate.yml](.github/workflows/validate.yml) calls [validate-reusable.yml](.github/workflows/validate-reusable.yml) on branch pushes and pull requests. The release workflows call the same matrix on their tag pushes. The matrix runs `npm ci` and `npm run verify` on Windows, macOS, and Linux with Node 22 and 24. Local checks and unpushed commits do not establish hosted CI results.
 
 Before distributing changed content, bump each affected plugin version, update displayed versions, and regenerate its projections. Shared skills affect every plugin that bundles them. Keep the SEW plugin and `tools/sew/package.json` versions equal, including the lockfile; the root tooling version is independent.
 
-Plugin/skill updates use committed adapters and native bundles. Gemini requires its extension manifest at the installed archive or repository root. Reserve `sew-v<version>` tags for an authorized CLI release.
+Plugin/skill updates use committed adapters and native bundles. Gemini requires its extension manifest at the installed archive or repository root.
+
+### Release tags
+
+| Product | Tag format | Publication |
+|---|---|---|
+| Chrome Extension Debugger | `ced-v<version>` | GitHub Release |
+| Tauri v2 Desktop | `tauri-v<version>` | GitHub Release |
+| Senior Engineering Workflow plugin | `sew-v<version>` | GitHub Release |
+| `@oovz/sew` CLI | `sew-cli-v<version>` | npm and GitHub Release |
+
+For an authorized release, tag the commit containing the matching manifest version and release workflow. Push tags individually. To release Chrome Extension Debugger version `0.2.0` from the current commit, run these commands:
+
+```sh
+git tag -a ced-v0.2.0 -m "Chrome Extension Debugger 0.2.0"
+git push origin ced-v0.2.0
+```
+
+[release-plugin.yml](.github/workflows/release-plugin.yml) checks the tagged manifest version and publishes a GitHub Release. Notes cover the plugin, its bundled skills, and generated adapters since the highest lower published version of the same plugin. Stable releases use a stable baseline. Plugin releases include GitHub’s source archives and link to installation instructions at the tagged revision. The SEW CLI workflow owns npm publication and the repository-wide Latest marker.
+
+When adding a plugin release prefix, update the tag filter in [release-plugin.yml](.github/workflows/release-plugin.yml) and the prefix map in [prepare-plugin-release.mjs](scripts/prepare-plugin-release.mjs).
+
+### SEW CLI publication
+
+Use `sew-cli-v<version>` for new CLI releases. Existing `sew-v<version>` GitHub releases with a matching `oovz-sew-<version>.tgz` asset belong to the CLI release history and remain valid targets for npm latest repair. Preserve their tags and assets.
 
 ```sh
 npm run pack:sew

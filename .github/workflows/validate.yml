@@ -2,6 +2,7 @@ name: Validate marketplace
 
 on:
   push:
+    branches: ["**"]
   pull_request:
 
 permissions:

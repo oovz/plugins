@@ -3,7 +3,7 @@ name: Release @oovz/sew
 on:
   push:
     tags:
-      - "sew-v*"
+      - "sew-cli-v*"
   workflow_dispatch:
     inputs:
       release_tag:

@@ -1,0 +1,61 @@
+name: Release marketplace plugin
+
+on:
+  push:
+    tags:
+      - "sew-v*"
+      - "tauri-v*"
+      - "ced-v*"
+
+permissions:
+  contents: read
+
+jobs:
+  validation:
+    if: github.repository == 'oovz/plugins' && github.event.created
+    uses: ./.github/workflows/validate-reusable.yml
+
+  release:
+    needs: validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    concurrency:
+      group: plugin-release-publication
+      queue: max
+      cancel-in-progress: false
+    permissions:
+      contents: write
+    steps:
+      - name: Check out tagged source and release history
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install locked release-tool dependencies
+        run: npm ci
+
+      - name: Generate plugin notes and create GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          PLUGIN_SOURCE_COMMIT: ${{ github.sha }}
+        run: |
+          metadata=release-build/plugin
+          mkdir -p "$metadata"
+          gh api --paginate --slurp "repos/$GH_REPO/releases?per_page=100" > "$metadata/releases.json"
+          node scripts/prepare-plugin-release.mjs "$GITHUB_REF_NAME" "$GH_REPO" "$metadata/releases.json" "$metadata"
+          gh release create "$GITHUB_REF_NAME" \
+            --verify-tag \
+            --notes-file "$metadata/notes.md" \
+            --title "$(jq -r .title "$metadata/plan.json")" \
+            --prerelease="$(jq -r .prerelease "$metadata/plan.json")" \
+            --latest=false
