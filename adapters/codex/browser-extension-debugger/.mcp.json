@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "browser-extension-firefox": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@mozilla/firefox-mcp@0.11.0",
+        "--tool-preset",
+        "developer"
+      ]
+    }
+  }
+}

@@ -26,9 +26,9 @@
       }
     },
     {
-      "name": "chrome-extension-debugger",
-      "source": "./adapters/cursor/chrome-extension-debugger",
-      "description": "Develop and debug Chrome extensions in a live browser, with guidance for unpacked builds, extension surfaces, service workers, and WXT hot reload.",
+      "name": "browser-extension-debugger",
+      "source": "./adapters/cursor/browser-extension-debugger",
+      "description": "Debug live extensions in Chrome, Edge, Firefox, and macOS Safari, with browser-specific build selection, extension reloads, diagnostics, and WXT hot reload.",
       "minClientVersions": {
         "cursor": "2.5.0"
       }

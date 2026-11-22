@@ -1,0 +1,39 @@
+{
+  "name": "browser-extension-debugger",
+  "version": "0.1.0",
+  "description": "Debug live extensions in Chrome, Edge, Firefox, and macOS Safari, with browser-specific build selection, extension reloads, diagnostics, and WXT hot reload.",
+  "author": {
+    "name": "Otto",
+    "url": "https://github.com/oovz/plugins"
+  },
+  "homepage": "https://github.com/oovz/plugins",
+  "repository": "https://github.com/oovz/plugins",
+  "license": "MIT",
+  "keywords": [
+    "browser-extension",
+    "webextensions",
+    "mcp",
+    "wxt",
+    "debugging"
+  ],
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "Browser Extension Debugger",
+    "shortDescription": "Debug live extensions in Chrome, Edge, Firefox, and Safari.",
+    "longDescription": "Debug live extensions in Chrome, Edge, Firefox, and macOS Safari, with browser-specific build selection, extension reloads, diagnostics, and WXT hot reload.",
+    "developerName": "Otto",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Read",
+      "Write",
+      "Execute"
+    ],
+    "logo": "./assets/icon.svg",
+    "composerIcon": "./assets/icon.svg",
+    "defaultPrompt": [
+      "Use $browser-extension-debug for this task."
+    ],
+    "websiteURL": "https://github.com/oovz/plugins"
+  }
+}

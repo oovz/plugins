@@ -59,10 +59,10 @@
       "category": "Developer Tools"
     },
     {
-      "name": "chrome-extension-debugger",
-      "source": "./adapters/oh-my-pi/chrome-extension-debugger",
-      "description": "Develop and debug Chrome extensions in a live browser, with guidance for unpacked builds, extension surfaces, service workers, and WXT hot reload.",
-      "version": "0.2.1",
+      "name": "browser-extension-debugger",
+      "source": "./adapters/oh-my-pi/browser-extension-debugger",
+      "description": "Debug live extensions in Chrome, Edge, Firefox, and macOS Safari, with browser-specific build selection, extension reloads, diagnostics, and WXT hot reload.",
+      "version": "0.1.0",
       "author": {
         "name": "Otto",
         "url": "https://github.com/oovz/plugins"
@@ -71,10 +71,9 @@
       "repository": "https://github.com/oovz/plugins",
       "license": "MIT",
       "keywords": [
-        "chrome-extension",
-        "chrome-devtools",
+        "browser-extension",
+        "webextensions",
         "mcp",
-        "side-panel",
         "wxt",
         "debugging"
       ],

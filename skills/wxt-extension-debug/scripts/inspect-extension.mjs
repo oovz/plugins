@@ -72,6 +72,11 @@ const output = {
     configured: true,
     defaultPath: manifest.side_panel.default_path || null,
   } : { configured: false },
+  sidebar: manifest.sidebar_action ? {
+    configured: true,
+    defaultPanel: manifest.sidebar_action.default_panel || null,
+  } : { configured: false },
+  browserSpecificSettings: manifest.browser_specific_settings || manifest.applications || {},
   options: manifest.options_ui ? {
     configured: true,
     page: manifest.options_ui.page || null,
@@ -86,6 +91,8 @@ const output = {
     scripts: manifest.background.scripts || [],
     page: manifest.background.page || null,
     type: manifest.background.type || null,
+    persistent: manifest.background.persistent ?? null,
+    preferredEnvironment: manifest.background.preferred_environment ?? null,
   } : null,
   contentScripts: (manifest.content_scripts || []).map((entry) => ({
     matches: entry.matches || [],

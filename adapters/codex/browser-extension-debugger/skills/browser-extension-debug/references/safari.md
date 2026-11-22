@@ -1,0 +1,9 @@
+# Debug Safari web extensions on macOS
+
+1. Use Safari's **Settings → Advanced** to enable web developer features. In **Settings → Developer**, choose **Add Temporary Extension** and select the unpacked folder. Complete the unsigned-extension prompt if Safari shows it. Use **Reload** in the **Extensions → Temporary** list after rebuilding. For a Safari version that lacks this workflow, use the project's macOS Xcode extension app. iOS installation and inspection also use Xcode and a simulator or device. [Apple's Safari extension installation guide](https://developer.apple.com/documentation/safariservices/running-your-safari-web-extension)
+2. Click the toolbar action and Control-click the popup to inspect it. Use **Develop → Web Extension Background Content** for the background context. In the target webpage's Web Inspector, select the extension context in **Sources** to debug content scripts. [Apple's extension debugging guide](https://developer.apple.com/documentation/safariservices/troubleshooting-your-safari-web-extension)
+3. If you need page inspection through MCP, Safari 27 or Safari Technology Preview 247 provides `safaridriver --mcp`. On Safari 27, enable **Allow remote automation and external agents** and register `/usr/bin/safaridriver --mcp` with the host. For Technology Preview, use the driver inside that application bundle. Use native Safari controls for extension installation, reloads, and toolbar interaction. [WebKit's Safari MCP setup and tool list](https://webkit.org/blog/18136/introducing-the-safari-mcp-server-for-web-developers/)
+
+## Shut down
+
+Remove the temporary extension you installed from Safari settings. Close tabs and windows opened for the task. Quit Safari or Safari Technology Preview if you opened that application solely for debugging and it has no other work open. In a shared Safari instance, use the existing app's settings and close only the task's browser resources.

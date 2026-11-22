@@ -5,7 +5,7 @@ on:
     tags:
       - "sew-v*"
       - "tauri-v*"
-      - "ced-v*"
+      - "bed-v*"
 
 permissions:
   contents: read

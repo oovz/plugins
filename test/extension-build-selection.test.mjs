@@ -21,7 +21,7 @@ async function fixture() {
 }
 
 for (const script of [
-  "skills/chrome-extension-debug/scripts/find-extension-build.mjs",
+  "skills/browser-extension-debug/scripts/find-extension-build.mjs",
   "skills/wxt-extension-debug/scripts/find-extension-build.mjs",
 ]) {
   test(`${script} identifies MV2-only output as incompatible with current Chrome`, async (t) => {
@@ -49,6 +49,50 @@ for (const script of [
     assert.equal(output.recommended.browser, "chrome");
     assert.equal(output.recommendation, "compatible-build");
     assert.equal(output.candidates.find((candidate) => candidate.browser === "firefox").compatible, false);
+  });
+
+  test(`${script} selects the named target in mixed browser output`, async (t) => {
+    const { root, chrome, firefox } = await fixture();
+    t.after(() => rm(root, { recursive: true, force: true }));
+    const edge = path.join(root, ".output", "edge-mv3");
+    const safari = path.join(root, ".output", "safari-mv3");
+    for (const [target, directory] of [["edge", edge], ["safari", safari]]) {
+      await mkdir(directory);
+      await writeFile(path.join(directory, "manifest.json"), JSON.stringify({ manifest_version: 3, name: target }));
+    }
+    for (const [target, directory] of [["chrome", chrome], ["edge", edge], ["firefox", firefox], ["safari", safari]]) {
+      const args = target === "chrome" ? [] : ["--browser", target];
+      const result = spawnSync(process.execPath, [path.join(ROOT, script), root, ...args], { encoding: "utf8" });
+      assert.equal(result.status, 0, result.stderr);
+      const output = JSON.parse(result.stdout);
+      assert.equal(output.recommended.path, directory, `expected the ${target} build`);
+      assert.equal(output.recommended.browser, target);
+      assert.equal(output.recommended.compatible, true);
+    }
+  });
+
+  test(`${script} accepts a shared Firefox MV3 build with an event page, but rejects worker-only output`, async (t) => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "extension-firefox-background-"));
+    t.after(() => rm(root, { recursive: true, force: true }));
+    const manifestPath = path.join(root, "manifest.json");
+    const manifest = {
+      manifest_version: 3,
+      name: "Shared extension",
+      version: "1.0.0",
+      background: { service_worker: "worker.js" },
+    };
+    const selectFirefox = () => {
+      const result = spawnSync(process.execPath, [path.join(ROOT, script), root, "--browser", "firefox"], { encoding: "utf8" });
+      assert.equal(result.status, 0, result.stderr);
+      return JSON.parse(result.stdout);
+    };
+
+    await writeFile(manifestPath, JSON.stringify(manifest));
+    assert.equal(selectFirefox().recommendation, "no-compatible-firefox-build");
+
+    manifest.background.scripts = ["background.js"];
+    await writeFile(manifestPath, JSON.stringify(manifest));
+    assert.equal(selectFirefox().recommendation, "compatible-build");
   });
 
   for (const metadataKey of ["browser_specific_settings", "applications"]) {

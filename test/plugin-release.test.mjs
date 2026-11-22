@@ -105,6 +105,20 @@ test("the first SEW plugin prerelease skips both CLI tag formats", async (t) => 
   assert.ok(notes.includes(`/commit/${repo.initial}`));
 });
 
+test("the first Browser Extension Debugger release uses its own tag history", async (t) => {
+  const repo = await fixture(t, "browser-extension-debugger");
+  await repo.git("tag", "ced-v0.0.9");
+  await repo.version("0.1.0");
+  const source = await repo.commit("feat: introduce Browser Extension Debugger");
+  const tag = "bed-v0.1.0";
+  await repo.git("tag", tag);
+  await repo.prepare(tag, source, [published("ced-v0.0.9")]);
+  const plan = await readJson(path.join(repo.output, "plan.json"));
+  assert.equal(plan.pluginId, "browser-extension-debugger");
+  assert.equal(plan.sourceCommit, source);
+  assert.equal(plan.previousTag, null);
+});
+
 test("plugin release preparation rejects invalid tags, uncataloged plugins, and mismatched source identities", async (t) => {
   const repo = await fixture(t);
   const source = repo.initial;

@@ -112,16 +112,16 @@ Plugin/skill updates use committed adapters and native bundles. Gemini requires 
 
 | Product | Tag format | Publication |
 |---|---|---|
-| Chrome Extension Debugger | `ced-v<version>` | GitHub Release |
+| Browser Extension Debugger | `bed-v<version>` | GitHub Release |
 | Tauri v2 Desktop | `tauri-v<version>` | GitHub Release |
 | Senior Engineering Workflow plugin | `sew-v<version>` | GitHub Release |
 | `@oovz/sew` CLI | `sew-cli-v<version>` | npm and GitHub Release |
 
-For an authorized release, tag the commit containing the matching manifest version and release workflow. Push tags individually. To release Chrome Extension Debugger version `0.2.0` from the current commit, run these commands:
+For an authorized release, tag the commit containing the matching manifest version and release workflow. Push tags individually. To release Browser Extension Debugger version `0.1.0` from the current commit, run these commands.
 
 ```sh
-git tag -a ced-v0.2.0 -m "Chrome Extension Debugger 0.2.0"
-git push origin ced-v0.2.0
+git tag -a bed-v0.1.0 -m "Browser Extension Debugger 0.1.0"
+git push origin bed-v0.1.0
 ```
 
 [release-plugin.yml](.github/workflows/release-plugin.yml) checks the tagged manifest version and publishes a GitHub Release. Notes cover the plugin, its bundled skills, and generated adapters since the highest lower published version of the same plugin. Stable releases use a stable baseline. Plugin releases include GitHub’s source archives and link to installation instructions at the tagged revision. The SEW CLI workflow owns npm publication and the repository-wide Latest marker.

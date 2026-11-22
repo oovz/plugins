@@ -1,0 +1,72 @@
+{
+  "$schema": "../../schemas/plugin-manifest.schema.json",
+  "schemaVersion": 2,
+  "id": "browser-extension-debugger",
+  "version": "0.1.0",
+  "displayName": "Browser Extension Debugger",
+  "shortDescription": "Debug live extensions in Chrome, Edge, Firefox, and Safari.",
+  "description": "Debug live extensions in Chrome, Edge, Firefox, and macOS Safari, with browser-specific build selection, extension reloads, diagnostics, and WXT hot reload.",
+  "license": "MIT",
+  "author": {
+    "name": "Otto",
+    "url": "https://github.com/oovz/plugins"
+  },
+  "keywords": [
+    "browser-extension",
+    "webextensions",
+    "mcp",
+    "wxt",
+    "debugging"
+  ],
+  "category": "Developer Tools",
+  "components": {
+    "skills": [
+      "browser-extension-debug",
+      "wxt-extension-debug"
+    ],
+    "agents": [],
+    "commands": [],
+    "hostFiles": [
+      {
+        "id": "codex-mcp",
+        "path": "codex.mcp.json",
+        "destination": ".mcp.json",
+        "hosts": [
+          "codex"
+        ]
+      }
+    ]
+  },
+  "hosts": {
+    "claude-code": {
+      "enabled": true
+    },
+    "codex": {
+      "enabled": true,
+      "icon": "assets/icon.svg",
+      "capabilities": [
+        "Read",
+        "Write",
+        "Execute"
+      ]
+    },
+    "gemini-cli": {
+      "enabled": true
+    },
+    "antigravity": {
+      "enabled": true
+    },
+    "oh-my-pi": {
+      "enabled": true
+    },
+    "opencode": {
+      "enabled": true
+    },
+    "portable": {
+      "enabled": true
+    },
+    "cursor": {
+      "enabled": true
+    }
+  }
+}

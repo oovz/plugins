@@ -2,14 +2,20 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
+const browsers = ['chrome', 'edge', 'firefox', 'safari'];
+
 function parseArgs(argv) {
   let root = null;
   let output = null;
+  let browser = 'chrome';
   while (argv.length > 0) {
     const token = argv.shift();
     if (token === "--output") {
       if (!argv[0] || argv[0].startsWith("--")) throw new Error("--output requires a directory");
       output = argv.shift();
+    } else if (token === "--browser") {
+      browser = argv.shift();
+      if (!browsers.includes(browser)) throw new Error(`--browser must be one of: ${browsers.join(", ")}`);
     } else if (token.startsWith("--")) {
       throw new Error(`Unknown option: ${token}`);
     } else if (root === null) {
@@ -18,7 +24,7 @@ function parseArgs(argv) {
       throw new Error(`Unexpected argument: ${token}`);
     }
   }
-  return { root: path.resolve(root || process.cwd()), output };
+  return { root: path.resolve(root || process.cwd()), output, browser };
 }
 
 const args = parseArgs(process.argv.slice(2));
@@ -85,11 +91,26 @@ function statSafe(file) {
   }
 }
 
-function browserFor(manifest, relativePath) {
-  const lower = relativePath.toLowerCase();
-  if (lower.includes("firefox") || lower.includes("mozilla")) return "firefox";
-  if (manifest.chrome_settings_overrides || manifest.chrome_url_overrides || lower.includes("chrome") || lower.includes("chromium")) return "chrome";
+function browserFor(relativePath) {
+  for (const segment of relativePath.toLowerCase().split('/').reverse()) {
+    const tokens = segment.split(/[^a-z0-9]+/);
+    const browser = browsers.find((target) => tokens.includes(target));
+    if (browser) return browser;
+    if (tokens.includes('chromium')) return 'chrome';
+    if (tokens.includes('mozilla')) return 'firefox';
+  }
   return "unknown";
+}
+
+function isCompatible(manifest, browser) {
+  if (browser !== 'unknown' && browser !== args.browser) return false;
+  const { manifest_version: version, background } = manifest;
+  const hasBackgroundPage = background?.page || background?.scripts?.length;
+  if (args.browser === 'firefox') {
+    return (version === 2 || version === 3) && (!background?.service_worker || Boolean(hasBackgroundPage));
+  }
+  if (args.browser === 'safari') return version === 2 || version === 3;
+  return version === 3 && (!hasBackgroundPage || Boolean(background?.service_worker));
 }
 
 const pkg = readJson(path.join(root, 'package.json')) || {};
@@ -109,19 +130,16 @@ function considerManifest(file) {
   const dir = path.dirname(abs);
   const st = statSafe(abs);
   const rel = (path.relative(root, dir) || '.').split(path.sep).join('/');
-  const browser = browserFor(manifest, rel);
+  const browser = browserFor(rel);
   let score = 0;
   const lower = rel.toLowerCase();
   if (lower.startsWith('.output') || lower.includes('/.output')) score += 60;
   if (/(^|\/)(dist|build|out)([\\/]|$)/.test(lower)) score += 35;
-  if (lower.includes('chrome')) score += 30;
-  if (lower.includes('chromium')) score += 20;
   if (lower.includes('mv3')) score += 15;
   if (manifest.manifest_version === 3) score += 20;
   if (manifest.side_panel) score += 4;
   if (manifest.background?.service_worker) score += 4;
   if (isWxt && (lower.startsWith('.output') || lower.includes('/.output'))) score += 30;
-  if (isWxt && lower.includes('chrome')) score += 20;
   if (dir === root) score += 5;
   manifests.push({
     path: dir,
@@ -136,7 +154,7 @@ function considerManifest(file) {
     score,
     browser,
     manifestCompatibility: manifest.manifest_version === 3 ? "mv3" : manifest.manifest_version === 2 ? "mv2" : "unsupported",
-    compatible: browser !== "firefox" && manifest.manifest_version === 3,
+    compatible: isCompatible(manifest, browser),
     explicitlySelected: abs === explicitManifest,
   });
 }
@@ -186,14 +204,14 @@ function walk(dir, depth) {
   }
 }
 
-// Explicit output selection wins and must resolve to a valid manifest. When
-// omitted, compatibility is considered before recency, so a newer Firefox
-// build cannot displace a Chrome-compatible build.
+// Explicit output wins. Automatic selection ranks compatible named builds
+// ahead of shared output and uses recency within those groups.
 const explicitCandidates = manifests.filter((candidate) => candidate.explicitlySelected);
 if (explicitOutput && explicitCandidates.length === 0) {
   console.log(JSON.stringify({
     root,
     framework: isWxt ? 'wxt' : 'generic-or-unknown',
+    targetBrowser: args.browser,
     recommendation: "requested-output-not-found",
     requestedOutput: explicitOutput,
     recommended: null,
@@ -204,19 +222,20 @@ if (explicitOutput && explicitCandidates.length === 0) {
   manifests.sort((a, b) =>
     Number(b.explicitlySelected) - Number(a.explicitlySelected)
     || Number(b.compatible) - Number(a.compatible)
-    || (b.manifestCompatibility === "mv3" ? 1 : 0) - (a.manifestCompatibility === "mv3" ? 1 : 0)
+    || Number(b.browser === args.browser) - Number(a.browser === args.browser)
     || (b.modifiedMs - a.modifiedMs)
     || (b.score - a.score)
     || a.relativePath.localeCompare(b.relativePath));
 
   const recommended = manifests[0] || null;
   const recommendation = recommended
-    ? recommended.explicitlySelected ? "explicit-output" : recommended.compatible ? "compatible-build" : "no-compatible-chrome-build"
+    ? recommended.explicitlySelected ? "explicit-output" : recommended.compatible ? "compatible-build" : `no-compatible-${args.browser}-build`
     : "no-builds";
 
   console.log(JSON.stringify({
     root,
     framework: isWxt ? 'wxt' : 'generic-or-unknown',
+    targetBrowser: args.browser,
     recommendation,
     requestedOutput: explicitOutput,
     recommended,

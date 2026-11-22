@@ -29,10 +29,10 @@
       "category": "Developer Tools"
     },
     {
-      "name": "chrome-extension-debugger",
+      "name": "browser-extension-debugger",
       "source": {
         "source": "local",
-        "path": "./adapters/codex/chrome-extension-debugger"
+        "path": "./adapters/codex/browser-extension-debugger"
       },
       "policy": {
         "installation": "AVAILABLE",

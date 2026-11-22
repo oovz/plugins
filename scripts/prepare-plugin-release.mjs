@@ -10,7 +10,7 @@ import { isLegacySewCliRelease } from "./lib/sew-release-metadata.mjs";
 const PLUGINS_BY_PREFIX = new Map([
   ["sew", "senior-engineering-workflow"],
   ["tauri", "tauri-v2-desktop"],
-  ["ced", "chrome-extension-debugger"],
+  ["bed", "browser-extension-debugger"],
 ]);
 
 async function main(args) {
