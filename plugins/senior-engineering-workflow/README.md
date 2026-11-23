@@ -21,6 +21,7 @@ The CLI no longer manages `senior-engineering-workflow-worker.md` (or `.toml` on
 | Gemini CLI | Three custom subagents; the CLI's custom-home root is honored by SEW. |
 | Antigravity CLI | Three custom subagents with a role-specific tool allowlist and sandbox command-execution policy. |
 | Oh My Pi | Three task-agent definitions. |
+| Devin CLI and Devin Desktop | Three plugin-scoped subagents for Devin Local. The SEW CLI can also install standalone roles with `--host devin`. |
 
 The marketplace plugin, its skill, MCP declarations, and the `@oovz/sew` role-configuration CLI are distributed independently. Installing the CLI does not add, update, inspect, or remove the native plugin. Use the harness's plugin manager to manage native plugin installations. Where direct role files and a marketplace plugin expose the same role names, leave one source active to avoid duplicate role definitions.
 
@@ -33,14 +34,7 @@ npx @oovz/sew install --host codex --scope user
 npx @oovz/sew install --host gemini-cli --scope project --project /absolute/path/to/project
 ```
 
-For a Gemini CLI plugin installation from this repository, build and install the native extension:
-
-```text
-npm run build -- --plugin senior-engineering-workflow --host gemini-cli
-gemini extensions install ./dist/gemini-cli/senior-engineering-workflow
-```
-
-Gemini CLI installs the extension through its native extension manager; this command does not accept the SEW CLI's `--scope` option. For other host-native plugin and skill installations, follow the [per-host installation routes](../../README.md#install-plugins-and-skills). The SEW CLI does not copy skills or install MCP configuration.
+For native plugin and skill installation, follow the [per-host installation routes](../../README.md#install-plugins-and-skills).
 
 ## Model and reasoning overrides
 
@@ -55,7 +49,7 @@ npx @oovz/sew models configure --host antigravity --role engineer --model flash
 
 Use `--reset` to clear the selected role's overrides. See the [CLI model and reasoning settings](../../tools/sew/README.md#model-and-reasoning-settings) for OpenCode variants, supported Antigravity tiers, and host precedence.
 
-`--model inherit` uses each harness's native inheritance representation and preserves existing reasoning unless explicitly supplied. It is **not supported for OpenCode**; use `--reset` there to clear model and reasoning overrides. See the [CLI inheritance table](../../tools/sew/README.md#model-and-reasoning-settings) for host behavior and precedence.
+`--model inherit` restores the harness's default model selection where supported and preserves existing reasoning unless explicitly supplied. On OpenCode, use `--reset` to clear model and reasoning overrides. See the [CLI inheritance table](../../tools/sew/README.md#model-and-reasoning-settings) for host behavior and precedence.
 
 ## Doctor
 

@@ -22,7 +22,7 @@ You can also use the [Agent Skills](skills/) on their own.
 
 ## Install plugins and skills
 
-Follow the steps for your coding agent. Where an example uses `senior-engineering-workflow`, you can substitute another plugin ID from the table.
+Choose a plugin from the table above. Replace `PLUGIN_ID` in the commands and paths below with that plugin's ID.
 
 For local installation, clone the repository. Run the local commands below from this checkout.
 
@@ -39,7 +39,7 @@ Run in Claude Code.
 
 ```text
 /plugin marketplace add oovz/plugins
-/plugin install senior-engineering-workflow@otto-plugins
+/plugin install PLUGIN_ID@otto-plugins
 ```
 
 ### Codex
@@ -48,7 +48,7 @@ Run in Claude Code.
 codex plugin marketplace add .
 ```
 
-Restart the desktop app, open the Plugins Directory, and install the plugin from `otto-plugins`. Start a new chat to use it. For the optional SEW specialist roles, run the [role installer](#install-sew-role-configuration) too.
+Restart the desktop app, open the Plugins Directory, and install the plugin from `otto-plugins`. Start a new chat to use it.
 
 ### Cursor
 
@@ -57,15 +57,31 @@ On Teams or Enterprise with Cursor 2.5 or later, import `https://github.com/oovz
 To install skills and agents directly into a project, run the local installer.
 
 ```sh
-node scripts/install.mjs install --plugin senior-engineering-workflow --host cursor --scope project --project /absolute/path/to/project
+node scripts/install.mjs install --plugin PLUGIN_ID --host cursor --scope project --project /absolute/path/to/project
 ```
+
+### Devin Desktop
+
+1. Open [Customize → Plugins](https://app.devin.ai/customize) and select **Add plugin → From repository**.
+2. Enter `oovz/plugins` as the repository and `adapters/devin/PLUGIN_ID` as the subdirectory. Install to your personal scope.
+3. Sign in with the same account in Devin Desktop and start a Devin Local session. [Devin Desktop customizations](https://docs.devin.ai/desktop/devin-local/customizations)
+
+### Devin CLI
+
+Sign in with `devin auth login`, then install the plugin and start a new local session. [Devin CLI plugin installation](https://docs.devin.ai/cli/extensibility/plugins/overview#installing-a-plugin)
+
+```sh
+devin plugins install "oovz/plugins#adapters/devin/PLUGIN_ID"
+```
+
+In either Devin client, invoke a skill with `/PLUGIN_ID:SKILL_ID`. For example, `/browser-extension-debugger:browser-extension-debug` opens the browser debugging workflow.
 
 ### OpenCode
 
 Install into your project, then restart OpenCode.
 
 ```sh
-node scripts/install.mjs install --plugin senior-engineering-workflow --host opencode --scope project --project /absolute/path/to/project
+node scripts/install.mjs install --plugin PLUGIN_ID --host opencode --scope project --project /absolute/path/to/project
 ```
 
 For a user-wide installation, use `--scope user` and omit `--project`.
@@ -75,39 +91,37 @@ For a user-wide installation, use `--scope user` and omit `--project`.
 Build and install the extension, then restart Gemini CLI.
 
 ```sh
-npm run build -- --plugin senior-engineering-workflow --host gemini-cli
-gemini extensions install ./dist/gemini-cli/senior-engineering-workflow
+npm run build -- --plugin PLUGIN_ID --host gemini-cli
+gemini extensions install ./dist/gemini-cli/PLUGIN_ID
 ```
 
 ### Antigravity CLI
 
 ```sh
-npm run build -- --plugin senior-engineering-workflow --host antigravity
-agy plugin install ./dist/antigravity/senior-engineering-workflow
+npm run build -- --plugin PLUGIN_ID --host antigravity
+agy plugin install ./dist/antigravity/PLUGIN_ID
 ```
 
 ### Oh My Pi
 
 ```sh
 omp plugin marketplace add oovz/plugins
-omp plugin install senior-engineering-workflow@otto-plugins
+omp plugin install PLUGIN_ID@otto-plugins
 ```
 
 Start a new session to use the plugin.
 
 ### Windsurf/Cascade portable Agent Skills
 
-Install the Tauri or browser extension debugging skills into your project's `.agents/skills`.
+Use `tauri-v2-desktop` or `browser-extension-debugger` as the plugin ID to install its skills into your project's `.agents/skills`.
 
 ```sh
-node scripts/install.mjs install --plugin tauri-v2-desktop --host portable-agent-skills --scope project --project /absolute/path/to/project
+node scripts/install.mjs install --plugin PLUGIN_ID --host portable-agent-skills --scope project --project /absolute/path/to/project
 ```
-
-Use `browser-extension-debugger` to install both extension debugging skills.
 
 ## Install SEW role configuration
 
-Use `@oovz/sew` to install the Researcher, Engineer, and Verifier role files. Use the plugin installation above for the workflow skill. The CLI requires Node.js 22 or later.
+`@oovz/sew` is the separate CLI for installing the Senior Engineering Workflow's Researcher, Engineer, and Verifier role files directly. Install the plugin through your coding agent to get the workflow skill. On Codex, use the CLI to add the optional specialist roles. The CLI requires Node.js 22 or later.
 
 ```sh
 npx @oovz/sew install --host codex --scope user
