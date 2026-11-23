@@ -131,6 +131,9 @@
         "opencode": {
           "$ref": "#/$defs/host"
         },
+        "devin": {
+          "$ref": "#/$defs/host"
+        },
         "portable": {
           "$ref": "#/$defs/host"
         },

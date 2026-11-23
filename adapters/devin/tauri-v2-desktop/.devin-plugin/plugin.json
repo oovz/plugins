@@ -1,0 +1,25 @@
+{
+  "name": "tauri-v2-desktop",
+  "version": "1.3.0",
+  "description": "Guidance for building, securing, testing, upgrading, and shipping Tauri v2 desktop applications on Windows, macOS, and Linux.",
+  "author": {
+    "name": "Otto"
+  },
+  "homepage": "https://github.com/oovz/plugins",
+  "repository": "https://github.com/oovz/plugins",
+  "license": "MIT",
+  "keywords": [
+    "tauri",
+    "tauri-v2",
+    "desktop",
+    "rust",
+    "ipc",
+    "capabilities",
+    "testing",
+    "updater",
+    "distribution"
+  ],
+  "platforms": [
+    "local"
+  ]
+}

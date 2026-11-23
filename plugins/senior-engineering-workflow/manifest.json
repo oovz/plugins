@@ -2,7 +2,7 @@
   "$schema": "../../schemas/plugin-manifest.schema.json",
   "schemaVersion": 2,
   "id": "senior-engineering-workflow",
-  "version": "0.14.6",
+  "version": "0.15.0",
   "displayName": "Senior Engineering Workflow",
   "description": "Direct engineering ownership with optional research, implementation, and independent verification specialists.",
   "license": "MIT",
@@ -95,6 +95,9 @@
       "enabled": true
     },
     "opencode": {
+      "enabled": true
+    },
+    "devin": {
       "enabled": true
     },
     "cursor": {

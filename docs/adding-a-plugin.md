@@ -153,6 +153,7 @@ The generated paths are:
 dist/claude-code/<plugin-id>/
 dist/codex/<plugin-id>/
 dist/cursor/<plugin-id>/
+dist/devin/<plugin-id>/
 dist/gemini-cli/<plugin-id>/
 dist/antigravity/<plugin-id>/
 dist/oh-my-pi/<plugin-id>/
@@ -161,6 +162,8 @@ dist/portable-agent-skills/<plugin-id>/
 ```
 
 Cursor may be enabled for plugins whose agents use `permissionPolicy: inherit`; its renderer refuses explicit-permission agents because Cursor has no equivalent cross-host permission mapping.
+
+Enable `hosts.devin` with `{ "enabled": true }` to build a native package for Devin CLI and Devin Desktop (Devin Local). Agents must use `permissionPolicy: inherit` and `delegates: false`. To try a generated adapter from this checkout, run `devin plugins install --local ./adapters/devin/PLUGIN_ID`. [Devin plugin format](https://docs.devin.ai/cli/extensibility/plugins/overview#manifest)
 
 The portable bundle retains the project discovery prefix: its skills are below `.agents/skills/<skill-id>/`, not a top-level `skills/` directory.
 

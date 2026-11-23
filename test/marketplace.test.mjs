@@ -141,7 +141,7 @@ test("Codex capability metadata is explicit, scoped, and single-line", async (t)
 test("validator CLI executes its platform-safe main entry point", async () => {
   const result = await execFileAsync(process.execPath, [path.join(ROOT, "scripts", "validate.mjs")], { cwd: ROOT });
   const marketplace = await readJson(path.join(ROOT, "marketplace.json"));
-  assert.match(result.stdout, new RegExp(`validated ${marketplace.plugins.length} plugins and ${marketplace.skills.length} skills across 8 host targets`));
+  assert.match(result.stdout, new RegExp(`validated ${marketplace.plugins.length} plugins and ${marketplace.skills.length} skills across 9 host targets`));
 });
 
 test("two explicitly cataloged plugins build independently and deterministically", async (t) => {
@@ -228,6 +228,23 @@ test("host projections require functional components and conditional skill point
     options: { includeSkill: false, hosts: { portable: { enabled: true } } }
   }]);
   await assert.rejects(validateRepository(portableRoot), /without a functional host component/);
+});
+
+test("Devin bundles reject agents whose declared permissions or delegation the adapter cannot represent", async (t) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "oovz-devin-agents-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const id = "review-tools";
+  await createFixtureMarketplace(root, [{ id, version: "1.0.0", options: { hosts: { devin: { enabled: true } } } }]);
+  const args = ["build", "--plugin", id, "--host", "devin"];
+  await assert.rejects(runGenerator(args, { root, stdout: silent }), /explicit-permission agent worker/);
+
+  const file = path.join(root, "plugins", id, "manifest.json");
+  const manifest = await readJson(file);
+  const [agent] = manifest.components.agents;
+  agent.permissionPolicy = "inherit";
+  agent.delegates = true;
+  await writeFile(file, JSON.stringify(manifest));
+  await assert.rejects(runGenerator(args, { root, stdout: silent }), /recursively delegating agent worker/);
 });
 
 test("Codex native host files use recognized manifest components", async (t) => {

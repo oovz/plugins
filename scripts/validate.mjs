@@ -119,6 +119,12 @@ function validateRenderedAgent(plugin, agent, target, artifacts) {
     assert(inheritsPermissions, `Cursor currently supports permission-inheriting agents only: ${agent.id}`);
     assert(fm.name === flat && fm.description === agent.description, `Cursor agent ${agent.id} has invalid identity or description`);
     assert(fm.model === undefined && fm.readonly === undefined && fm.tools === undefined, `Cursor agent ${agent.id} must not pin a model or add readonly/tool restrictions`);
+  } else if (target.id === "devin") {
+    const { frontmatter } = parseMarkdownArtifact(artifacts.get(`agents/${agent.id}.md`), `Devin agent ${agent.id}`);
+    assert(frontmatter.name === agent.id && frontmatter.description === agent.description, `Devin agent ${agent.id} has invalid identity or description`);
+    for (const key of ["model", "allowed-tools", "tools", "max-nesting"]) {
+      assert(frontmatter[key] === undefined, `Devin agent ${agent.id} must omit ${key}`);
+    }
   } else if (target.id === "oh-my-pi") {
     const parsed = parseMarkdownArtifact(artifacts.get(`agents/${flat}.md`), `Oh My Pi agent ${agent.id}`);
     const fm = parsed.frontmatter;
@@ -230,6 +236,11 @@ async function validatePlugin(plugin) {
     if (target.id === "gemini-cli") {
       const manifest = JSON.parse(artifacts.get("gemini-extension.json"));
       assert(manifest.name === plugin.manifest.id && manifest.version === plugin.manifest.version, `Gemini manifest for ${plugin.manifest.id} is invalid`);
+    }
+    if (target.id === "devin") {
+      const manifest = JSON.parse(artifacts.get(".devin-plugin/plugin.json"));
+      assert(manifest.name === plugin.manifest.id && manifest.version === plugin.manifest.version, `Devin manifest for ${plugin.manifest.id} is invalid`);
+      assert(manifest.platforms?.length === 1 && manifest.platforms[0] === "local", `Devin manifest for ${plugin.manifest.id} must target local sessions`);
     }
     if (target.id === "cursor") {
       const manifest = JSON.parse(artifacts.get(".cursor-plugin/plugin.json"));

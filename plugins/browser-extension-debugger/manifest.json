@@ -2,7 +2,7 @@
   "$schema": "../../schemas/plugin-manifest.schema.json",
   "schemaVersion": 2,
   "id": "browser-extension-debugger",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "displayName": "Browser Extension Debugger",
   "shortDescription": "Debug live extensions in Chrome, Edge, Firefox, and Safari.",
   "description": "Debug live extensions in Chrome, Edge, Firefox, and macOS Safari, with browser-specific build selection, extension reloads, diagnostics, and WXT hot reload.",
@@ -60,6 +60,9 @@
       "enabled": true
     },
     "opencode": {
+      "enabled": true
+    },
+    "devin": {
       "enabled": true
     },
     "portable": {

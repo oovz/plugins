@@ -1,7 +1,7 @@
 {
   "name": "browser-extension-debugger",
   "displayName": "Browser Extension Debugger",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Debug live extensions in Chrome, Edge, Firefox, and macOS Safari, with browser-specific build selection, extension reloads, diagnostics, and WXT hot reload.",
   "author": {
     "name": "Otto"

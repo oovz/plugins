@@ -59,6 +59,7 @@ test("strict argv and native-only host guidance", async (t) => {
     return true;
   });
   await assert.rejects(run(base("install", "oh-my-pi", "project", ["--project", ctx.project]), ctx), /omp plugin marketplace add/i);
+  await assert.rejects(run(baseFor("tauri-v2-desktop", "install", "devin", "user"), ctx), /devin plugins install --local \.\/adapters\/devin\/tauri-v2-desktop/u);
 
   const marketplaceRoot = path.join(ctx.root, "renamed-marketplace");
   await createFixtureMarketplace(marketplaceRoot, [{ id: "guidance-plugin", version: "1.0.0" }]);

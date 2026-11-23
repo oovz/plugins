@@ -22,7 +22,7 @@ Options:
   --help                           Show this help
 
 Direct install hosts: codex, opencode, cursor, antigravity (CLI agy), portable-agent-skills.
-Claude Code, Gemini CLI, and Oh My Pi packages must be installed with their native CLIs.`;
+Use native installation for Claude Code, Devin, Gemini CLI, and Oh My Pi.`;
 
 function parseArgs(argv) {
   if (argv.includes("--help") || argv.includes("-h")) return { help: true };
@@ -168,6 +168,9 @@ export function resolveInstallPlan(plugin, args, env = process.env, cwd = proces
   }
   if (args.host === "gemini-cli") {
     throw new Error(`Gemini CLI installation for "${plugin.manifest.displayName}" requires building the adapter. Run "npm run build -- --plugin ${plugin.manifest.id} --host gemini-cli" then "gemini extensions install ./dist/gemini-cli/${plugin.manifest.id}".`);
+  }
+  if (args.host === "devin") {
+    throw new Error(`Devin manages its plugin installs. From this checkout, run "devin plugins install --local ./adapters/devin/${plugin.manifest.id}". For the Desktop install, see README.md.`);
   }
   if (args.host === "oh-my-pi") {
     const scope = args.scope === "project" ? " --scope project" : "";

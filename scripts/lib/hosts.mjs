@@ -317,6 +317,34 @@ function renderPortable(plugin) {
   return [...skills(plugin, ".agents/skills"), ...hostFiles(plugin, "portable")];
 }
 
+function renderDevin(plugin) {
+  const { id, version, description, author, license, keywords } = plugin.manifest;
+  const repository = plugin.marketplace?.repository ?? author.url;
+  const artifacts = [{
+    path: ".devin-plugin/plugin.json",
+    content: json({
+      name: id,
+      version,
+      description,
+      author: { name: author.name },
+      homepage: repository,
+      repository,
+      license,
+      keywords: keywords ?? [],
+      platforms: ["local"],
+    }),
+  }, ...skills(plugin)];
+  for (const agent of plugin.agents) {
+    assert(inheritsPermissions(agent), `${id} cannot enable Devin for explicit-permission agent ${agent.id}; the Devin adapter supports permission-inheriting roles only`);
+    assert(!agent.delegates, `${id} cannot enable Devin for recursively delegating agent ${agent.id}`);
+    artifacts.push({
+      path: `agents/${agent.id}.md`,
+      content: markdown({ name: agent.id, description: agent.description }, agent.body),
+    });
+  }
+  return artifacts;
+}
+
 export const HOSTS = Object.freeze({
   "claude-code": { manifestKey: "claude-code", render: renderClaude },
   codex: { manifestKey: "codex", render: renderCodex },
@@ -325,6 +353,7 @@ export const HOSTS = Object.freeze({
   "oh-my-pi": { manifestKey: "oh-my-pi", render: renderOhMyPi },
   cursor: { manifestKey: "cursor", render: renderCursor },
   opencode: { manifestKey: "opencode", render: renderOpenCode },
+  devin: { manifestKey: "devin", render: renderDevin },
   "portable-agent-skills": { manifestKey: "portable", render: renderPortable }
 });
 
