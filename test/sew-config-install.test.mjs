@@ -21,6 +21,7 @@ const hostRoles = {
   "gemini-cli": true,
   antigravity: true,
   "oh-my-pi": true,
+  devin: true,
 };
 
 async function temp(prefix) { return mkdtemp(path.join(os.tmpdir(), prefix)); }
@@ -89,6 +90,17 @@ test("Claude Code honors CLAUDE_CONFIG_DIR for user files and keeps project scop
   assert.equal(internals.roleAgentRoot("claude-code", "user", process.cwd(), { HOME: home, CLAUDE_CONFIG_DIR: custom }), path.join(custom, "agents"));
   assert.equal(internals.roleAgentRoot("claude-code", "user", process.cwd(), { HOME: home, CLAUDE_CONFIG_DIR: "" }), path.join(home, ".claude", "agents"));
   assert.equal(internals.roleAgentRoot("claude-code", "project", custom, { HOME: home, CLAUDE_CONFIG_DIR: custom }), path.join(custom, ".claude", "agents"));
+});
+
+test("Devin role lookup uses the platform's config home and the project's .devin directory", async () => {
+  const { internals } = await import(`${pathToFileURL(path.join(PACKAGE_ROOT, "lib", "sew.mjs")).href}?devin-home=${Date.now()}`);
+  const home = path.join(os.tmpdir(), "devin home ü");
+  const project = path.join(os.tmpdir(), "devin project ü");
+  const env = { HOME: home, USERPROFILE: home, XDG_CONFIG_HOME: path.join(home, "xdg"), APPDATA: path.join(home, "roaming") };
+  assert.equal(internals.roleAgentRoot("devin", "user", project, env, "linux"), path.join(env.XDG_CONFIG_HOME, "devin", "agents"));
+  assert.equal(internals.roleAgentRoot("devin", "user", project, env, "win32"), path.join(env.APPDATA, "devin", "agents"));
+  assert.equal(internals.roleAgentRoot("devin", "user", project, { HOME: home }, "darwin"), path.join(home, ".config", "devin", "agents"));
+  assert.equal(internals.roleAgentRoot("devin", "project", project, env, "win32"), path.join(project, ".devin", "agents"));
 });
 
 test("every host installs configuration files without marketplace or host-command calls", async () => {
@@ -563,7 +575,7 @@ test("JSON mode survives argument parsing errors", () => {
   }
 });
 
-for (const host of ["claude-code", "codex", "cursor", "gemini-cli", "antigravity", "oh-my-pi"]) {
+for (const host of ["claude-code", "codex", "cursor", "gemini-cli", "antigravity", "oh-my-pi", "devin"]) {
   test(`host-aware model inheritance: ${host}`, async (t) => {
     const { env, engineer, configure, project } = await diagnosticFixture(t, host);
     const reasoningField = { "claude-code": "effort", codex: "model_reasoning_effort", "oh-my-pi": "thinking-level" }[host];
@@ -575,7 +587,7 @@ for (const host of ["claude-code", "codex", "cursor", "gemini-cli", "antigravity
     assert.equal(dryRun.status, 0, dryRun.stdout);
     assert.equal(await readFile(engineer, "utf8"), before, "dry run preserves the file");
     const expected = parseRole(host, before);
-    if (["codex", "oh-my-pi"].includes(host)) delete expected.model;
+    if (["codex", "oh-my-pi", "devin"].includes(host)) delete expected.model;
     else expected.model = "inherit";
     const inherited = runCli([...configure, "--model", "inherit", "--json"], { env });
     assert.equal(inherited.status, 0, inherited.stdout);

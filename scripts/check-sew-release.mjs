@@ -13,7 +13,7 @@ import { SEW_CLI_TAG_PREFIX } from "./lib/sew-release-metadata.mjs";
 
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const CONFIG_HOSTS = ["claude-code", "codex", "opencode", "cursor", "gemini-cli", "antigravity", "oh-my-pi"];
+const CONFIG_HOSTS = ["claude-code", "codex", "opencode", "cursor", "gemini-cli", "antigravity", "oh-my-pi", "devin"];
 const CONFIG_FILES = Object.fromEntries(CONFIG_HOSTS.map((host) => [host, ["researcher", "engineer", "verifier"].map((role) => `agents/senior-engineering-workflow-${role}.${host === "codex" ? "toml" : "md"}`)]));
 
 function roleDigest(hostFiles) {
@@ -60,9 +60,8 @@ export async function checkSewRelease(tag, options = {}) {
     }
   }
   const payload = JSON.parse(await readFile(path.join(stageRoot, "payloads", "manifest.json"), "utf8"));
-  const expectedHosts = ["claude-code", "codex", "opencode", "cursor", "gemini-cli", "antigravity", "oh-my-pi"];
   if (payload.schemaVersion !== 1 || payload.packageVersion !== source.version || payload.package !== source.name ||
-      payload.roleSourceVersion !== staged.roleSourceVersion || JSON.stringify(Object.keys(payload.hosts ?? {})) !== JSON.stringify(expectedHosts)) {
+      payload.roleSourceVersion !== staged.roleSourceVersion || JSON.stringify(Object.keys(payload.hosts ?? {})) !== JSON.stringify(CONFIG_HOSTS)) {
     throw new Error("The staged configuration manifest does not match the package version or host set.");
   }
   if (!/^[a-f0-9]{64}$/iu.test(payload.roleDigest ?? "")) throw new Error("The staged configuration manifest must bind a 64-character role digest.");

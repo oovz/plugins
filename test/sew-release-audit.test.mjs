@@ -34,7 +34,7 @@ test("staged SEW metadata binds payloads to an explicit source commit", async (t
   assert.equal(staged.sourceCommit, sourceCommit);
   assert.equal(payload.sourceCommit, sourceCommit);
   assert.equal(payload.roleSourceVersion, staged.roleSourceVersion);
-  assert.equal(Object.keys(payload.hosts).length, 7);
+  assert.equal(Object.keys(payload.hosts).length, 8);
   assert.match(payload.roleDigest, /^[a-f0-9]{64}$/u);
   const packagedFiles = await readdir(path.join(output, "payloads", "config", "cursor", "agents"));
   assert.equal(packagedFiles.length, 3);

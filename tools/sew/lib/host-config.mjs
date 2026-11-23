@@ -11,6 +11,14 @@ export const HOST_CONFIG = Object.freeze({
   "gemini-cli": { directory: ".gemini/agents", extension: ".md", userRoot: ({ home, env }) => path.join(path.resolve(env.GEMINI_CLI_HOME || home), ".gemini") },
   antigravity: { directory: ".agents/agents", extension: ".md", userRoot: ({ home }) => path.join(home, ".gemini", "config") },
   "oh-my-pi": { directory: ".omp/agents", extension: ".md", userRoot: ({ home }) => path.join(home, ".omp", "agent") },
+  devin: {
+    directory: ".devin/agents",
+    extension: ".md",
+    userRoot: ({ home, env, platform }) => path.resolve(
+      platform === "win32" ? env.APPDATA || path.join(home, "AppData", "Roaming") : env.XDG_CONFIG_HOME || path.join(home, ".config"),
+      "devin",
+    ),
+  },
 });
 
 export function normalizeHome(env = process.env, platform = process.platform) {
@@ -37,7 +45,7 @@ export function roleAgentRoot(host, scope, project, env = process.env, platform 
   if (scope === "project") return path.join(path.resolve(project), target.directory);
   if (scope !== "user") throw new CliError(`--scope must be user or project, received: ${scope}`);
   const home = normalizeHome(env, platform);
-  return path.join(target.userRoot({ home, env }), "agents");
+  return path.join(target.userRoot({ home, env, platform }), "agents");
 }
 
 export function packagedRolePath(host, role) {

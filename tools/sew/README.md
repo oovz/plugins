@@ -1,6 +1,6 @@
 # @oovz/sew
 
-`@oovz/sew` configures Researcher, Engineer, and Verifier roles for seven coding harnesses. It writes host-native agent files and optional model/reasoning settings. Use your harness to install plugins, Agent Skills, and MCP servers.
+`@oovz/sew` configures Researcher, Engineer, and Verifier roles. It writes host-native agent files and optional model and reasoning settings. Use your harness to install plugins, Agent Skills, and MCP servers.
 
 ## Install
 
@@ -21,7 +21,7 @@ Each installed role includes SEW's core code- and test-quality guidance. The mai
 
 ## Locations and platform support
 
-The CLI supports Windows, macOS and Linux.
+The CLI supports Windows, macOS and Linux. For Devin, use SEW CLI 0.15.0 or later.
 
 | Harness | User role files | Project role files | CLI OS | Minimum host version |
 |---|---|---|---|---|
@@ -32,6 +32,7 @@ The CLI supports Windows, macOS and Linux.
 | Gemini CLI | `${GEMINI_CLI_HOME:-~}/.gemini/agents` | `<project>/.gemini/agents` | Windows/macOS/Linux | Not specified |
 | Antigravity CLI (`agy`) | `~/.gemini/config/agents` | `<project>/.agents/agents` | Windows/macOS/Linux | See model tier notes below |
 | Oh My Pi (`omp`) | `~/.omp/agent/agents` | `<project>/.omp/agents` | Windows/macOS/Linux | Not specified |
+| Devin CLI and Devin Desktop (`--host devin`) | `${XDG_CONFIG_HOME:-~/.config}/devin/agents` on macOS/Linux or `%APPDATA%\devin\agents` on Windows | `<project>/.devin/agents` | Windows/macOS/Linux | [Custom subagent support](https://docs.devin.ai/cli/subagents#custom-subagents) |
 
 The Gemini CLI's `GEMINI_CLI_HOME` is a parent directory. It contains `.gemini`; SEW appends that directory before writing `agents/`. See the [official Gemini CLI configuration reference](https://geminicli.com/docs/reference/configuration/#gemini_cli_home). Antigravity CLI user and project agent locations follow its [official custom-agent documentation](https://antigravity.google/docs/cli/commands/agents).
 
@@ -58,10 +59,12 @@ npx @oovz/sew models configure --host codex --role engineer --model inherit
 | Harness | Configuration written by `--model inherit` |
 |---|---|
 | Claude Code, Cursor, Gemini CLI, Antigravity CLI | `model: inherit` |
-| Codex, Oh My Pi | Removes the `model` field so the host resolves it |
+| Codex, Oh My Pi, Devin | Removes the `model` field so the host resolves it |
 | OpenCode | **Not supported**; the command rejects it without writing |
 
 For OpenCode, use `--reset` to remove both overrides, or provide a concrete `provider/model-id`. To set reasoning, pass either `--model provider/model-id#high` or `--model provider/model-id --reasoning high`. If you provide both variant values, they must match. A model-only update preserves the existing variant. SEW writes separate `model` and `variant` fields that OpenCode V1 and V2 read. When reading an existing file with both an inline and a separate variant, SEW reports the inline variant that OpenCode V2 selects. [OpenCode V2 migration guide](https://opencode.ai/docs/migrate-v1/#agent-files)
+
+Devin resolves an omitted `model` using its default subagent model. Use `--model MODEL_ID` to pin a Devin role's model. [Devin subagent model selection](https://docs.devin.ai/cli/subagents#which-model-does-a-subagent-use)
 
 Host precedence still applies: Codex agent defaults or invocation settings and Oh My Pi task settings can take precedence over the parent model. Explicit `inherit` and an omitted field can also differ in Claude Code when environment overrides are set. See [Claude Code](https://code.claude.com/docs/en/sub-agents#choose-a-model), [Codex](https://learn.chatgpt.com/docs/agent-configuration/subagents), [Cursor](https://cursor.com/docs/subagents), [Gemini CLI](https://geminicli.com/docs/core/subagents/#configuration-schema), [Antigravity CLI](https://antigravity.google/docs/subagents?tab=cli), [Oh My Pi](https://github.com/can1357/oh-my-pi/blob/main/docs/task-agent-discovery.md#model-and-structured-output-precedence), and [OpenCode](https://opencode.ai/docs/agents/#model) for native resolution rules.
 

@@ -19,6 +19,7 @@ const CONFIG_SOURCES = Object.freeze({
   "gemini-cli": { projection: "gemini-cli", prefix: "agents/", extension: ".md" },
   antigravity: { projection: "antigravity", prefix: "agents/", extension: ".md" },
   "oh-my-pi": { projection: "oh-my-pi", prefix: "agents/", extension: ".md" },
+  devin: { projection: "devin", prefix: "agents/", extension: ".md", namespaceFrontmatter: true },
 });
 
 function json(value) { return `${JSON.stringify(value, null, 2)}\n`; }
@@ -49,21 +50,21 @@ function digestFiles(files) {
   return hash.digest("hex");
 }
 
-function sourceRoleId(host, sourcePath) {
+function sourceRoleId(descriptor, sourcePath) {
   const basename = path.posix.basename(sourcePath);
   const match = basename.match(new RegExp(`^${PLUGIN_ID}-(researcher|engineer|verifier)\\.[^.]+$`, "u"));
   if (match) return match[1];
   const role = basename.replace(/\.[^.]+$/u, "");
-  if (host === "claude-code" && ROLES.includes(role)) return role;
+  if (descriptor.namespaceFrontmatter && ROLES.includes(role)) return role;
   return null;
 }
 
-function namespaceClaudeDefinition(content, role) {
+function namespaceRoleDefinition(content, host, role) {
   const source = content.toString("utf8");
   const match = source.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/u);
-  if (!match) throw new Error(`Claude ${role} agent has invalid YAML frontmatter`);
+  if (!match) throw new Error(`${host} ${role} agent has invalid YAML frontmatter`);
   const frontmatter = YAML.parse(match[1]);
-  if (!frontmatter || typeof frontmatter !== "object" || Array.isArray(frontmatter)) throw new Error(`Claude ${role} agent frontmatter is not a mapping`);
+  if (!frontmatter || typeof frontmatter !== "object" || Array.isArray(frontmatter)) throw new Error(`${host} ${role} agent frontmatter is not a mapping`);
   frontmatter.name = `${PLUGIN_ID}-${role}`;
   return Buffer.from(`---\n${YAML.stringify(frontmatter, { lineWidth: 0 }).trimEnd()}\n---\n${match[2]}`, "utf8");
 }
@@ -74,10 +75,10 @@ async function roleConfigurations(root, host, descriptor) {
   const selected = new Map();
   for (const file of candidates) {
     if (!file.path.startsWith(descriptor.prefix) || !file.path.endsWith(descriptor.extension)) continue;
-    const role = sourceRoleId(host, file.path);
+    const role = sourceRoleId(descriptor, file.path);
     if (!role) continue;
     if (selected.has(role)) throw new Error(`${host} projection has multiple definitions for role ${role}`);
-    const content = descriptor.namespaceFrontmatter ? namespaceClaudeDefinition(file.content, role) : file.content;
+    const content = descriptor.namespaceFrontmatter ? namespaceRoleDefinition(file.content, host, role) : file.content;
     selected.set(role, { path: `agents/${PLUGIN_ID}-${role}${descriptor.extension}`, content, executable: file.executable });
   }
   const missing = ROLES.filter((role) => !selected.has(role));

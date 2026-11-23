@@ -9,7 +9,7 @@ import { parse as parseToml } from "smol-toml";
 import { fileURLToPath } from "node:url";
 import YAML from "yaml";
 
-const HOSTS = Object.freeze(["claude-code", "codex", "opencode", "cursor", "gemini-cli", "antigravity", "oh-my-pi"]);
+const HOSTS = Object.freeze(["claude-code", "codex", "opencode", "cursor", "gemini-cli", "antigravity", "oh-my-pi", "devin"]);
 const ROLES = Object.freeze(["researcher", "engineer", "verifier"]);
 const REASONING_FIELD = Object.freeze({ "claude-code": "effort", codex: "model_reasoning_effort", opencode: "variant", "oh-my-pi": "thinking-level" });
 
@@ -52,7 +52,7 @@ function roleRoot(host, scope, project, env) {
   if (scope === "project") {
     const relative = {
       "claude-code": ".claude/agents", codex: ".codex/agents", opencode: ".opencode/agents",
-      cursor: ".cursor/agents", "gemini-cli": ".gemini/agents", antigravity: ".agents/agents", "oh-my-pi": ".omp/agents",
+      cursor: ".cursor/agents", "gemini-cli": ".gemini/agents", antigravity: ".agents/agents", "oh-my-pi": ".omp/agents", devin: ".devin/agents",
     }[host];
     return path.join(project, relative);
   }
@@ -64,6 +64,7 @@ function roleRoot(host, scope, project, env) {
     "gemini-cli": path.join(env.GEMINI_CLI_HOME, ".gemini"),
     antigravity: path.join(env.HOME, ".gemini", "config"),
     "oh-my-pi": path.join(env.HOME, ".omp", "agent"),
+    devin: path.join(process.platform === "win32" ? env.APPDATA : env.XDG_CONFIG_HOME, "devin"),
   }[host];
   return path.join(user, "agents");
 }
@@ -111,6 +112,7 @@ async function smoke(artifactDirectory) {
       HOME: home,
       USERPROFILE: home,
       XDG_CONFIG_HOME: configHome,
+      APPDATA: path.join(scratch, "roaming app data ü"),
       CODEX_HOME: codexHome,
       CLAUDE_CONFIG_DIR: claudeConfig,
       OPENCODE_CONFIG_DIR: openCodeConfig,
@@ -145,7 +147,7 @@ async function smoke(artifactDirectory) {
       } else {
         invokeSew(npmBin, inheritArgs, cliEnv);
         const inherited = parseRole(host, await readFile(roleFile(host, userRoot, "engineer"), "utf8"));
-        assert.equal(inherited.model, ["codex", "oh-my-pi"].includes(host) ? undefined : "inherit", `${host} native model inheritance`);
+        assert.equal(inherited.model, ["codex", "oh-my-pi", "devin"].includes(host) ? undefined : "inherit", `${host} native model inheritance`);
         if (REASONING_FIELD[host]) assert.equal(inherited[REASONING_FIELD[host]], "high", `${host} inheritance preserves reasoning`);
       }
       invokeSew(npmBin, ["models", "configure", "--host", host, "--scope", "user", "--role", "engineer", "--reset"], cliEnv);

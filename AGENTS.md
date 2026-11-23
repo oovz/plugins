@@ -137,7 +137,7 @@ npm run pack:sew
 node scripts/smoke-sew-release.mjs release-build/sew/artifacts
 ```
 
-`pack:sew` stages the CLI and creates one archive plus `SHA256SUMS.txt`. The smoke runner installs that archive in disposable directories and exercises all seven host configurations.
+`pack:sew` stages the CLI and creates one archive plus `SHA256SUMS.txt`. The smoke runner installs that archive in disposable directories and exercises every packaged host configuration.
 
 [release-sew.yml](.github/workflows/release-sew.yml) validates the repository, builds a candidate with the tagged source SHA, checks its identity, and smokes that same archive across six OS/Node cells. The publish job verifies its downloaded checksum, publishes with npm provenance, and attaches the archive and checksum to the GitHub release.
 

@@ -176,7 +176,7 @@ export function applyRoleOverride(host, content, override) {
     delete value.model;
     if (["gemini-cli", "antigravity"].includes(host)) value.model = "inherit";
   }
-  else if (host === "oh-my-pi" && model === "inherit") delete value.model;
+  else if ((host === "oh-my-pi" || host === "devin") && model === "inherit") delete value.model;
   else if (model !== undefined) value.model = model;
   const reasoningField = REASONING_FIELD[host];
   if (reasoningField) {
